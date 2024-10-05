@@ -4,3 +4,4 @@ source $current_rc_script_dir/rc.d/functions.d/recurse-run
 source $current_rc_script_dir/rc.d/functions.d/mkcd
 source $current_rc_script_dir/rc.d/functions.d/clipboard
 source $current_rc_script_dir/rc.d/functions.d/get-terminal-error-text-by-exit-code
+source $current_rc_script_dir/rc.d/functions.d/adb

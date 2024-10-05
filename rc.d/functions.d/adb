@@ -1,0 +1,13 @@
+# Connects to paired android device with wireless adb regardless the current adb port
+adbw-brute-connect() {
+  if [ -z "$1" ]; then
+    echo "Usage: adbw-brute-connect <IP Address or Hostname>"
+    return 1
+  fi
+
+  ip="$1"
+
+  for p in $(nmap "$ip" -p 37000-44000 | awk '/\/tcp/ {print $1}' | cut -d/ -f1); do
+    adb connect "$ip:$p"
+  done
+}

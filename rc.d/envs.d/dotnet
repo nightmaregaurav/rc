@@ -6,3 +6,5 @@ elif [ -f /usr/local/share/dotnet/dotnet ]; then
 elif [ -f /usr/share/dotnet/dotnet ]; then
   export DOTNET_ROOT=/usr/share/dotnet
 fi
+
+export LD_LIBRARY_PATH="/lib:/usr/lib:/usr/local/lib"

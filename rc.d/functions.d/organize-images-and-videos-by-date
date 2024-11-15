@@ -1,0 +1,59 @@
+# organize images and videos in a folder by date and store in date named folder eg: 2 Aug 2022
+organize-images-and-videos-by-date() {
+    local folder="$1"
+    if [[ -z "$folder" ]]; then
+        echo "Usage: organize_files_by_date <folder_path>"
+        return 1
+    fi
+    
+    if [[ ! -d "$folder" ]]; then
+        echo "Error: '$folder' is not a valid directory."
+        return 1
+    fi
+
+    echo "Processing files in folder: $folder"
+
+    for file in "$folder"/*.{jpg,jpeg,png,gif,mp4,mov,mkv}; do
+        [[ -e "$file" ]] || continue # Skip if no matching files exist
+
+        echo "---------------------------------------"
+        echo "Processing file: $file"
+
+        local creation_date=""
+
+        if [[ $file =~ \.(jpg|jpeg|png|gif)$ ]]; then
+            creation_date=$(identify -format "%[EXIF:DateTimeOriginal]" "$file" 2>/dev/null | cut -d' ' -f1)
+            echo "Extracted creation date (image): $creation_date"
+        elif [[ $file =~ \.(mp4|mov|mkv)$ ]]; then
+            creation_date=$(ffprobe -v quiet -select_streams v:0 -show_entries format_tags=creation_time \
+                -of default=noprint_wrappers=1:nokey=1 "$file" | cut -d'T' -f1)
+            echo "Extracted creation date (video): $creation_date"
+        fi
+
+        if [[ -z "$creation_date" ]]; then
+            echo "No creation date found for '$file'. Skipping."
+            continue
+        fi
+
+        creation_date=$(echo "$creation_date" | sed 's/:/-/g')
+        echo "Normalized creation date: $creation_date"
+
+        local formatted_date
+        formatted_date=$(date -d "$creation_date" +"%d %b %Y" 2>/tmp/date_error.log)
+        if [[ $? -ne 0 || -z "$formatted_date" ]]; then
+            echo "Error formatting date for '$file'."
+            echo "Date command error: $(cat /tmp/date_error.log)"
+            continue
+        fi
+        echo "Formatted date: $formatted_date"
+
+        local target_folder="$folder/$formatted_date"
+        mkdir -p "$target_folder"
+        echo "Created target folder: $target_folder"
+
+        mv "$file" "$target_folder"
+        echo "Moved '$file' to '$target_folder'"
+    done
+
+    echo "Processing complete."
+}

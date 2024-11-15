@@ -1,0 +1,33 @@
+# Extract GPS location from image and video
+extract-gps-location-from-image() {
+    local file="$1"    
+    local gps_location=""
+    
+    if [[ ! -f "$file" ]]; then
+        echo "Error: File '$file' does not exist."
+        return 1
+    fi
+
+    if [[ ! "$file" =~ \.(jpg|jpeg|png|mp4|mkv|avi|mov)$ ]]; then
+        echo "Error: '$file' is not a supported image or video file."
+        return 1
+    fi
+
+    if [[ "$file" =~ \.(jpg|jpeg|png)$ ]]; then
+        gps_location=$(identify -format "%[EXIF:GPSLatitude] %[EXIF:GPSLatitudeRef] %[EXIF:GPSLongitude] %[EXIF:GPSLongitudeRef]" "$file" 2>/dev/null)
+        
+        if [[ -n "$gps_location" ]]; then
+            echo "Extracted GPS location from image: $gps_location"
+        else
+            echo "No GPS location found for image '$file'."
+        fi
+    elif [[ "$file" =~ \.(mp4|mkv|avi|mov)$ ]]; then
+        gps_location=$(ffprobe -v error -show_entries format_tags=location -of default=noprint_wrappers=1:nokey=1 "$file")
+        
+        if [[ -n "$gps_location" ]]; then
+            echo "Extracted GPS location from video: $gps_location"
+        else
+            echo "No GPS location found for video '$file'."
+        fi
+    fi
+}

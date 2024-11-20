@@ -7,3 +7,4 @@ source $current_rc_script_dir/rc.d/functions.d/get-terminal-error-text-by-exit-c
 source $current_rc_script_dir/rc.d/functions.d/adb
 source $current_rc_script_dir/rc.d/functions.d/organize-images-and-videos-by-date
 source $current_rc_script_dir/rc.d/functions.d/extract-gps-location-from-image
+source $current_rc_script_dir/rc.d/functions.d/count

@@ -11,3 +11,26 @@ adbw-brute-connect() {
     adb connect "$ip:$p"
   done
 }
+
+
+adbw-brute-pair() {
+  if [ -z "$1" ]; then
+    echo "Usage: adbw-brute-pair <IP Address or Hostname>"
+    return 1
+  fi
+
+  ip="$1"
+
+  # skip the first port, assuming it's used for wireless adb
+  # pairing will take place on the next port available
+  skipped_once=false
+  for p in $(nmap "$ip" -p 37000-44000 | awk '/\/tcp/ {print $1}' | cut -d/ -f1); do
+    if [ "$skipped_once" = false ]; then
+      skipped_once=true
+      echo "Skipping port $p assuming it's used for wireless adb, pairing will take place on the next port available"
+      continue
+    fi
+    # adb pair "$ip:$p" <pin> # not implemented yet as unsuccessful attempts to pair will end the pairing session
+    adb pair "$ip:$p" # for now, just try to pair without a pin, it will prompt for a pin if needed
+  done
+}

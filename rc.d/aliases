@@ -11,4 +11,4 @@ alias da='date "+%Y-%m-%d %A %T %Z"'
 alias openports='netstat -nape --inet'
 
 # alias to get CPU usage
-alias cpu="grep 'cpu ' /proc/stat | awk '{usage=(\$2+\$4)*100/(\$2+\$4+\$5)} END {print usage}' | awk '{printf(\"%.1f\n\", \$1)}'"
+alias cpu="if [ -r /proc/stat ]; then grep 'cpu ' /proc/stat | awk '{usage=(\$2+\$4)*100/(\$2+\$4+\$5)} END {print usage}' | awk '{printf(\"%.1f\n\", \$1)}'; else echo 'N/A'; fi"

@@ -1,7 +1,3 @@
-source $current_rc_script_dir/rc.d/envs.d/python-virtualenvwrapper
-source $current_rc_script_dir/rc.d/envs.d/dotnet
-source $current_rc_script_dir/rc.d/envs.d/java
-source $current_rc_script_dir/rc.d/envs.d/android
-source $current_rc_script_dir/rc.d/envs.d/nvm
-source $current_rc_script_dir/rc.d/envs.d/networking
-source $current_rc_script_dir/rc.d/envs.d/path
+for file in "$current_rc_script_dir/rc.d/envs.d/"*; do
+  [ -f "$file" ] && source "$file"
+done

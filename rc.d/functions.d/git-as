@@ -3,7 +3,7 @@
 PROFILE_DIR="$HOME/.git-ssh-profiles"
 mkdir -p "$PROFILE_DIR"
 
-add-git-profile() {
+mk-git-profile() {
   read -rp "[*] Profile name (avoid space): " profile
   if [[ -z "$profile" || ! "$profile" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     echo "[!] Invalid profile name. Use only letters, digits, dashes or underscores."
@@ -16,9 +16,10 @@ add-git-profile() {
   read -rp "[*] Git user.email: " git_email
   [[ -z "$git_email" ]] && { echo "[!] User email required"; return 1; }
 
-  read -rp "[*] SSH key path: " ssh_key
-  [[ -z "$ssh_key" ]] && { echo "[!] SSH key path required"; return 1; }
+  read -rp "[*] SSH key path (e.g., ~/.ssh/id_ed25519_$profile): " ssh_key_raw
+  [[ -z "$ssh_key_raw" ]] && { echo "[!] SSH key path required"; return 1; }
 
+  ssh_key="${ssh_key_raw/#\~/$HOME}"
   profile_file="$PROFILE_DIR/.${profile}"
   mkdir -p "$(dirname "$ssh_key")"
 
@@ -40,7 +41,24 @@ EOF
   echo "[✓] Profile '$profile' created."
 }
 
-list-git-profiles() {
+rm-git-profile() {
+  local profile="$1"
+  if [[ -z "$profile" ]]; then
+    echo "[!] Usage: rm-git-profile <profile>"
+    return 1
+  fi
+
+  local profile_file="$PROFILE_DIR/.${profile}"
+  if [[ ! -f "$profile_file" ]]; then
+    echo "[!] Profile '$profile' not found."
+    return 1
+  fi
+
+  rm -f "$profile_file"
+  echo "[✓] Profile '$profile' removed."
+}
+
+ls-git-profile() {
   local profiles
   profiles=$(find "$PROFILE_DIR" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
 
@@ -88,22 +106,29 @@ _git_as_completions() {
   profiles=$(find "$profile_dir" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
 
   if [[ $COMP_CWORD -eq 1 ]]; then
-    # First word after git-as: suggest profiles
     COMPREPLY=( $(compgen -W "$profiles" -- "$cur") )
     return 0
   fi
 
-  # Shift out the profile and adjust for git completion
-  local -a git_words=(git "${COMP_WORDS[@]:2}")
-  local git_cword=$((COMP_CWORD - 2))
-
-  # Call the official git completion function
-  COMP_WORDS=("${git_words[@]}")
-  COMP_CWORD=$git_cword
-
-  __git_complete git __git_main
+  # Until I figure out how to pass through remaining parts to git's completion
+  COMPREPLY=("")
+  return 0
 }
 
-# Register completion
-complete -o default -F _git_as_completions git-as
+_rm_git_profile_completions() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  local profile_dir="$HOME/.git-ssh-profiles"
+  local profiles
+  profiles=$(find "$profile_dir" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
 
+  if [[ $COMP_CWORD -eq 1 ]]; then
+    COMPREPLY=( $(compgen -W "$profiles" -- "$cur") )
+    return 0
+  fi
+
+  COMPREPLY=("")
+  return 0
+}
+
+complete -o default -F _git_as_completions git-as
+complete -o default -F _rm_git_profile_completions rm-git-profile

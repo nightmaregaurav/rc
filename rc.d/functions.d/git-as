@@ -16,8 +16,8 @@ mk-git-profile() {
   read -rp "[*] Git user.email: " git_email
   [[ -z "$git_email" ]] && { echo "[!] User email required"; return 1; }
 
-  read -rp "[*] SSH key path (e.g., ~/.ssh/id_ed25519_$profile): " ssh_key_raw
-  [[ -z "$ssh_key_raw" ]] && { echo "[!] SSH key path required"; return 1; }
+  read -rp "[*] SSH key path (default: ~/.ssh/id_ed25519_$profile): " ssh_key_raw
+  [[ -z "$ssh_key_raw" ]] && { ssh_key_raw="$HOME/.ssh/id_ed25519_$profile"; }
 
   ssh_key="${ssh_key_raw/#\~/$HOME}"
   profile_file="$PROFILE_DIR/.${profile}"

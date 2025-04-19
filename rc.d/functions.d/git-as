@@ -1,0 +1,109 @@
+#!/bin/bash
+
+PROFILE_DIR="$HOME/.git-ssh-profiles"
+mkdir -p "$PROFILE_DIR"
+
+add-git-profile() {
+  read -rp "[*] Profile name (avoid space): " profile
+  if [[ -z "$profile" || ! "$profile" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "[!] Invalid profile name. Use only letters, digits, dashes or underscores."
+    return 1
+  fi
+
+  read -rp "[*] Git user.name: " git_name
+  [[ -z "$git_name" ]] && { echo "[!] User name required"; return 1; }
+
+  read -rp "[*] Git user.email: " git_email
+  [[ -z "$git_email" ]] && { echo "[!] User email required"; return 1; }
+
+  read -rp "[*] SSH key path: " ssh_key
+  [[ -z "$ssh_key" ]] && { echo "[!] SSH key path required"; return 1; }
+
+  profile_file="$PROFILE_DIR/.${profile}"
+  mkdir -p "$(dirname "$ssh_key")"
+
+  if [[ ! -f "$ssh_key" ]]; then
+    echo "[*] SSH key not found, generating..."
+    ssh-keygen -t ed25519 -C "$git_email" -f "$ssh_key"
+    echo "[*] Public key:"
+    cat "${ssh_key}.pub"
+  fi
+
+  cat > "$profile_file" <<EOF
+#!/bin/bash
+export GIT_SSH_PROFILE__SSH_KEY_PATH="$ssh_key"
+export GIT_SSH_PROFILE__NAME="$git_name"
+export GIT_SSH_PROFILE__EMAIL="$git_email"
+EOF
+
+  chmod 755 "$profile_file"
+  echo "[✓] Profile '$profile' created."
+}
+
+list-git-profiles() {
+  local profiles
+  profiles=$(find "$PROFILE_DIR" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
+
+  if [[ -z "$profiles" ]]; then
+    echo "[!] No profiles found in $PROFILE_DIR"
+  else
+    echo "[*] Available profiles:"
+    echo "$profiles" | sed 's/^/  - /'
+  fi
+}
+
+git-as() {
+  local profile="$1"
+  shift
+
+  if [[ -z "$profile" ]]; then
+    echo "[!] Usage: git-as <profile> <git-command...>"
+    return 1
+  fi
+
+  local script="$PROFILE_DIR/.${profile}"
+  if [[ ! -f "$script" ]]; then
+    echo "[!] Profile '$profile' not found."
+    return 1
+  fi
+
+  git rev-parse --is-inside-work-tree &>/dev/null || {
+    echo "[!] Not inside a Git repository"
+    return 1
+  }
+
+  source "$script"
+
+  git config --local user.name "$GIT_SSH_PROFILE__NAME"
+  git config --local user.email "$GIT_SSH_PROFILE__EMAIL"
+  git config --local core.sshCommand "ssh -i \"$GIT_SSH_PROFILE__SSH_KEY_PATH\""
+
+  git "$@"
+}
+
+_git_as_completions() {
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+  local profile_dir="$HOME/.git-ssh-profiles"
+  local profiles
+  profiles=$(find "$profile_dir" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
+
+  if [[ $COMP_CWORD -eq 1 ]]; then
+    # First word after git-as: suggest profiles
+    COMPREPLY=( $(compgen -W "$profiles" -- "$cur") )
+    return 0
+  fi
+
+  # Shift out the profile and adjust for git completion
+  local -a git_words=(git "${COMP_WORDS[@]:2}")
+  local git_cword=$((COMP_CWORD - 2))
+
+  # Call the official git completion function
+  COMP_WORDS=("${git_words[@]}")
+  COMP_CWORD=$git_cword
+
+  __git_complete git __git_main
+}
+
+# Register completion
+complete -o default -F _git_as_completions git-as
+

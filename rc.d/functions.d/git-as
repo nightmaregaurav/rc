@@ -85,12 +85,17 @@ git-as() {
     return 1
   fi
 
-  git rev-parse --is-inside-work-tree &>/dev/null || {
-    echo "[!] Not inside a Git repository"
-    return 1
-  }
+  # Reset the vairabls first
+  export GIT_SSH_PROFILE__SSH_KEY_PATH=""
+  export GIT_SSH_PROFILE__NAME=""
+  export GIT_SSH_PROFILE__EMAIL=""
 
   source "$script"
+
+  git rev-parse --is-inside-work-tree &>/dev/null || {
+    git -c core.sshCommand="ssh -i \"$GIT_SSH_PROFILE__SSH_KEY_PATH\"" "$@"
+    return 1
+  }
 
   git config --local user.name "$GIT_SSH_PROFILE__NAME"
   git config --local user.email "$GIT_SSH_PROFILE__EMAIL"

@@ -1,0 +1,17 @@
+# extracts images from PDF in real quality
+extract-image-from-pdf() {
+  if [ "$#" -ne 2 ]; then
+    echo "Usage: extract-image-from-pdf <input-pdf-file> <output-filename-prefix>"
+    return 1
+  fi
+
+  local input_file="$1"
+  local output_prefix="$2"
+
+  if [ ! -f "$input_file" ]; then
+    echo "Error: File '$input_file' not found."
+    return 1
+  fi
+
+  pdfimages -all "$input_file" "$output_prefix"
+}

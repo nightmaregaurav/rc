@@ -1,5 +1,22 @@
 # Extract GPS location from image and video
 extract-gps-location-from-image() {
+    if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+        echo "Usage: extract-gps-location-from-image <file>"
+        echo
+        echo "Extracts GPS location from an image or video file."
+        echo
+        echo "Examples:"
+        echo "  extract-gps-location-from-image image.jpg"
+        echo "  extract-gps-location-from-image video.mp4"
+        return 0
+    fi
+
+    if [ -z "$1" ]; then
+        echo "Missing argument: <file>"
+        echo "Try 'extract-gps-location-from-image --help' for more information."
+        return 1
+    fi
+
     local file="$1"    
     local gps_location=""
     

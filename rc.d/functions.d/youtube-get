@@ -1,5 +1,22 @@
 # youtube-get function to use yt-dlp to download youtube content
 youtube-get() {
+    if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+        echo "Usage: youtube-get <bestaudio|mp3|bestvideo|mp4> <URL1> [URL2] ..."
+        echo
+        echo "Downloads YouTube videos or audio using yt-dlp."
+        echo
+        echo "Options:"
+        echo "  bestaudio   Download the best audio quality."
+        echo "  mp3        Download and convert to mp3 format."
+        echo "  bestvideo   Download the best video quality."
+        echo "  mp4        Download the best video quality in mp4 format."
+        echo
+        echo "Examples:"
+        echo "  youtube-get bestaudio https://www.youtube.com/watch?v=example"
+        echo "  youtube-get mp3 https://www.youtube.com/watch?v=example"
+        return 0
+    fi
+
     if ! command -v yt-dlp >/dev/null 2>&1; then
         echo "yt-dlp not found. Installing via pip..."
         pip install --user yt-dlp || { echo "Failed to install yt-dlp"; return 1; }

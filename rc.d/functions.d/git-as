@@ -1,9 +1,19 @@
 #!/bin/bash
 
-PROFILE_DIR="$HOME/.git-ssh-profiles"
-mkdir -p "$PROFILE_DIR"
+GIT_PROFILE_DIR="$HOME/.git-ssh-profiles"
+mkdir -p "$GIT_PROFILE_DIR"
 
 mk-git-profile() {
+  if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: mk-git-profile"
+    echo
+    echo "Creates a new git profile with SSH key and user information."
+    echo
+    echo "Examples:"
+    echo "  mk-git-profile"
+    return 0
+  fi
+
   read -rp "[*] Profile name (avoid space): " profile
   if [[ -z "$profile" || ! "$profile" =~ ^[a-zA-Z0-9_-]+$ ]]; then
     echo "[!] Invalid profile name. Use only letters, digits, dashes or underscores."
@@ -20,7 +30,7 @@ mk-git-profile() {
   [[ -z "$ssh_key_raw" ]] && { ssh_key_raw="$HOME/.ssh/id_ed25519_$profile"; }
 
   ssh_key="${ssh_key_raw/#\~/$HOME}"
-  profile_file="$PROFILE_DIR/.${profile}"
+  profile_file="$GIT_PROFILE_DIR/.${profile}"
   mkdir -p "$(dirname "$ssh_key")"
 
   if [[ ! -f "$ssh_key" ]]; then
@@ -42,13 +52,29 @@ EOF
 }
 
 rm-git-profile() {
+  if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: rm-git-profile <profile>"
+    echo
+    echo "Removes the specified git profile."
+    echo
+    echo "Examples:"
+    echo "  rm-git-profile myprofile"
+    return 0
+  fi
+
+  if [ -z "$1" ]; then
+    echo "[!] Missing argument: <profile>"
+    echo "Try 'rm-git-profile --help' for more information."
+    return 1
+  fi
+  
   local profile="$1"
   if [[ -z "$profile" ]]; then
     echo "[!] Usage: rm-git-profile <profile>"
     return 1
   fi
 
-  local profile_file="$PROFILE_DIR/.${profile}"
+  local profile_file="$GIT_PROFILE_DIR/.${profile}"
   if [[ ! -f "$profile_file" ]]; then
     echo "[!] Profile '$profile' not found."
     return 1
@@ -59,11 +85,26 @@ rm-git-profile() {
 }
 
 ls-git-profile() {
+  if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: ls-git-profile"
+    echo
+    echo "Lists all available git profiles."
+    echo
+    echo "Examples:"
+    echo "  ls-git-profile"
+    return 0
+  fi
+
+  if [[ ! -d "$GIT_PROFILE_DIR" ]]; then
+    echo "[!] No profiles found in $GIT_PROFILE_DIR"
+    return 1
+  fi
+
   local profiles
-  profiles=$(find "$PROFILE_DIR" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
+  profiles=$(find "$GIT_PROFILE_DIR" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
 
   if [[ -z "$profiles" ]]; then
-    echo "[!] No profiles found in $PROFILE_DIR"
+    echo "[!] No profiles found in $GIT_PROFILE_DIR"
   else
     echo "[*] Available profiles:"
     echo "$profiles" | sed 's/^/  - /'
@@ -71,6 +112,16 @@ ls-git-profile() {
 }
 
 git-as() {
+  if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: git-as <profile> <git-command...>"
+    echo
+    echo "Executes a git command with the specified profile."
+    echo
+    echo "Examples:"
+    echo "  git-as myprofile commit -m 'My commit message'"
+    return 0
+  fi
+
   local profile="$1"
   shift
 
@@ -79,7 +130,7 @@ git-as() {
     return 1
   fi
 
-  local script="$PROFILE_DIR/.${profile}"
+  local script="$GIT_PROFILE_DIR/.${profile}"
   if [[ ! -f "$script" ]]; then
     echo "[!] Profile '$profile' not found."
     return 1
@@ -106,9 +157,9 @@ git-as() {
 
 _git_as_completions() {
   local cur="${COMP_WORDS[COMP_CWORD]}"
-  local profile_dir="$HOME/.git-ssh-profiles"
+  local GIT_profile_dir="$HOME/.git-ssh-profiles"
   local profiles
-  profiles=$(find "$profile_dir" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
+  profiles=$(find "$GIT_profile_dir" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
 
   if [[ $COMP_CWORD -eq 1 ]]; then
     COMPREPLY=( $(compgen -W "$profiles" -- "$cur") )
@@ -122,9 +173,9 @@ _git_as_completions() {
 
 _rm_git_profile_completions() {
   local cur="${COMP_WORDS[COMP_CWORD]}"
-  local profile_dir="$HOME/.git-ssh-profiles"
+  local GIT_profile_dir="$HOME/.git-ssh-profiles"
   local profiles
-  profiles=$(find "$profile_dir" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
+  profiles=$(find "$GIT_profile_dir" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
 
   if [[ $COMP_CWORD -eq 1 ]]; then
     COMPREPLY=( $(compgen -W "$profiles" -- "$cur") )

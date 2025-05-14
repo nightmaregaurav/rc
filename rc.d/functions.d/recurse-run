@@ -1,5 +1,16 @@
 # Recursively run a command in folders
 function recurse-run() {
+  if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: recurse-run <command>"
+    echo
+    echo "Starts a session to recursively run passed commands in all folders in the current directory."
+    echo "You can also pass an initial command to run before the recursion starts."
+    echo
+    echo "Examples:"
+    echo "  recurse-run [initial_command]"
+    return 0
+  fi
+
   initial_command="$*"
   shift "$#"
 

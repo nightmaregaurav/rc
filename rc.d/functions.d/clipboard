@@ -1,5 +1,21 @@
 # Copy to clipboard pipe
 function to-clipboard() {
+    if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+        echo "Usage: to-clipboard <text>"
+        echo
+        echo "Copies the provided text to the clipboard."
+        echo
+        echo "Examples:"
+        echo "  to-clipboard 'Hello, World!'"
+        return 0
+    fi
+
+    if [ -z "$1" ]; then
+        echo "Missing argument: <text>"
+        echo "Try 'to-clipboard --help' for more information."
+        return 1
+    fi
+
     if [[ $OSTYPE == "darwin"* ]]; then
         echo "$1" | pbcopy  # for macOS
     elif [[ $OSTYPE == "linux-gnu"* ]]; then
@@ -12,6 +28,16 @@ function to-clipboard() {
 
 # Paste from clipboard pipe
 function from-clipboard() {
+    if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+        echo "Usage: from-clipboard"
+        echo
+        echo "Pastes the content of the clipboard."
+        echo
+        echo "Examples:"
+        echo "  from-clipboard"
+        return 0
+    fi
+    
     if [[ $OSTYPE == "darwin"* ]]; then
         pbpaste  # for macOS
     elif [[ $OSTYPE == "linux-gnu"* ]]; then

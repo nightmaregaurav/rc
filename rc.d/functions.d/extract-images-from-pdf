@@ -1,7 +1,18 @@
 # extracts images from PDF in real quality
 extract-image-from-pdf() {
-  if [ "$#" -ne 2 ]; then
+  if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "Usage: extract-image-from-pdf <input-pdf-file> <output-filename-prefix>"
+    echo
+    echo "Extracts images from a PDF file and saves them with the specified prefix."
+    echo
+    echo "Examples:"
+    echo "  extract-image-from-pdf input.pdf output_prefix"
+    return 0
+  fi
+
+  if [ "$#" -ne 2 ]; then
+    echo "Invalid number of arguments."
+    echo "Try 'extract-image-from-pdf --help' for more information."
     return 1
   fi
 

@@ -1,5 +1,15 @@
 # Simple reminder script that uses `at` or `systemd-run` to schedule reminders.
 remind-me() {
+  if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: remind-me to \"<message>\" at HH:MM [on DD/MM or DD/MM/YYYY]"
+    echo
+    echo "Sets a reminder with the specified message at the given time and date."
+    echo
+    echo "Examples:"
+    echo "  remind-me to \"Meeting with Bob\" at 14:30 on 25/12"
+    return 0
+  fi
+
   local message=""
   local at_time=""
   local on_date=""
@@ -143,6 +153,10 @@ _remind_me_completion() {
   [[ $seen_to -eq 0 ]] && options+=" to"
   [[ $seen_at -eq 0 ]] && options+=" at"
   [[ $seen_on -eq 0 ]] && options+=" on"
+
+  if [[ $seen_to -ne 1 && $seen_at -ne 1 && $seen_on -ne 1 ]]; then
+    options+=" --help"
+  fi
 
   COMPREPLY=( $(compgen -W "$options" -- "$cur") )
 }

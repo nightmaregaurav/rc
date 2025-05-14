@@ -1,8 +1,24 @@
 # organize images and videos in a folder by date and store in date named folder eg: 2 Aug 2022
 organize-images-and-videos-by-date() {
+    if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+        echo "Usage: organize-images-and-videos-by-date <folder_path>"
+        echo
+        echo "Organizes images and videos in the specified folder by their creation date."
+        echo
+        echo "Examples:"
+        echo "  organize-images-and-videos-by-date /path/to/folder"
+        return 0
+    fi
+
+    if [ "$#" -ne 1 ]; then
+        echo "Invalid number of arguments."
+        echo "Try 'organize-images-and-videos-by-date --help' for more information."
+        return 1
+    fi
+
     local folder="$1"
     if [[ -z "$folder" ]]; then
-        echo "Usage: organize_files_by_date <folder_path>"
+        echo "Usage: organize-images-and-videos-by-date <folder_path>"
         return 1
     fi
     

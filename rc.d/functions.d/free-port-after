@@ -1,5 +1,21 @@
 # Get free port after a port
-function freeportafter() {
+function free-port-after() {
+  if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: free-port-after <port>"
+    echo
+    echo "Finds a free port after the specified port."
+    echo
+    echo "Examples:"
+    echo "  free-port-after 5000"
+    return 0
+  fi
+
+  if [ "$#" -ne 1 ]; then
+    echo "Missing argument: <port>"
+    echo "Try 'free-port-after --help' for more information."
+    return 1
+  fi
+
   local blank=$(echo " " | tr -d ' ' | tr -d '  ' | tr -d '\n');
   local port=$*;
 

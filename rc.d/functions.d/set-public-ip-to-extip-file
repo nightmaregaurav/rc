@@ -1,5 +1,15 @@
 # function to set ext ip in a file
-function set_public_ip_to_extip_file() {
+function set-public-ip-to-extip-file() {
+  if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: set-public-ip-to-extip-file"
+    echo
+    echo "Fetches the public IP address and saves it to ~/.extip."
+    echo
+    echo "Examples:"
+    echo "  set-public-ip-to-extip-file"
+    return 0
+  fi
+
   local addr=$( timeout 3 curl -s http://whatismyip.akamai.com/ || \
     timeout 3 curl -s http://ifconfig.io/ip || \
     timeout 3 curl -s http://ifconfig.me/ip || \

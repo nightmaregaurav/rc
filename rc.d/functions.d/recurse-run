@@ -30,7 +30,7 @@ function recurse-run() {
     read -r cmd
     
     if [[ -z "$cmd" ]]; then
-      echo -n "No commands found! Exiting..."
+      echo "No commands found! Exiting..."
       break
     fi
 

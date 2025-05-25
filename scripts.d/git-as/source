@@ -1,0 +1,30 @@
+export GIT_PROFILE_DIR="$HOME/.git-ssh-profiles"
+mkdir -p "$GIT_PROFILE_DIR"
+
+# Make all scripts in bin folder executable
+if [ -d "$current_rc_script_dir/scripts.d/git-as/bin" ]; then
+  find "$current_rc_script_dir/scripts.d/git-as/bin" -type f -not -perm -u=x -exec chmod u+x {} \;
+fi
+
+PATH="$PATH:$current_rc_script_dir/scripts.d/git-as/bin"
+source "$current_rc_script_dir/scripts.d/git-as/completions"
+
+original_completions_candidates=(
+    "$HOME/.git-completion.bash"
+    "$HOME/git-completion.bash"
+    "$HOME/.bash_completion.d/git"
+    "$HOME/.config/bash_completion.d/git"
+
+    "/usr/share/bash-completion/completions/git"
+    "/etc/bash_completion.d/git"
+    "/usr/local/etc/bash_completion.d/git"
+    "/usr/share/git-core/contrib/completion/git-completion.bash"
+    "/usr/lib/git-core/git-completion.bash"
+    "/usr/share/bash-completion/completions/git-completion.bash"
+)
+
+for path in "${original_completions_candidates[@]}"; do
+    if [[ -f "$path" ]]; then
+        source "$path"
+    fi
+done

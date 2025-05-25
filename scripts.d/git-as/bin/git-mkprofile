@@ -1,0 +1,47 @@
+#!/bin/bash
+
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: git mkprofile"
+    echo
+    echo "Creates a new git profile with SSH key and user information."
+    echo
+    echo "Examples:"
+    echo "  git mkprofile"
+    exit 0
+fi
+
+read -rp "[*] Profile name (avoid space): " profile
+if [[ -z "$profile" || ! "$profile" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    echo "[!] Invalid profile name. Use only letters, digits, dashes or underscores." >&2
+    exit 1
+fi
+
+read -rp "[*] Git user.name: " git_name
+[[ -z "$git_name" ]] && { echo "[!] User name required" >&2; exit 1; }
+
+read -rp "[*] Git user.email: " git_email
+[[ -z "$git_email" ]] && { echo "[!] User email required" >&2; exit 1; }
+
+read -rp "[*] SSH key path (default: ~/.ssh/id_ed25519_$profile): " ssh_key_raw
+[[ -z "$ssh_key_raw" ]] && { ssh_key_raw="$HOME/.ssh/id_ed25519_$profile"; }
+
+ssh_key="${ssh_key_raw/#\~/$HOME}"
+profile_file="$GIT_PROFILE_DIR/.${profile}"
+mkdir -p "$(dirname "$ssh_key")"
+
+if [[ ! -f "$ssh_key" ]]; then
+    echo "[*] SSH key not found, generating..."
+    ssh-keygen -t ed25519 -C "$git_email" -f "$ssh_key"
+    echo "[*] Public key:"
+    cat "${ssh_key}.pub"
+fi
+
+cat > "$profile_file" <<EOF
+#!/bin/bash
+export GIT_SSH_PROFILE__SSH_KEY_PATH="$ssh_key"
+export GIT_SSH_PROFILE__NAME="$git_name"
+export GIT_SSH_PROFILE__EMAIL="$git_email"
+EOF
+
+chmod 755 "$profile_file"
+echo "[✓] Profile '$profile' created."

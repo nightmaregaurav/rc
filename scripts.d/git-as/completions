@@ -1,0 +1,77 @@
+#!/bin/bash
+
+_git_as() {
+    local cur prev words cword
+    _get_comp_words_by_ref -n : cur prev words cword
+
+    local original_command
+    original_command=${COMP_WORDS[@]}
+
+    local profiles
+    profiles=$(find "$GIT_PROFILE_DIR" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
+
+    # Complete profile (third word) if original_command starts with "git as"
+    if [[ "$original_command" =~ ^git\ as(\ .*)?$ && "$cword" -eq 2 ]]; then
+        COMPREPLY=( $(compgen -W "$profiles -h" -- "$cur") )
+        return 0
+    fi
+
+    # if somehow triggered by less than 2
+    if [[ $cword -lt 2 ]]; then
+        COMPREPLY=("")
+        return 0
+    fi
+
+    # if greater than or equal to 3
+    # Delegate completion to git after profile (i.e., from third word onward)
+    # command after git as <profile> is the actual git command
+    # if original does not start with "git as" assign the original command directly to git_command
+    if [[ "$original_command" != git\ as* ]]; then
+        git_command="$original_command"
+    elif [[ -z $prev ]]; then
+        git_command="git ${original_command#git as }"
+    else
+        git_command="git ${original_command#git as $prev }"
+    fi
+
+    # if function '__git_main' is available call it otherwise return most common git commands
+    if [[ -n $(type -t __git_main) ]]; then
+        COMP_WORDS=($git_command)
+        __git_main
+        return 0
+    else
+        COMPREPLY=( $(compgen -W "add commit push pull status checkout branch cherry-pick stash fetch rm" -- "$cur") )
+        return 0
+    fi
+}
+
+_git_rmprofile() {
+    local cur prev words cword
+    _get_comp_words_by_ref -n : cur prev words cword
+
+    local profiles
+    profiles=$(find "$GIT_PROFILE_DIR" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
+
+    # Complete profile (third word)
+    if [[ "$cword" -eq 2 ]]; then
+        COMPREPLY=( $(compgen -W "$profiles -h" -- "$cur") )
+        return 0
+    fi
+
+    COMPREPLY=("")
+    return 0
+}
+
+_git_mkprofile() {
+    COMPREPLY=( $(compgen -W "-h" -- "${COMP_WORDS[COMP_CWORD]}") )
+}
+
+_git_lsprofile() {
+    COMPREPLY=( $(compgen -W "-h" -- "${COMP_WORDS[COMP_CWORD]}") )
+}
+
+# Register completions
+complete -o default -F _git_as git-as
+complete -o default -F _git_rmprofile git-rmprofile
+complete -o default -F _git_mkprofile git-mkprofile
+complete -o default -F _git_lsprofile git-lsprofile

@@ -1,3 +1,0 @@
-for file in "$current_rc_script_dir/rc.d/functions.d/"*; do
-  [ -f "$file" ] && source "$file"
-done

@@ -1,0 +1,25 @@
+#!/bin/bash
+
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: git lsprofiles"
+    echo
+    echo "Lists all available git profiles."
+    echo
+    echo "Examples:"
+    echo "  git lsprofiles"
+    exit 0
+fi
+
+if [[ ! -d "$GIT_PROFILE_DIR" ]]; then
+    echo "[!] No profiles found in $GIT_PROFILE_DIR" >&2
+    exit 1
+fi
+
+profiles=$(find "$GIT_PROFILE_DIR" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
+
+if [[ -z "$profiles" ]]; then
+    echo "[!] No profiles found in $GIT_PROFILE_DIR" >&2
+else
+    echo "[*] Available profiles:"
+    echo "$profiles" | sed 's/^/  - /'
+fi

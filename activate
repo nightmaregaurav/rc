@@ -10,9 +10,10 @@ else
 fi
 
 # Source environment variables first, then aliases, and finally functions
-source $current_rc_script_dir/rc.d/envs
-source $current_rc_script_dir/rc.d/aliases
-source $current_rc_script_dir/rc.d/functions
+source $current_rc_script_dir/scripts
+source $current_rc_script_dir/envs
+source $current_rc_script_dir/aliases
+source $current_rc_script_dir/functions
 
 # Save public IP Address to a file
 rm -f ~/.extip

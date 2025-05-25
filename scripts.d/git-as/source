@@ -9,6 +9,17 @@ fi
 PATH="$PATH:$current_rc_script_dir/scripts.d/git-as/bin"
 source "$current_rc_script_dir/scripts.d/git-as/completions"
 
+# Detect shell
+is_bash=false
+is_zsh=false
+
+if [ -n "$BASH_VERSION" ]; then
+    is_bash=true
+elif [ -n "$ZSH_VERSION" ]; then
+    is_zsh=true
+fi
+
+# Git completion file candidates
 original_completions_candidates=(
     "$HOME/.git-completion.bash"
     "$HOME/git-completion.bash"
@@ -23,8 +34,26 @@ original_completions_candidates=(
     "/usr/share/bash-completion/completions/git-completion.bash"
 )
 
-for path in "${original_completions_candidates[@]}"; do
-    if [[ -f "$path" ]]; then
-        source "$path"
+# Attempt to load appropriate completion based on shell
+if $is_bash; then
+    for path in "${original_completions_candidates[@]}"; do
+        if [[ -f "$path" ]]; then
+            source "$path"
+            break
+        fi
+    done
+elif $is_zsh; then
+    # Try to use native Zsh Git completions if available
+    if [[ -f /usr/share/zsh/site-functions/git-completion.zsh ]]; then
+        source /usr/share/zsh/site-functions/git-completion.zsh
+    elif [[ -f /usr/share/zsh/site-functions/_git ]]; then
+        autoload -Uz compinit && compinit
+        autoload -Uz bashcompinit && bashcompinit
+        for path in "${original_completions_candidates[@]}"; do
+            if [[ -f "$path" ]]; then
+                source "$path"
+                break
+            fi
+        done
     fi
-done
+fi

@@ -45,14 +45,19 @@ The following functions are included to simplify common tasks:
 - **`organize-images-and-videos-by-date`**: Organizes images and videos in a folder by their creation date.
 - **`extract-image-from-pdf`**: Extracts images from a PDF file.
 - **`extract-gps-location-from-image`**: Extracts GPS location metadata from images or videos.
-- **`git-as`**: Executes Git commands with a specific profile.
-- **`mk-git-profile`**: Creates a new Git profile with SSH key and user information.
-- **`rm-git-profile`**: Removes a Git profile.
-- **`ls-git-profile`**: Lists all available Git profiles.
 - **`remind-me`**: Sets a reminder with a message at a specific time and date.
 - **`youtube-get`**: Downloads YouTube videos or audio.
 - **`free-port-after`**: Finds a free port after a specified port.
 - **`recurse-run`**: Recursively runs a command in all subdirectories.
+
+### Extras
+The following extra features are included to simplify tasks:
+- Added `as <profile_name>`, `mkprofile`, `lsprofile`, and `rmprofile` aliases to `git` command so that it's easy to switch between git profiles (username, email and ssh key).
+  - Examples:
+    - `git mkprofile` [Follow steps] To create a new git profile.
+    - `git lsprofile` To list all git profiles.
+    - `git rmprofile <profile_name>` To remove a git profile.
+    - `git as <profile_name> commit -m "initial commit as a profile"` To make a commit using a profile.
 
 ## Usage
 After sourcing the activate script, all the environment variables, aliases, and functions will be available in your shell. Use the `--help` or `-h` flag with any function to see detailed usage instructions.

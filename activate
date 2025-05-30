@@ -3,11 +3,20 @@ if [ -n "${BASH_SOURCE[0]}" ]; then
     current_rc_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 elif [ -n "${ZSH_VERSION}" ]; then
     current_rc_script_dir="$(cd "$(dirname "${(%):-%x}")" && pwd)"
+    autoload -Uz compinit && compinit
+    autoload -Uz bashcompinit && bashcompinit
 elif [ -n "${.sh.file}" ]; then
     current_rc_script_dir="$(cd "$(dirname "${.sh.file}")" && pwd)"
 else
     current_rc_script_dir="$(pwd)"
 fi
+
+# Enable loading completion in zsh
+if [ -n "${ZSH_VERSION}" ]; then
+    autoload -Uz compinit && compinit
+    autoload -Uz bashcompinit &s& bashcompinit
+fi
+
 
 # Source environment variables first, then aliases, and finally functions
 source $current_rc_script_dir/scripts

@@ -49,6 +49,9 @@ The following functions are included to simplify common tasks:
 - **`youtube-get`**: Downloads YouTube videos or audio.
 - **`free-port-after`**: Finds a free port after a specified port.
 - **`recurse-run`**: Recursively runs a command in all subdirectories.
+- **`amplify`**: Boosts volume in the provided video/audio file.
+- **`split-video`**: Splits a video file into multiple parts in chunks of the specified duration.
+- **`serve`**: Simple wrapper for http-server (node)
 
 ### Extras
 The following extra features are included to simplify tasks:

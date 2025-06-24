@@ -5,17 +5,29 @@ remind-me() {
     echo
     echo "Sets a reminder with the specified message at the given time and date."
     echo
+    echo "Flags:"
+    echo "  --help              Display this help message."
+    echo "  to <Message>        Sets a reminder with the specified message."
+    echo "  at <Time>           Sets the time for the reminder. Cannot be used together with 'after or 'in'"
+    echo "  on <Date>           Sets the date for the reminder. Cannot be used together with 'after' or 'in'"
+    echo "  after <Duration>    Sets the duration for the reminder. Cannot be used together with 'at' or 'on'"
+    echo "  in <Duration>       Alias for 'after'."
+    echo
     echo "Examples:"
     echo "  remind-me to \"Meeting with Bob\" at 14:30 on 25/12"
+    echo "  remind-me to \"Meeting with Alice\" after 1 hour"
     return 0
   fi
 
   local message=""
   local at_time=""
   local on_date=""
+  local after_duration=""
   local seen_to=0
   local seen_at=0
   local seen_on=0
+  local seen_after=0
+  local seen_in=0
   local log_file="$HOME/.remind-me.log"
 
   while [[ $# -gt 0 ]]; do
@@ -37,6 +49,14 @@ remind-me() {
           echo "Error: 'at' flag specified more than once."
           return 1
         fi
+        if ((seen_after)); then
+          echo "Error: 'at' and 'after' flags cannot be used together."
+          return 1
+        fi
+        if ((seen_in)); then
+          echo "Error: 'at' and 'in' flags cannot be used together."
+          return 1
+        fi
         seen_at=1
         at_time="$2"
         shift 2
@@ -46,9 +66,59 @@ remind-me() {
           echo "Error: 'on' flag specified more than once."
           return 1
         fi
+        if ((seen_after)); then
+          echo "Error: 'on' and 'after' flags cannot be used together."
+          return 1
+        fi
+        if ((seen_in)); then
+          echo "Error: 'on' and 'in' flags cannot be used together."
+          return 1
+        fi
         seen_on=1
         on_date="$2"
         shift 2
+        ;;
+      after)
+        if ((seen_after)); then
+          echo "Error: 'after' flag specified more than once."
+          return 1
+        fi
+        if ((seen_in)); then
+          echo "Error: 'after' and 'in' flags cannot be used together."
+          return 1
+        fi
+        if ((seen_at)); then
+          echo "Error: 'after' and 'at' flags cannot be used together."
+          return 1
+        fi
+        if ((seen_on)); then
+          echo "Error: 'after' and 'on' flags cannot be used together."
+          return 1
+        fi
+        seen_after=1
+        after_duration="$2 $3"
+        shift 3
+        ;;
+      in)
+        if ((seen_in)); then
+          echo "Error: 'in' flag specified more than once."
+          return 1
+        fi
+        if ((seen_after)); then
+          echo "Error: 'after' and 'in' flags cannot be used together."
+          return 1
+        fi
+        if ((seen_at)); then
+          echo "Error: 'in' and 'at' flags cannot be used together."
+          return 1
+        fi
+        if ((seen_on)); then
+          echo "Error: 'in' and 'on' flags cannot be used together."
+          return 1
+        fi
+        seen_in=1
+        after_duration="$2 $3"
+        shift 3
         ;;
       *)
         echo "Unknown argument: $1"
@@ -58,13 +128,26 @@ remind-me() {
   done
 
   message=$(echo "$message" | sed 's/ *$//')
-  if [[ -z "$message" || -z "$at_time" ]]; then
-    echo "Usage: remind-me to \"<message>\" at HH:MM [on DD/MM or DD/MM/YYYY]"
+  if [[ -z "$message" ]]; then
+    echo "Message cannot be empty."
+    return 1
+  fi
+
+  if [[ -z "$at_time" && -z "$after_duration" ]]; then
+    echo "Either 'at', 'in' or 'after' flag must be provided."
     return 1
   fi
 
   # Normalize time format (e.g., 8:41AM → 08:41 AM)
   at_time=$(echo "$at_time" | sed -E 's/([0-9]{1,2}):([0-9]{2})([AaPp][Mm])/\1:\2 \3/')
+
+  if [[ -n "$after_duration" ]]; then
+    datetime_str=$(date -d "now + $after_duration" "+%Y-%m-%d %H:%M" 2>/dev/null)
+    on_date=$(date -d "$datetime_str" "+%d/%m/%Y")
+    at_time=$(date -d "$datetime_str" "+%H:%M")
+    IFS='/' read -r day month year <<< "$on_date"
+    iso_date="$year-$month-$day"
+  fi
 
   if [[ -z "$on_date" ]]; then
     on_date=$(date +%d/%m/%Y)
@@ -75,9 +158,8 @@ remind-me() {
   IFS='/' read -r day month year <<< "$on_date"
   iso_date="$year-$month-$day"
 
-  datetime_str=$(date -d "$iso_date $at_time" "+%Y-%m-%d %H:%M" 2>/dev/null)
   if [[ -z "$datetime_str" ]]; then
-    echo "Invalid date/time: '$iso_date $at_time'"
+    echo "Invalid date/time"
     return 1
   fi
 
@@ -121,17 +203,30 @@ _remind_me_completion() {
   local cur prev
   _init_completion || return
 
-  local seen_to=0 seen_at=0 seen_on=0
+  local seen_help=0 seen_to=0 seen_at=0 seen_on=0 seen_after=0 seen_in=0
 
   for word in "${COMP_WORDS[@]}"; do
     case "$word" in
+      --help) seen_help=1 ;;
       to) seen_to=1 ;;
       at) seen_at=1 ;;
       on) seen_on=1 ;;
+      after) seen_after=1 ;;
+      in) seen_in=1 ;;
     esac
   done
 
+  if [[ "$prev" =~ ^[0-9]+$ && "${COMP_WORDS[COMP_CWORD-2]}" =~ ^(after|in)$ ]]; then
+    if [[ "$prev" == "1" ]]; then
+      COMPREPLY=( $(compgen -W "minute hour day" -- "$cur") )
+    else
+      COMPREPLY=( $(compgen -W "minutes hours days" -- "$cur") )
+    fi
+    return
+  fi
+
   case "${prev}" in
+    --help) COMPREPLY=(); return ;;
     to) COMPREPLY=(); return ;;
     at)
       local current_time=$(date +%H:%M)
@@ -147,12 +242,30 @@ _remind_me_completion() {
       COMPREPLY=( $(compgen -W "${dates[*]}" -- "$cur") )
       return
       ;;
+    after)
+      local numbers=()
+      for i in {1..9}; do
+        numbers+=( "$i" )
+      done
+      COMPREPLY=( $(compgen -W "${numbers[*]}" -- "$cur") )
+      return
+      ;;
+    in)
+      local numbers=()
+      for i in {1..9}; do
+        numbers+=( "$i" )
+      done
+      COMPREPLY=( $(compgen -W "${numbers[*]}" -- "$cur") )
+      return
+      ;;
   esac
 
   local options=""
   [[ $seen_to -eq 0 ]] && options+=" to"
-  [[ $seen_at -eq 0 ]] && options+=" at"
-  [[ $seen_on -eq 0 ]] && options+=" on"
+  [[ $seen_after -eq 0 ]] && [[ $seen_in -eq 0 ]] && [[ $seen_at -eq 0 ]] && options+=" at"
+  [[ $seen_after -eq 0 ]] && [[ $seen_in -eq 0 ]] && [[ $seen_on -eq 0 ]] && options+=" on"
+  [[ $seen_in -eq 0 ]] && [[ $seen_after -eq 0 ]] && [[ $seen_on -eq 0 ]] && [[ $seen_at -eq 0 ]] && options+=" after"
+  [[ $seen_in -eq 0 ]] && [[ $seen_after -eq 0 ]] && [[ $seen_on -eq 0 ]] && [[ $seen_at -eq 0 ]] && options+=" in"
 
   if [[ $seen_to -ne 1 && $seen_at -ne 1 && $seen_on -ne 1 ]]; then
     options+=" --help"

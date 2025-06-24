@@ -190,11 +190,23 @@ EOF
 )
 
   if command -v at >/dev/null; then
-    echo "$reminder_cmd" | at "$at_time" "$month/$day/$year"
+    echo "$reminder_cmd" | at "$at_time" "$month/$day/$year" >/dev/null 2>&1
+    if [[ ${PIPESTATUS[1]} -ne 0 ]]; then
+      echo "Failed to schedule reminder with 'at'."
+      return 1
+    fi
   elif command -v systemd-run >/dev/null; then
-    echo "$reminder_cmd" | systemd-run --on-calendar="$datetime_str" --unit="reminder-$(date +%s)" bash
+    echo "$reminder_cmd" | systemd-run --on-calendar="$datetime_str" --unit="reminder-$(date +%s)" bash >/dev/null 2>&1
+    if [[ ${PIPESTATUS[1]} -ne 0 ]]; then
+      echo "Failed to schedule reminder with 'systemd-run'."
+      return 1
+    fi
   else
     nohup bash -c "sleep $wait_secs; $reminder_cmd" >/dev/null 2>&1 &
+    if [[ $? -ne 0 ]]; then
+      echo "Failed to schedule reminder with 'nohup'."
+      return 1
+    fi
   fi
 }
 

@@ -39,7 +39,7 @@ remind-me() {
         fi
         seen_to=1
         shift
-        while [[ $# -gt 0 && "$1" != "at" && "$1" != "on" ]]; do
+        while [[ $# -gt 0 && "$1" != "at" && "$1" != "on" && "$1" != "after" && "$1" != "in" ]]; do
           message+="$1 "
           shift
         done

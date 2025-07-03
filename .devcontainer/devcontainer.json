@@ -1,0 +1,9 @@
+{
+  "name": "RC",
+  "dockerComposeFile": ["docker-compose.yml"],
+  "service": "devcontainer",
+  "shutdownAction": "stopCompose",
+  "workspaceFolder": "/workspace/",
+  "postCreateCommand": "",
+  "customizations": {}
+}

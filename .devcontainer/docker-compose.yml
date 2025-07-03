@@ -1,0 +1,12 @@
+name: rc
+services:
+  devcontainer:
+    build:
+      context: .
+    volumes:
+      - type: bind
+        source: ..
+        target: /workspace/
+    entrypoint: ["/bin/sh", "-i"]
+    stdin_open: true
+    tty: true

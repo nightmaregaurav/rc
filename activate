@@ -14,13 +14,12 @@ fi
 # Enable loading completion in zsh
 if [ -n "${ZSH_VERSION}" ]; then
     autoload -Uz compinit && compinit
-    autoload -Uz bashcompinit &s& bashcompinit
+    autoload -Uz bashcompinit && bashcompinit
 fi
 
-
-# Source environment variables first, then aliases, and finally functions
-source $current_rc_script_dir/scripts
+# Source environment variables first, then scripts, then aliases, and finally functions
 source $current_rc_script_dir/envs
+source $current_rc_script_dir/scripts
 source $current_rc_script_dir/aliases
 source $current_rc_script_dir/functions
 

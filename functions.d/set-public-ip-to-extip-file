@@ -1,5 +1,6 @@
 # function to set ext ip in a file
-function set-public-ip-to-extip-file() {
+alias set-public-ip-to-extip-file=set_public_ip_to_extip_file
+function set_public_ip_to_extip_file() {
   if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "Usage: set-public-ip-to-extip-file"
     echo

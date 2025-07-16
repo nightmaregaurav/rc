@@ -1,5 +1,6 @@
 # organize images and videos in a folder by date and store in date named folder eg: 2 Aug 2022
-organize-images-and-videos-by-date() {
+alias organize-images-and-videos-by-date=organize_images_and_videos_by_date
+organize_images_and_videos_by_date() {
     if [[ "$1" == "--help" || "$1" == "-h" ]]; then
         echo "Usage: organize-images-and-videos-by-date <folder_path>"
         echo
@@ -21,7 +22,7 @@ organize-images-and-videos-by-date() {
         echo "Usage: organize-images-and-videos-by-date <folder_path>"
         return 1
     fi
-    
+
     if [[ ! -d "$folder" ]]; then
         echo "Error: '$folder' is not a valid directory."
         return 1

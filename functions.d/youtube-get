@@ -1,5 +1,6 @@
 # youtube-get function to use yt-dlp to download youtube content
-youtube-get() {
+alias youtube-get=youtube_get
+youtube_get() {
     if [[ "$1" == "--help" || "$1" == "-h" ]]; then
         echo "Usage: youtube-get <bestaudio|mp3|bestvideo|mp4> <URL1> [URL2] ..."
         echo
@@ -20,7 +21,6 @@ youtube-get() {
     if ! command -v yt-dlp >/dev/null 2>&1; then
         echo "yt-dlp not found. Installing via pip..."
         pip install --user yt-dlp || { echo "Failed to install yt-dlp"; return 1; }
-        export PATH="$HOME/.local/bin:$PATH"
     fi
 
     if [ $# -lt 2 ]; then
@@ -73,4 +73,4 @@ _youtube_get_autocomplete() {
     return 0
 }
 
-complete -F _youtube_get_autocomplete youtube-get
+complete -F _youtube_get_autocomplete youtube_get

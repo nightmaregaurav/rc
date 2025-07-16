@@ -1,5 +1,6 @@
 # Recursively run a command in folders
-function recurse-run() {
+alias recurse-run=recurse_run
+function recurse_run() {
   if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "Usage: recurse-run <command>"
     echo
@@ -28,7 +29,7 @@ function recurse-run() {
     echo "Starting recursion from directory root: $root_dir"
     echo -n "Enter command to run in all dirs >>> "
     read -r cmd
-    
+
     if [[ -z "$cmd" ]]; then
       echo "No commands found! Exiting..."
       break

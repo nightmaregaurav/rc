@@ -2,7 +2,11 @@
 
 _git_as() {
     local cur prev words cword
-    _get_comp_words_by_ref -n : cur prev words cword
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    cword="${#COMP_WORDS[@]}"
+    words="${COMP_WORDS[@]}"
 
     local original_command
     original_command=${COMP_WORDS[@]}
@@ -47,7 +51,11 @@ _git_as() {
 
 _git_rmprofile() {
     local cur prev words cword
-    _get_comp_words_by_ref -n : cur prev words cword
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    cword="${#COMP_WORDS[@]}"
+    words="${COMP_WORDS[@]}"
 
     local profiles
     profiles=$(find "$GIT_PROFILE_DIR" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')

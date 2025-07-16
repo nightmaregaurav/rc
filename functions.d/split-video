@@ -1,5 +1,6 @@
 # Split video into segments of fixed duration (default: 10 minutes)
-split-video() {
+alias split-video=split_video
+split_video() {
   if [[ "$1" == "-h" || "$1" == "--help" ]]; then
     echo "Usage: split-video <input.mp4> <output_prefix> [segment_duration]"
     echo "Example: split-video input.mp4 part_ 00:05:00"
@@ -25,7 +26,7 @@ split-video() {
   ffmpeg -i "$input" -c copy -map 0 -segment_time "$segment_duration" -f segment "${output_prefix}%03d.mp4"
 }
 
-_split-video_completion() {
+_split_video_completion() {
   local cur prev
   COMPREPLY=()
   cur="${COMP_WORDS[COMP_CWORD]}"
@@ -56,4 +57,4 @@ _split-video_completion() {
   esac
 }
 
-complete -F _split-video_completion split-video
+complete -F _split_video_completion split_video

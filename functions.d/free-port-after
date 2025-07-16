@@ -1,5 +1,6 @@
 # Get free port after a port
-function free-port-after() {
+alias free-port-after=free_port_after
+function free_port_after() {
   if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "Usage: free-port-after <port>"
     echo

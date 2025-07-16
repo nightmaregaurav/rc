@@ -45,9 +45,9 @@ elif $is_zsh; then
     git_completions_candidates=("${zsh_git_completions_candidates[@]}")
 fi
 
-for path in "${git_completions_candidates[@]}"; do
-    if [[ -f "$path" ]]; then
-        source "$path"
+for git_path in "${git_completions_candidates[@]}"; do
+    if [[ -f "$git_path" ]]; then
+        source "$git_path"
         break
     fi
 done

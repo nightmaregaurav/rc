@@ -1,5 +1,6 @@
 # Copy to clipboard pipe
-function to-clipboard() {
+alias to-clipboard=to_clipboard
+function to_clipboard() {
     if [[ "$1" == "--help" || "$1" == "-h" ]]; then
         echo "Usage: to-clipboard <text>"
         echo
@@ -27,7 +28,8 @@ function to-clipboard() {
 }
 
 # Paste from clipboard pipe
-function from-clipboard() {
+alias from-clipboard=from_clipboard
+function from_clipboard() {
     if [[ "$1" == "--help" || "$1" == "-h" ]]; then
         echo "Usage: from-clipboard"
         echo
@@ -37,7 +39,7 @@ function from-clipboard() {
         echo "  from-clipboard"
         return 0
     fi
-    
+
     if [[ $OSTYPE == "darwin"* ]]; then
         pbpaste  # for macOS
     elif [[ $OSTYPE == "linux-gnu"* ]]; then

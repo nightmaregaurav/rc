@@ -1,5 +1,6 @@
 # Simple reminder script that uses `at` or `systemd-run` to schedule reminders.
-remind-me() {
+alias remind-me=remind_me
+remind_me() {
   if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "Usage: remind-me to \"<message>\" at HH:MM [on DD/MM or DD/MM/YYYY]"
     echo
@@ -213,7 +214,9 @@ EOF
 
 _remind_me_completion() {
   local cur prev
-  _init_completion || return
+  COMPREPLY=()
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
 
   local seen_help=0 seen_to=0 seen_at=0 seen_on=0 seen_after=0 seen_in=0
 
@@ -285,4 +288,4 @@ _remind_me_completion() {
 
   COMPREPLY=( $(compgen -W "$options" -- "$cur") )
 }
-complete -F _remind_me_completion remind-me
+complete -F _remind_me_completion remind_me

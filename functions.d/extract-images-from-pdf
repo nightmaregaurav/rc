@@ -1,5 +1,6 @@
 # extracts images from PDF in real quality
-extract-image-from-pdf() {
+alias extract-image-from-pdf=extract_image_from_pdf
+extract_image_from_pdf() {
   if [[ "$1" == "--help" || "$1" == "-h" ]]; then
     echo "Usage: extract-image-from-pdf <input-pdf-file> <output-filename-prefix>"
     echo

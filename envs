@@ -1,3 +1,7 @@
 for file in "$current_rc_script_dir/envs.d/"*; do
-  [ -f "$file" ] && source "$file"
+    if [[ -n $ZSH_VERSION && ($file != *.* || $file == *.zsh) ]]; then
+        [ -f "$file" ] && source "$file"
+    elif [[ -n $BASH_VERSION && ($file != *.* || $file == *.bash) ]]; then
+        [ -f "$file" ] && source "$file"
+    fi
 done

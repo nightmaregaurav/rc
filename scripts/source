@@ -1,0 +1,35 @@
+export GIT_PROFILE_DIR="$HOME/.git-ssh-profiles"
+mkdir -p "$GIT_PROFILE_DIR"
+
+# Make all scripts in bin folder executable
+if [ -d "$current_rc_script_dir/scripts/bin" ]; then
+  find "$current_rc_script_dir/scripts/bin" -type f -not -perm -u=x -exec chmod u+x {} \;
+fi
+
+PATH="$PATH:$current_rc_script_dir/scripts/bin"
+
+# Make sure all completion functions are sourced
+if [ -d "$current_rc_script_dir/scripts/completions" ]; then
+  for completion_file in "$current_rc_script_dir/scripts/completions"/*; do
+    if [[ -f "$completion_file" ]]; then
+      source "$completion_file"
+    fi
+  done
+fi
+
+# Give ZSH the capability to complete commands using complete commands
+if [ -n "$ZSH_VERSION" ]; then
+    autoload -Uz compinit && compinit
+    autoload -Uz bashcompinit && bashcompinit
+fi
+
+# Register completions
+complete -o default -F _git_as git-as
+complete -o default -F _git_rmprofile git-rmprofile
+complete -o default -F _git_mkprofile git-mkprofile
+complete -o default -F _git_lsprofile git-lsprofile
+complete -o default -F _youtube_get youtube-get
+complete -o default -F _split_video split-video
+complete -o default -F _serve serve
+complete -o default -F _amplify amplify
+complete -o default -F _remind_me remind-me

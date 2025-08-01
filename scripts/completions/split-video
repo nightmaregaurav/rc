@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+_split_video() {
+  local cur prev
+  COMPREPLY=()
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+  # Suggest flags if current word starts with -
+  if [[ "$cur" == -* ]]; then
+    COMPREPLY=( $(compgen -W "--help -h" -- "$cur") )
+    return 0
+  fi
+
+  case ${COMP_CWORD} in
+    1)
+      # First arg: suggest any file
+      COMPREPLY=( $(compgen -f -- "$cur") )
+      return 0
+      ;;
+    2)
+      # Second arg: suggest prefix (Filename for now)
+      COMPREPLY=( $(compgen -f -- "$cur") )
+      return 0
+      ;;
+    3)
+      # Third arg: suggest durations
+      COMPREPLY=( $(compgen -W "00:01:00 00:05:00 00:10:00 00:30:00 01:00:00" -- "$cur") )
+      return 0
+      ;;
+  esac
+}

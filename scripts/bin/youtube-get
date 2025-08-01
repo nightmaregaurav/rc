@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: youtube-get <bestaudio|mp3|bestvideo|mp4> <URL1> [URL2] ..."
+    echo
+    echo "Downloads YouTube videos or audio using yt-dlp."
+    echo
+    echo "Options:"
+    echo "  bestaudio   Download the best audio quality."
+    echo "  mp3         Download and convert to mp3 format."
+    echo "  bestvideo   Download the best video quality."
+    echo "  mp4         Download the best video quality in mp4 format."
+    echo
+    echo "Examples:"
+    echo "  youtube-get bestaudio https://www.youtube.com/watch?v=example"
+    echo "  youtube-get mp3 https://www.youtube.com/watch?v=example"
+    exit 0
+fi
+
+if ! command -v yt-dlp >/dev/null 2>&1; then
+    echo "yt-dlp not found. Installing via pip..."
+    pip install --user yt-dlp || { echo "Failed to install yt-dlp"; exit 1; }
+fi
+
+if [ $# -lt 2 ]; then
+    echo "Usage: youtube-get <bestaudio|mp3|bestvideo|mp4> <URL1> [URL2] ..."
+    exit 1
+fi
+
+mode=$1
+shift
+
+case "$mode" in
+    bestaudio)
+        opts='-f bestaudio/bestaudio'
+        ;;
+    mp3)
+        opts='--extract-audio --audio-format mp3 -o "%(title)s.%(ext)s"'
+        ;;
+    bestvideo)
+        opts='-f bestvideo+bestaudio/bestvideo+bestaudio'
+        ;;
+    mp4)
+        opts='-f bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio'
+        ;;
+    *)
+        echo "Unknown mode: $mode"
+        echo "Valid modes: bestaudio, mp3, bestvideo, mp4"
+        exit 1
+        ;;
+esac
+
+for url in "$@"; do
+    echo "Downloading $url with mode $mode..."
+    yt-dlp $opts "$url"
+done

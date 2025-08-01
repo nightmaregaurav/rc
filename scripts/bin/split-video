@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  echo "Usage: split-video <input.mp4> <output_prefix> [segment_duration]"
+  echo "Example: split-video input.mp4 part_ 00:05:00"
+  echo "Splits video into multiple segments (default duration: 00:10:00)"
+  exit 0
+fi
+
+input="$1"
+output_prefix="$2"
+segment_duration="${3:-00:10:00}"
+
+if [[ -z "$input" || -z "$output_prefix" ]]; then
+  echo "Error: Missing arguments."
+  echo "Run 'split-video --help' for usage."
+  exit 1
+fi
+
+if [[ ! -f "$input" ]]; then
+  echo "Error: '$input' does not exist."
+  exit 1
+fi
+
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  echo "Error: ffmpeg is not installed or not in PATH."
+  exit 1
+fi
+
+ffmpeg -i "$input" -c copy -map 0 -segment_time "$segment_duration" -f segment "${output_prefix}%03d.mp4"

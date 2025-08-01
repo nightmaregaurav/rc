@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 _git_as() {
     local cur prev words cword
@@ -48,42 +48,3 @@ _git_as() {
         return 0
     fi
 }
-
-_git_rmprofile() {
-    local cur prev words cword
-    COMPREPLY=()
-    cur="${COMP_WORDS[COMP_CWORD]}"
-    prev="${COMP_WORDS[COMP_CWORD-1]}"
-    cword="${#COMP_WORDS[@]}"
-    words="${COMP_WORDS[@]}"
-
-    local profiles
-    profiles=$(find "$GIT_PROFILE_DIR" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
-
-    # Complete profile (third word)
-    if [[ "$cword" -eq 2 ]]; then
-        COMPREPLY=( $(compgen -W "$profiles -h" -- "$cur") )
-        return 0
-    fi
-
-    COMPREPLY=("")
-    return 0
-}
-
-_git_mkprofile() {
-    COMPREPLY=( $(compgen -W "-h" -- "${COMP_WORDS[COMP_CWORD]}") )
-}
-
-_git_lsprofile() {
-    COMPREPLY=( $(compgen -W "-h" -- "${COMP_WORDS[COMP_CWORD]}") )
-}
-
-# Register completions
-if [ -n "$ZSH_VERSION" ]; then
-    autoload -Uz compinit && compinit
-    autoload -Uz bashcompinit && bashcompinit
-fi
-complete -o default -F _git_as git-as
-complete -o default -F _git_rmprofile git-rmprofile
-complete -o default -F _git_mkprofile git-mkprofile
-complete -o default -F _git_lsprofile git-lsprofile

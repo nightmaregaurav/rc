@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+# Show help
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: mkcd <directory>"
+    echo
+    echo "Creates a directory and changes into it (if run in interactive shell or sourced)."
+    echo
+    echo "Examples:"
+    echo "  mkcd new_folder"
+    exit 0
+fi
+
+# Check arguments
+if [ "$#" -ne 1 ]; then
+    echo "Invalid number of arguments."
+    echo "Try 'mkcd --help' for more information."
+    exit 1
+fi
+
+# Create and cd
+mkdir -p "$1" && cd "$1" || exit 1

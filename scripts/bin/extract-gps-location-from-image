@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+
+# Help
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+    echo "Usage: extract-gps-location-from-image <file>"
+    echo
+    echo "Extracts GPS location from an image or video file."
+    echo
+    echo "Examples:"
+    echo "  extract-gps-location-from-image image.jpg"
+    echo "  extract-gps-location-from-image video.mp4"
+    exit 0
+fi
+
+# Argument check
+if [ -z "$1" ]; then
+    echo "Missing argument: <file>"
+    echo "Try 'extract-gps-location-from-image --help' for more information."
+    exit 1
+fi
+
+file="$1"
+gps_location=""
+
+# File existence check
+if [[ ! -f "$file" ]]; then
+    echo "Error: File '$file' does not exist."
+    exit 1
+fi
+
+# Supported file check
+if [[ ! "$file" =~ \.(jpg|jpeg|png|mp4|mkv|avi|mov)$ ]]; then
+    echo "Error: '$file' is not a supported image or video file."
+    exit 1
+fi
+
+# Image files
+if [[ "$file" =~ \.(jpg|jpeg|png)$ ]]; then
+    if ! command -v identify >/dev/null 2>&1; then
+        echo "Error: 'identify' command not found. Please install ImageMagick."
+        exit 1
+    fi
+
+    gps_location=$(identify -format "%[EXIF:GPSLatitude] %[EXIF:GPSLatitudeRef] %[EXIF:GPSLongitude] %[EXIF:GPSLongitudeRef]" "$file" 2>/dev/null)
+
+    if [[ -n "$gps_location" && "$gps_location" != "   " ]]; then
+        echo "Extracted GPS location from image: $gps_location"
+    else
+        echo "No GPS location found in image '$file'."
+    fi
+
+# Video files
+elif [[ "$file" =~ \.(mp4|mkv|avi|mov)$ ]]; then
+    if ! command -v ffprobe >/dev/null 2>&1; then
+        echo "Error: 'ffprobe' not found. Please install FFmpeg."
+        exit 1
+    fi
+
+    gps_location=$(ffprobe -v error -show_entries format_tags=location -of default=noprint_wrappers=1:nokey=1 "$file")
+
+    if [[ -n "$gps_location" ]]; then
+        echo "Extracted GPS location from video: $gps_location"
+    else
+        echo "No GPS location found in video '$file'."
+    fi
+fi

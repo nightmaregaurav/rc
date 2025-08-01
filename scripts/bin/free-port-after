@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+# Help section
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  echo "Usage: free-port-after <port>"
+  echo
+  echo "Finds a free TCP port after the specified port (inclusive)."
+  echo
+  echo "Examples:"
+  echo "  free-port-after 5000"
+  exit 0
+fi
+
+# Argument check
+if [ "$#" -ne 1 ]; then
+  echo "Missing argument: <port>"
+  echo "Try 'free-port-after --help' for more information."
+  exit 1
+fi
+
+# Validate numeric input
+if ! [[ "$1" =~ ^[0-9]+$ ]]; then
+  echo "Error: Port must be a number."
+  exit 1
+fi
+
+start_port="$1"
+
+# Get list of currently used ports >= start_port
+used_ports=$(lsof -iTCP -sTCP:LISTEN -P -n 2>/dev/null | awk '{print $9}' | awk -F: '{print $NF}' | awk '$1 >= '"$start_port"'' | sort -un)
+
+# Convert used_ports to array
+mapfile -t port_array <<< "$used_ports"
+
+# Search for first free port
+port=$start_port
+for used in "${port_array[@]}"; do
+  if [[ "$used" -eq "$port" ]]; then
+    ((port++))
+  else
+    break
+  fi
+done
+
+echo "$port"

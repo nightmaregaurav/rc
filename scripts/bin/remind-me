@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+
+log_file="$HOME/.remind-me.log"
+
+usage() {
+  cat <<EOF
+Usage: remind-me to "<message>" at HH:MM [on DD/MM or DD/MM/YYYY]
+       remind-me to "<message>" after <duration>
+       remind-me to "<message>" in <duration>
+
+Sets a reminder with the specified message at the given time and date.
+
+Flags:
+  --help              Display this help message.
+  to <Message>        Sets a reminder with the specified message.
+  at <Time>           Sets the time for the reminder. Cannot be used with 'after' or 'in'.
+  on <Date>           Sets the date for the reminder (DD/MM or DD/MM/YYYY).
+  after <Duration>    Sets a delay for the reminder (e.g. "1 hour", "30 minutes").
+  in <Duration>       Alias for 'after'.
+
+Examples:
+  remind-me to "Meeting with Bob" at 14:30 on 25/12
+  remind-me to "Meeting with Alice" after 1 hour
+EOF
+}
+
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+# Variables to track flags and values
+message=""
+at_time=""
+on_date=""
+after_duration=""
+seen_to=0
+seen_at=0
+seen_on=0
+seen_after=0
+seen_in=0
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    to)
+      ((seen_to)) && { echo "Error: 'to' flag specified more than once."; exit 1; }
+      seen_to=1
+      shift
+      # Collect message until next flag or end
+      while [[ $# -gt 0 && ! "$1" =~ ^(at|on|after|in)$ ]]; do
+        message+="$1 "
+        shift
+      done
+      ;;
+    at)
+      ((seen_at)) && { echo "Error: 'at' flag specified more than once."; exit 1; }
+      ((seen_after||seen_in)) && { echo "Error: 'at' cannot be used with 'after' or 'in'."; exit 1; }
+      seen_at=1
+      at_time="$2"
+      shift 2
+      ;;
+    on)
+      ((seen_on)) && { echo "Error: 'on' flag specified more than once."; exit 1; }
+      ((seen_after||seen_in)) && { echo "Error: 'on' cannot be used with 'after' or 'in'."; exit 1; }
+      seen_on=1
+      on_date="$2"
+      shift 2
+      ;;
+    after)
+      ((seen_after)) && { echo "Error: 'after' flag specified more than once."; exit 1; }
+      ((seen_in)) && { echo "Error: 'after' and 'in' cannot be used together."; exit 1; }
+      ((seen_at||seen_on)) && { echo "Error: 'after' cannot be used with 'at' or 'on'."; exit 1; }
+      seen_after=1
+      after_duration="$2"
+      if [[ -n "$3" && ! "$3" =~ ^(to|at|on|after|in)$ ]]; then
+        after_duration+=" $3"
+        shift
+      fi
+      shift 2
+      ;;
+    in)
+      ((seen_in)) && { echo "Error: 'in' flag specified more than once."; exit 1; }
+      ((seen_after)) && { echo "Error: 'after' and 'in' cannot be used together."; exit 1; }
+      ((seen_at||seen_on)) && { echo "Error: 'in' cannot be used with 'at' or 'on'."; exit 1; }
+      seen_in=1
+      after_duration="$2"
+      if [[ -n "$3" && ! "$3" =~ ^(to|at|on|after|in)$ ]]; then
+        after_duration+=" $3"
+        shift
+      fi
+      shift 2
+      ;;
+    *)
+      echo "Unknown argument: $1"
+      exit 1
+      ;;
+  esac
+done
+
+message=$(echo "$message" | sed 's/ *$//')
+if [[ -z "$message" ]]; then
+  echo "Error: Message cannot be empty."
+  exit 1
+fi
+
+if [[ -z "$at_time" && -z "$after_duration" ]]; then
+  echo "Error: Either 'at', 'after' or 'in' flag must be provided."
+  exit 1
+fi
+
+# Normalize time format (e.g. 8:41AM → 08:41 AM)
+if [[ -n "$at_time" ]]; then
+  at_time=$(echo "$at_time" | sed -E 's/([0-9]{1,2}):([0-9]{2})([AaPp][Mm])/\1:\2 \3/')
+fi
+
+# Compute absolute datetime from duration
+if [[ -n "$after_duration" ]]; then
+  datetime_str=$(date -d "now + $after_duration" "+%Y-%m-%d %H:%M" 2>/dev/null)
+  if [[ $? -ne 0 ]]; then
+    echo "Error: Invalid duration format for 'after/in'."
+    exit 1
+  fi
+  on_date=$(date -d "$datetime_str" "+%d/%m/%Y")
+  at_time=$(date -d "$datetime_str" "+%H:%M")
+fi
+
+# If date not provided, use today
+if [[ -z "$on_date" ]]; then
+  on_date=$(date +%d/%m/%Y)
+elif [[ "$on_date" =~ ^[0-9]{2}/[0-9]{2}$ ]]; then
+  on_date="$on_date/$(date +%Y)"
+fi
+
+IFS='/' read -r day month year <<< "$on_date"
+iso_date="$year-$month-$day"
+
+datetime_str="${iso_date} ${at_time}"
+
+target_ts=$(date -d "$datetime_str" +%s 2>/dev/null)
+if [[ $? -ne 0 ]]; then
+  echo "Error: Invalid date/time format."
+  exit 1
+fi
+
+now_ts=$(date +%s)
+wait_secs=$((target_ts - now_ts))
+
+if (( wait_secs <= 0 )); then
+  echo "Error: Specified time $datetime_str already passed."
+  exit 1
+fi
+
+mins=$((wait_secs / 60))
+secs=$((wait_secs % 60))
+echo "Reminder set: \"$message\" at $at_time on $on_date (in ${mins}m ${secs}s)"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Scheduled: \"$message\" at $datetime_str" >> "$log_file"
+
+reminder_cmd=$(cat <<EOF
+#!/usr/bin/env bash
+if command -v notify-send >/dev/null; then
+  notify-send "Reminder" "$message"
+elif command -v spd-say >/dev/null; then
+  spd-say "$message"
+fi
+echo "[Reminder] $message"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Triggered: \"$message\"" >> "$log_file"
+EOF
+)
+
+# Schedule reminder using best available method
+if command -v at >/dev/null; then
+  echo "$reminder_cmd" | at "$at_time" "$month/$day/$year" >/dev/null 2>&1
+  if [[ ${PIPESTATUS[1]} -ne 0 ]]; then
+    echo "Failed to schedule reminder with 'at'."
+    exit 1
+  fi
+elif command -v systemd-run >/dev/null; then
+  echo "$reminder_cmd" | systemd-run --on-calendar="$datetime_str" --unit="reminder-$(date +%s)" bash >/dev/null 2>&1
+  if [[ ${PIPESTATUS[1]} -ne 0 ]]; then
+    echo "Failed to schedule reminder with 'systemd-run'."
+    exit 1
+  fi
+else
+  nohup bash -c "sleep $wait_secs; $reminder_cmd" >/dev/null 2>&1 &
+  if [[ $? -ne 0 ]]; then
+    echo "Failed to schedule reminder with 'nohup'."
+    exit 1
+  fi
+fi

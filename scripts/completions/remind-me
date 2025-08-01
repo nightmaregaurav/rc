@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+
+_remind_me() {
+  local cur prev
+  COMPREPLY=()
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+  local seen_help=0 seen_to=0 seen_at=0 seen_on=0 seen_after=0 seen_in=0
+
+  for word in "${COMP_WORDS[@]}"; do
+    case "$word" in
+      --help) seen_help=1 ;;
+      to) seen_to=1 ;;
+      at) seen_at=1 ;;
+      on) seen_on=1 ;;
+      after) seen_after=1 ;;
+      in) seen_in=1 ;;
+    esac
+  done
+
+  if [[ "$prev" =~ ^[0-9]+$ && "${COMP_WORDS[COMP_CWORD-2]}" =~ ^(after|in)$ ]]; then
+    if [[ "$prev" == "1" ]]; then
+      COMPREPLY=( $(compgen -W "minute hour day" -- "$cur") )
+    else
+      COMPREPLY=( $(compgen -W "minutes hours days" -- "$cur") )
+    fi
+    return
+  fi
+
+  case "${prev}" in
+    --help) COMPREPLY=(); return ;;
+    to) COMPREPLY=(); return ;;
+    at)
+      local current_time=$(date +%H:%M)
+      local time_entries=($(for i in {1..12}; do date -d "$current_time $((i * 15)) minutes" +"%H:%M"; done))
+      COMPREPLY=( "${time_entries[@]}" )
+      return
+      ;;
+    on)
+      local dates=()
+      for i in {0..6}; do
+        dates+=( "$(date -d "+$i day" +%d/%m)" )
+      done
+      COMPREPLY=( $(compgen -W "${dates[*]}" -- "$cur") )
+      return
+      ;;
+    after)
+      local numbers=()
+      for i in {1..9}; do
+        numbers+=( "$i" )
+      done
+      COMPREPLY=( $(compgen -W "${numbers[*]}" -- "$cur") )
+      return
+      ;;
+    in)
+      local numbers=()
+      for i in {1..9}; do
+        numbers+=( "$i" )
+      done
+      COMPREPLY=( $(compgen -W "${numbers[*]}" -- "$cur") )
+      return
+      ;;
+  esac
+
+  local options=""
+  [[ $seen_to -eq 0 ]] && options+=" to"
+  [[ $seen_after -eq 0 ]] && [[ $seen_in -eq 0 ]] && [[ $seen_at -eq 0 ]] && options+=" at"
+  [[ $seen_after -eq 0 ]] && [[ $seen_in -eq 0 ]] && [[ $seen_on -eq 0 ]] && options+=" on"
+  [[ $seen_in -eq 0 ]] && [[ $seen_after -eq 0 ]] && [[ $seen_on -eq 0 ]] && [[ $seen_at -eq 0 ]] && options+=" after"
+  [[ $seen_in -eq 0 ]] && [[ $seen_after -eq 0 ]] && [[ $seen_on -eq 0 ]] && [[ $seen_at -eq 0 ]] && options+=" in"
+
+  if [[ $seen_to -ne 1 && $seen_at -ne 1 && $seen_on -ne 1 ]]; then
+    options+=" --help"
+  fi
+
+  COMPREPLY=( $(compgen -W "$options" -- "$cur") )
+}

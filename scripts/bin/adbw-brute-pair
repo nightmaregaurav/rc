@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+# Help
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  echo "Usage: adbw-brute-pair <IP Address or Hostname>"
+  echo
+  echo "Pairs with an Android device using adb pair command."
+  echo "This script uses nmap to find open ports in the range 37000-44000 and tries to pair with each one."
+  echo
+  echo "Examples:"
+  echo "  adbw-brute-pair 192.168.1.1"
+  exit 0
+fi
+
+if [ -z "$1" ]; then
+  echo "Missing argument: <IP Address or Hostname>"
+  echo "Try 'adbw-brute-pair --help' for more information."
+  exit 1
+fi
+
+ip="$1"
+
+if ! command -v nmap >/dev/null 2>&1; then
+  echo "Error: nmap not found. Please install nmap."
+  exit 1
+fi
+
+if ! command -v adb >/dev/null 2>&1; then
+  echo "Error: adb not found. Please install Android Platform Tools."
+  exit 1
+fi
+
+ports=$(nmap -p 37000-44000 "$ip" -oG - | awk '/Ports:/{print $5}' | tr ',' '\n' | awk -F/ '$2=="open" {print $1}')
+
+if [[ -z "$ports" ]]; then
+  echo "No open ports found in range 37000-44000 on $ip."
+  exit 1
+fi
+
+skipped_once=false
+for port in $ports; do
+  if [ "$skipped_once" = false ]; then
+    skipped_once=true
+    echo "Skipping port $port assuming it's used for wireless adb, pairing will take place on the next port available"
+    continue
+  fi
+
+  echo "Trying to pair with $ip:$port"
+  adb pair "$ip:$port"
+done

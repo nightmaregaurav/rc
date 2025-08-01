@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+_amplify() {
+  local cur prev
+  COMPREPLY=()
+  cur="${COMP_WORDS[COMP_CWORD]}"
+  prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+  # Handle flags
+  if [[ "$cur" == -* ]]; then
+    COMPREPLY=( $(compgen -W "--help -h" -- "$cur") )
+    return 0
+  fi
+
+  case ${COMP_CWORD} in
+    1)
+      # First argument: input file
+      COMPREPLY=( $(compgen -f -- "$cur") )
+      return 0
+      ;;
+    2)
+      # Second argument: output file
+      COMPREPLY=( $(compgen -f -- "$cur") )
+      return 0
+      ;;
+    3)
+      # Third argument: volume in dB
+      COMPREPLY=( $(compgen -W "10dB 20dB 30dB 40dB" -- "$cur") )
+      return 0
+      ;;
+  esac
+}

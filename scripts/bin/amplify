@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  echo "Usage: amplify <input.mp4> <output.mp4> <gain>"
+  echo "Example: amplify input.mp4 output.mp4 40dB"
+  echo "Amplifies audio by the specified dB (e.g., 10dB, 40dB)"
+  exit 0
+fi
+
+input="$1"
+output="$2"
+gain="$3"
+
+if [[ -z "$input" || -z "$output" || -z "$gain" ]]; then
+  echo "Error: Missing arguments."
+  echo "Run 'amplify --help' for usage."
+  exit 1
+fi
+
+if [[ ! -f "$input" ]]; then
+  echo "Error: '$input' does not exist."
+  exit 1
+fi
+
+if ! [[ "$gain" =~ ^[0-9]+(\.[0-9]+)?dB$ ]]; then
+  echo "Error: Gain must be in format like '40dB' or '10.5dB'"
+  exit 1
+fi
+
+if ! command -v ffmpeg >/dev/null 2>&1; then
+  echo "Error: ffmpeg not found. Please install ffmpeg."
+  exit 1
+fi
+
+ffmpeg -i "$input" -vcodec copy -af "volume=$gain" "$output"

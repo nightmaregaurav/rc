@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+
+port=4200
+host="localhost"
+proxy="http://localhost:4200?"
+dirlist=true
+
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+  echo "Usage: serve [--port PORT] [--host HOST] [--proxy URL] [--dirlist true|false]"
+  echo
+  echo "Defaults:"
+  echo "  --port     4200"
+  echo "  --host     localhost"
+  echo "  --proxy    http://localhost:4200?"
+  echo "  --dirlist  true"
+  echo
+  echo "Examples:"
+  echo "  serve                          # Start server with defaults"
+  echo "  serve --port 3000              # Use custom port"
+  echo "  serve --dirlist false          # Disable directory listing"
+  echo "  serve --proxy http://api.localhost:3000?  # Custom fallback proxy"
+  exit 0
+fi
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --port)
+      port="$2"
+      shift 2
+      ;;
+    --host)
+      host="$2"
+      shift 2
+      ;;
+    --proxy)
+      proxy="$2"
+      shift 2
+      ;;
+    --dirlist)
+      dirlist="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown option: $1"
+      echo "Use --help for usage."
+      exit 1
+      ;;
+  esac
+done
+
+cmd="npx http-server \"$(pwd)\" -a $host --port $port --proxy $proxy --log-ip --gzip --brotli"
+[[ "$dirlist" == false ]] && cmd+=" -d false"
+
+echo "Running: $cmd"
+eval "$cmd"

@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+_git_mkprofile() {
+    COMPREPLY=( $(compgen -W "-h" -- "${COMP_WORDS[COMP_CWORD]}") )
+}

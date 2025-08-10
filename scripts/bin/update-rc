@@ -1,3 +1,6 @@
 #!/usr/bin/env bash
 
-git pull --quiet --no-rebase --no-progress
+start_dir=$(pwd)
+cd "$(dirname "$0")" || exit
+git pull --quiet --no-rebase --no-progress &>/dev/null &
+cd "$start_dir"

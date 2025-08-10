@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
 (
+  set +m
   cd "$(dirname "$0")" || exit
-  nohup git pull --quiet --no-rebase --no-progress &>/dev/null &
-) &
+  git pull --quiet --no-rebase --no-progress &>/dev/null &
+  disown
+)

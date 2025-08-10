@@ -2,5 +2,5 @@
 
 (
   cd "$(dirname "$0")" || exit
-  git pull --quiet --no-rebase --no-progress &>/dev/null &
+  nohup git pull --quiet --no-rebase --no-progress &>/dev/null &
 ) &

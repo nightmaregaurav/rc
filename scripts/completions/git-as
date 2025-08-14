@@ -1,50 +1,36 @@
 #!/usr/bin/env bash
 
 _git_as() {
-    local cur prev words cword
+    local cur
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
-    prev="${COMP_WORDS[COMP_CWORD-1]}"
-    cword="${#COMP_WORDS[@]}"
-    words="${COMP_WORDS[@]}"
-
-    local original_command
-    original_command=${COMP_WORDS[@]}
 
     local profiles
-    profiles=$(find "$GIT_PROFILE_DIR" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
+    profiles=$(find "$GIT_PROFILE_DIR" -type f -name '.*' -exec basename {} \; 2>/dev/null | sed 's/^\.//')
 
-    # Complete profile (third word) if original_command starts with "git as"
-    if [[ "$original_command" =~ ^git\ as(\ .*)?$ && "$cword" -eq 2 ]]; then
+    # Check if any profile is already in the command
+    local profile_found=false
+    for profile in $profiles; do
+        for word in "${COMP_WORDS[@]}"; do
+            if [[ "$word" == "$profile" ]]; then
+                profile_found=true
+                break 2
+            fi
+        done
+    done
+
+    if [[ "$profile_found" == false ]]; then
         COMPREPLY=( $(compgen -W "$profiles -h" -- "$cur") )
         return 0
     fi
 
-    # if somehow triggered by less than 2
-    if [[ $cword -lt 2 ]]; then
-        COMPREPLY=("")
-        return 0
-    fi
-
-    # if greater than or equal to 3
-    # Delegate completion to git after profile (i.e., from third word onward)
-    # command after git as <profile> is the actual git command
-    # if original does not start with "git as" assign the original command directly to git_command
-    if [[ "$original_command" != git\ as* ]]; then
-        git_command="$original_command"
-    elif [[ -z $prev ]]; then
-        git_command="git ${original_command#git as }"
-    else
-        git_command="git ${original_command#git as $prev }"
-    fi
-
     # if function '__git_main' is available call it otherwise return most common git commands
-    if [[ -n $(type -t __git_main) ]]; then
+    if command -v __git_main >/dev/null 2>&1; then
         COMP_WORDS=($git_command)
         __git_main
         return 0
     else
-        COMPREPLY=( $(compgen -W "add commit push pull status checkout branch cherry-pick stash fetch rm" -- "$cur") )
+        COMPREPLY=( $(compgen -W "add commit push pull status checkout branch cherry-pick stash fetch rm clone" -- "$cur") )
         return 0
     fi
 }

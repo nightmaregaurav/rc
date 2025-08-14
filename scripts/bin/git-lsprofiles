@@ -15,7 +15,7 @@ if [[ ! -d "$GIT_PROFILE_DIR" ]]; then
     exit 1
 fi
 
-profiles=$(find "$GIT_PROFILE_DIR" -type f -name '.*' -printf "%f\n" 2>/dev/null | sed 's/^\.//')
+profiles=$(find "$GIT_PROFILE_DIR" -type f -name '.*' -exec basename {} \; 2>/dev/null | sed 's/^\.//')
 
 if [[ -z "$profiles" ]]; then
     echo "[!] No profiles found in $GIT_PROFILE_DIR" >&2

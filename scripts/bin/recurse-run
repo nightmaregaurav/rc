@@ -33,7 +33,7 @@ while true; do
     break
   fi
 
-  for dir in $(find . -mindepth 1 -maxdepth 1 -type d -not -path '*/\.*'); do
+  find . -mindepth 1 -maxdepth 1 -type d -not -path '*/\.*' | while IFS= read -r dir; do
     cd "$dir" || continue
     printf '%*s\n' "$(tput cols)" '' | tr ' ' '_'
     echo ">>> [$dir]"

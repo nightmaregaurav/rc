@@ -1,32 +1,31 @@
 #!/usr/bin/env bash
 
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-    echo "Usage: git rmprofile <profile>"
-    echo
-    echo "Removes the specified git profile."
-    echo
-    echo "Examples:"
-    echo "  git rmprofile myprofile"
-    exit 0
-fi
+for arg in "$@"; do
+    if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
+        echo "Usage: git rmprofile <profiles>"
+        echo
+        echo "Removes the specified git profiles."
+        echo
+        echo "Examples:"
+        echo "  git rmprofile myprofile1 myprofile2"
+        exit 0
+    fi
+done
 
-if [ -z "$1" ]; then
-    echo "[!] Missing argument: <profile>" >&2
+profiles=("$@")
+if [[ -z profiles ]]; then
+    echo "[!] Missing argument: <profiles>" >&2
     echo "Try 'git rmprofile --help' for more information." >&2
     exit 1
 fi
 
-profile="$1"
-if [[ -z "$profile" ]]; then
-    echo "[!] Usage: git rmprofile <profile>" >&2
-    exit 1
-fi
+for profile in "${profiles[@]}"; do
+    profile_file="$GIT_PROFILE_DIR/.${profile}"
+    if [[ ! -f "$profile_file" ]]; then
+        echo "[!] Profile '$profile' not found." >&2
+        continue;
+    fi
 
-profile_file="$GIT_PROFILE_DIR/.${profile}"
-if [[ ! -f "$profile_file" ]]; then
-    echo "[!] Profile '$profile' not found." >&2
-    exit 1
-fi
-
-rm -f "$profile_file"
-echo "[✓] Profile '$profile' removed."
+    rm -f "$profile_file"
+    echo "[✓] Profile '$profile' removed."
+done

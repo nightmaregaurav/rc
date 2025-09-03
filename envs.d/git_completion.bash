@@ -1,16 +1,16 @@
 # Git completion file candidates
 bash_git_completions_candidates=(
-    "$HOME/.git-completion.bash"
+    "/etc/bash_completion.d/git"
+    "/usr/lib/git-core/git-completion.bash"
+    "/usr/share/bash-completion/completions/git"
+    "/usr/share/bash-completion/completions/git-completion.bash"
+    "/usr/share/git-core/contrib/completion/git-completion.bash"
+    "/usr/local/etc/bash_completion.d/git"
+
     "$HOME/git-completion.bash"
+    "$HOME/.git-completion.bash"
     "$HOME/.bash_completion.d/git"
     "$HOME/.config/bash_completion.d/git"
-
-    "/usr/share/bash-completion/completions/git"
-    "/etc/bash_completion.d/git"
-    "/usr/local/etc/bash_completion.d/git"
-    "/usr/share/git-core/contrib/completion/git-completion.bash"
-    "/usr/lib/git-core/git-completion.bash"
-    "/usr/share/bash-completion/completions/git-completion.bash"
 )
 
 for git_path in "${bash_git_completions_candidates[@]}"; do

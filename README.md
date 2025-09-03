@@ -22,7 +22,7 @@ cd ~ && git clone https://github.com/nightmaregaurav/rc.git && source ~/rc/activ
 Environment variables are set up to aid with the following:
 
 - Adds most common executable directories to the `PATH`.
-- Configurations for Java, DotNET, Android, Node.js, and Python.
+- Configurations for Homebrew, Docker, git, Node, Java, DotNET, Android, and Python
 
 ### Aliases
 Some aliases are added for convenience:
@@ -31,27 +31,29 @@ Some aliases are added for convenience:
 - **`da`**: Displays the current date and time in a readable format.
 - **`openports`**: Lists open ports.
 - **`cpu`**: Displays CPU usage percentage.
+- **`timeout`**: To use timeout in osx where `gtimeout` is available but not `timeout`.
 
-### Functions
-The following functions are included to simplify common tasks:
+### Scripts
+The following scripts are included to simplify common tasks:
 
-- **`mkcd`**: Creates a directory and changes into it.
-- **`count`**: Counts the total number of files and folders in the current directory.
-- **`to-clipboard`**: Copies text to the clipboard.
-- **`from-clipboard`**: Pastes text from the clipboard.
-- **`set-public-ip-to-extip-file`**: Fetches the public IP address and saves it to `~/.extip` for alias `publicip`.
 - **`adbw-brute-connect`**: Connects to an Android device over wireless ADB by scanning ports.
 - **`adbw-brute-pair`**: Pairs with an Android device over wireless ADB.
-- **`organize-images-and-videos-by-date`**: Organizes images and videos in a folder by their creation date.
-- **`extract-image-from-pdf`**: Extracts images from a PDF file.
-- **`extract-gps-location-from-image`**: Extracts GPS location metadata from images or videos.
-- **`remind-me`**: Sets a reminder with a message at a specific time and date.
-- **`youtube-get`**: Downloads YouTube videos or audio.
-- **`free-port-after`**: Finds a free port after a specified port.
-- **`recurse-run`**: Recursively runs a command in all subdirectories.
 - **`amplify`**: Boosts volume in the provided video/audio file.
-- **`split-video`**: Splits a video file into multiple parts in chunks of the specified duration.
+- **`count`**: Counts the total number of files and folders in the current directory.
+- **`extract-gps-location-from-image`**: Extracts GPS location metadata from images or videos.
+- **`extract-image-from-pdf`**: Extracts images from a PDF file.
+- **`free-port-after`**: Finds a free port after a specified port.
+- **`from-clipboard`**: Pastes text from the clipboard.
+- **`mkcd`**: Creates a directory and changes into it.
+- **`organize-images-and-videos-by-date`**: Organizes images and videos in a folder by their creation date.
+- **`recurse-run`**: Recursively runs a command in all subdirectories.
+- **`remind-me`**: Sets a reminder with a message at a specific time and date.
 - **`serve`**: Simple wrapper for http-server (node)
+- **`set-public-ip-to-extip-file`**: Fetches the public IP address and saves it to `~/.extip` for alias `publicip`.
+- **`split-video`**: Splits a video file into multiple parts in chunks of the specified duration.
+- **`to-clipboard`**: Copies text to the clipboard.
+- **`update-rc`**: Updates this project to the latest version.
+- **`youtube-get`**: Downloads YouTube videos or audio.
 
 ### Extras
 The following extra features are included to simplify tasks:

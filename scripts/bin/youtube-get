@@ -32,16 +32,16 @@ shift
 
 case "$mode" in
     bestaudio)
-        opts='-f bestaudio/bestaudio'
+        opts='--no-check-certificates --concurrent-fragments 4 -f bestaudio/bestaudio'
         ;;
     mp3)
-        opts='--extract-audio --audio-format mp3 -o "%(title)s.%(ext)s"'
+        opts='--no-check-certificates --concurrent-fragments 4 --extract-audio --audio-format mp3'
         ;;
     bestvideo)
-        opts='-f bestvideo+bestaudio/bestvideo+bestaudio'
+        opts='--no-check-certificates --concurrent-fragments 4 -f bestvideo+bestaudio/bestvideo+bestaudio'
         ;;
     mp4)
-        opts='-f bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio'
+        opts='--no-check-certificates --concurrent-fragments 4 -f bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio'
         ;;
     *)
         echo "Unknown mode: $mode"

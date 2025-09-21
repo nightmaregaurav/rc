@@ -33,3 +33,10 @@ complete -o default -F _split_video split-video
 complete -o default -F _serve serve
 complete -o default -F _amplify amplify
 complete -o default -F _remind_me remind-me
+complete -o default -F _generic_help localip
+complete -o default -F _generic_help publicip
+complete -o default -F _generic_help localip-fast
+complete -o default -F _generic_help localip-fast
+complete -o default -F _generic_help ls-openports
+complete -o default -F _generic_help now
+complete -o default -F _generic_help count

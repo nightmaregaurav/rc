@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+_generic_help() {
+    local cur
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+
+    # Suggest only -h and --help
+    COMPREPLY=( $(compgen -W "-h --help" -- "$cur") )
+}

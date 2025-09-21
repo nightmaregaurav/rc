@@ -23,9 +23,14 @@ source $current_rc_script_dir/scripts/source
 source $current_rc_script_dir/aliases
 
 # Save public IP Address to a file
-rm -f ~/.extip
-touch ~/.extip
-(set-public-ip-to-extip-file &) > /dev/null 2>&1
+rm -f ~/.ip.public
+touch ~/.ip.public
+(publicip > ~/.ip.public &) > /dev/null 2>&1
+
+# Save local IP Address to a file
+rm -f ~/.ip.local
+touch ~/.ip.local
+(localip > ~/.ip.local &) > /dev/null 2>&1
 
 # Hide EOL sign ('%')
 PROMPT_EOL_MARK=""

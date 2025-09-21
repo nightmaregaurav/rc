@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+# Help message
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  echo "Usage: localip"
+  echo
+  echo "Fetches the local IP address."
+  echo
+  echo "Examples:"
+  echo "  localip"
+  exit 0
+fi
+
+# Detect OS
+OS=$(uname)
+
+if [[ "$OS" == "Darwin" || "$OS" == "Linux" ]]; then
+    # Try to find the first non-loopback IPv4 address
+    IP=$(ip addr 2>/dev/null | grep -w inet | grep -v '127.0.0.1' | awk '{print $2}' | cut -d/ -f1 | head -n1)
+
+    # Fallback for macOS
+    if [[ -z "$IP" && "$OS" == "Darwin" ]]; then
+        IP=$(ipconfig getifaddr en0 2>/dev/null)
+        if [[ -z "$IP" ]]; then
+            IP=$(ipconfig getifaddr en1 2>/dev/null)
+        fi
+    fi
+
+    if [[ -z "$IP" ]]; then
+        exit 1
+    else
+        echo "$IP"
+    fi
+
+elif [[ "$OS" == *"MINGW"* || "$OS" == *"CYGWIN"* || "$OS" == *"MSYS"* ]]; then
+    # Windows (Git Bash / Cygwin)
+    IP=$(powershell.exe -Command "(Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias '*' | Where-Object {$_.IPAddress -notlike '169.*' -and $_.IPAddress -notlike '127.*'} | Select-Object -First 1 -ExpandProperty IPAddress)")
+    if [[ -z "$IP" ]]; then
+        exit 1
+    else
+        echo "$IP"
+    fi
+else
+    exit 1
+fi

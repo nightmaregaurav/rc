@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+# Help message
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  echo "Usage: publicip-fast"
+  echo
+  echo "Fetches the public IP address stored in ~/.ip.public if it exists"
+  echo
+  echo "Examples:"
+  echo "  publicip-fast"
+  exit 0
+fi
+
+cat ~/.ip.public

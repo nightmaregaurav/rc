@@ -2,12 +2,12 @@
 
 # Help message
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-  echo "Usage: set-public-ip-to-extip-file"
+  echo "Usage: publicip"
   echo
-  echo "Fetches the public IP address and saves it to ~/.extip."
+  echo "Fetches the public IP address."
   echo
   echo "Examples:"
-  echo "  set-public-ip-to-extip-file"
+  echo "  publicip"
   exit 0
 fi
 
@@ -24,5 +24,5 @@ addr=$(
 
 # Validate and save to ~/.extip
 if [[ "$addr" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ || "$addr" =~ ^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$ ]]; then
-  echo "$addr" > ~/.extip
+  echo "$addr"
 fi

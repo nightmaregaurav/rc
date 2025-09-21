@@ -44,12 +44,17 @@ The following scripts are included to simplify common tasks:
 - **`extract-image-from-pdf`**: Extracts images from a PDF file.
 - **`free-port-after`**: Finds a free port after a specified port.
 - **`from-clipboard`**: Pastes text from the clipboard.
+- **`localip`**: Prints the local IP address.
+- **`localip-fast`**: Prints the local IP address, a little faster than `localip`.
+- **`ls-openports`**: Lists open ports on the local machine.
 - **`mkcd`**: Creates a directory and changes into it.
+- **`now`**: Shows the current date and time in a human-readable format.
 - **`organize-images-and-videos-by-date`**: Organizes images and videos in a folder by their creation date.
+- **`publicip`**: Prints the public IP address.
+- **`publicip-fast`**: Prints the public IP address, a little faster than `publicip`.
 - **`recurse-run`**: Recursively runs a command in all subdirectories.
 - **`remind-me`**: Sets a reminder with a message at a specific time and date.
 - **`serve`**: Simple wrapper for http-server (node)
-- **`set-public-ip-to-extip-file`**: Fetches the public IP address and saves it to `~/.extip` for alias `publicip`.
 - **`split-video`**: Splits a video file into multiple parts in chunks of the specified duration.
 - **`to-clipboard`**: Copies text to the clipboard.
 - **`update-rc`**: Updates this project to the latest version.
@@ -66,6 +71,12 @@ The following extra features are included to simplify tasks:
 
 ## Usage
 After sourcing the activate script, all the environment variables, aliases, and functions will be available in your shell. Use the `--help` or `-h` flag with any function to see detailed usage instructions.
+
+## Soft Requirement (only errors out while executing related commands)
+- **`android-platform-tools`**: Used by `adbw-brute-connect` and `adbw-brute-pair`
+- **`nmap`**: Used by `adbw-brute-connect` and `adbw-brute-pair`
+- **`ffmpeg`**: Used by `amplify`
+- There are some others, will add eventually... sorry...
 
 ## Contributing
 Feel free to fork this repository and submit pull requests to add new features or improve existing ones.

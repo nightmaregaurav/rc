@@ -1,0 +1,73 @@
+#!/bin/bash
+
+if ! command -v lsof >/dev/null 2>&1; then
+    echo "lsof is required. Please install it."
+    exit 1
+fi
+
+echo "Scanning open network connections..."
+
+sudo lsof -i -n -P | awk '
+# Define portable dash function at top level
+function dash(n,   s,i){ s=""; for(i=1;i<=n;i++) s=s"-"; return s }
+
+NR>1 {
+    proc=$1
+    type=$8
+    addr=$9
+
+    split(addr, parts, "->")
+    if (length(parts)==2) {
+        local_addr=parts[1]
+        remote_addr=parts[2]
+    } else {
+        local_addr=parts[1]
+        remote_addr="-"
+    }
+
+    split(local_addr, la, ":")
+    src_port=la[length(la)]
+    if (src_port=="*" || src_port=="-") next
+    src_addr=substr(local_addr, 1, length(local_addr)-length(":"src_port))
+
+    if (remote_addr != "-") {
+        split(remote_addr, ra, ":")
+        dest_port=ra[length(ra)]
+        if (dest_port=="*" || dest_port=="-") dest_port="-"
+        dest_addr=substr(remote_addr, 1, length(remote_addr)-length(":"dest_port))
+    } else {
+        dest_port="-"
+        dest_addr="-"
+    }
+
+    proto=type
+    key=proc "|" src_addr "|" src_port "|" dest_addr "|" dest_port "|" proto
+
+    if (!(key in seen)) {
+        seen[key]=1
+        connections[key]=proc "|" src_addr "|" src_port "|" dest_addr "|" dest_port "|" proto
+    }
+}
+END {
+    # Determine maximum widths
+    app_w=15; src_addr_w=15; src_port_w=10; dest_addr_w=15; dest_port_w=10; proto_w=6
+    for (k in connections) {
+        split(connections[k], c, "|")
+        if (length(c[1])>app_w) app_w=length(c[1])
+        if (length(c[2])>src_addr_w) src_addr_w=length(c[2])
+        if (length(c[3])>src_port_w) src_port_w=length(c[3])
+        if (length(c[4])>dest_addr_w) dest_addr_w=length(c[4])
+        if (length(c[5])>dest_port_w) dest_port_w=length(c[5])
+        if (length(c[6])>proto_w) proto_w=length(c[6])
+    }
+
+    # Print header
+    printf "%-*s %-*s %-*s %-*s %-*s %-*s\n", app_w, "Application", src_addr_w, "Source Address", src_port_w, "Src Port", dest_addr_w, "Dest Address", dest_port_w, "Dest Port", proto_w, "Proto"
+    printf "%-*s %-*s %-*s %-*s %-*s %-*s\n", app_w, dash(app_w), src_addr_w, dash(src_addr_w), src_port_w, dash(src_port_w), dest_addr_w, dash(dest_addr_w), dest_port_w, dash(dest_port_w), proto_w, dash(proto_w)
+
+    # Print connections
+    for (k in connections) {
+        split(connections[k], c, "|")
+        printf "%-*s %-*s %-*s %-*s %-*s %-*s\n", app_w, c[1], src_addr_w, c[2], src_port_w, c[3], dest_addr_w, c[4], dest_port_w, c[5], proto_w, c[6]
+    }
+}'

@@ -24,15 +24,6 @@ Environment variables are set up to aid with the following:
 - Adds most common executable directories to the `PATH`.
 - Configurations for Homebrew, Docker, git, Node, Java, DotNET, Android, and Python
 
-### Aliases
-Some aliases are added for convenience:
-
-- **`publicip`**: Displays the public IP address.
-- **`da`**: Displays the current date and time in a readable format.
-- **`openports`**: Lists open ports.
-- **`cpu`**: Displays CPU usage percentage.
-- **`timeout`**: To use timeout in osx where `gtimeout` is available but not `timeout`.
-
 ### Scripts
 The following scripts are included to simplify common tasks:
 
@@ -40,6 +31,7 @@ The following scripts are included to simplify common tasks:
 - **`adbw-brute-pair`**: Pairs with an Android device over wireless ADB.
 - **`amplify`**: Boosts volume in the provided video/audio file.
 - **`count`**: Counts the total number of files and folders in the current directory.
+- **`cpu-usage`**: Displays CPU usage percentage.
 - **`extract-gps-location-from-image`**: Extracts GPS location metadata from images or videos.
 - **`extract-image-from-pdf`**: Extracts images from a PDF file.
 - **`free-port-after`**: Finds a free port after a specified port.

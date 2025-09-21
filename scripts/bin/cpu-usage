@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  echo "Usage: cpu-usage"
+  echo
+  echo "Show the current CPU usage in percentage."
+  echo
+  echo "Examples:"
+  echo "  cpu-usage"
+  exit 0
+fi
+
+OS="$(uname -s)"
+
+case "$OS" in
+    Linux)
+        # Use top in batch mode
+        # Grab the line with "Cpu(s)" and parse user+system
+        usage=$(top -b -n1 | grep "Cpu(s)" | awk '{usage=$2+$4; printf "%.1f", usage}')
+        echo "$usage"
+        ;;
+    Darwin)
+        # Use top non-interactive mode, parse "CPU usage:"
+        usage=$(top -l1 | grep "CPU usage" | awk -F'[:,%]' '{gsub(/ /,"",$2); printf "%.1f", $2}')
+        echo "$usage"
+        ;;
+    MINGW*|MSYS*|CYGWIN*|Windows_NT)
+        # Windows: use wmic
+        usage=$(wmic cpu get loadpercentage | awk 'NR==2{print $1}')
+        echo "$usage"
+        ;;
+    *)
+        echo "N/A"
+        ;;
+esac

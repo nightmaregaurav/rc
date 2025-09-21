@@ -40,3 +40,4 @@ complete -o default -F _generic_help localip-fast
 complete -o default -F _generic_help ls-openports
 complete -o default -F _generic_help now
 complete -o default -F _generic_help count
+complete -o default -F _generic_help cpu-usage

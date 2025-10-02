@@ -18,8 +18,8 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
 fi
 
 if [ -z "$(command -v yt-dlp)" ]; then
-    echo "yt-dlp not found. Installing via pipx..."
-    pipx install yt-dlp || { echo "Failed to install yt-dlp using pipx. Please make sure pipx is installed."; exit 1; }
+    echo "yt-dlp not found. Please make sure yt-dlp is installed...";
+    exit 1;
 fi
 
 if [ $# -lt 2 ]; then

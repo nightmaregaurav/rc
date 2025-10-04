@@ -8,7 +8,7 @@ alias timeout='gtimeout'
 alias awk='gawk'
 
 # private zsh
-alias privatezsh=zsh -f --login -c 'unset HISTFILE; exec zsh'
+alias privatezsh="zsh -f --login -c 'unset HISTFILE; exec zsh'"
 
 # private bash
-alias privatebash=bash --noprofile --norc -c 'set +o history; exec bash'
+alias privatebash="bash --noprofile --norc -c 'set +o history; exec bash'"

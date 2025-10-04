@@ -6,3 +6,9 @@ alias timeout='gtimeout'
 
 # awk alias for osx
 alias awk='gawk'
+
+# private zsh
+alias privatezsh=zsh -f --login -c 'unset HISTFILE; exec zsh'
+
+# private bash
+alias privatebash=bash --noprofile --norc -c 'set +o history; exec bash'

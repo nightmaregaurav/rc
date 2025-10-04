@@ -23,14 +23,14 @@ source $current_rc_script_dir/scripts/source
 source $current_rc_script_dir/aliases
 
 # Save public IP Address to a file
-rm -f ~/.ip.public
-touch ~/.ip.public
-(publicip > ~/.ip.public &) > /dev/null 2>&1
+rm -f $HOME/.ip.public
+touch $HOME/.ip.public
+(publicip > $HOME/.ip.public &) > /dev/null 2>&1
 
 # Save local IP Address to a file
-rm -f ~/.ip.local
-touch ~/.ip.local
-(localip > ~/.ip.local &) > /dev/null 2>&1
+rm -f $HOME/.ip.local
+touch $HOME/.ip.local
+(localip > $HOME/.ip.local &) > /dev/null 2>&1
 
 # Hide EOL sign ('%')
 PROMPT_EOL_MARK=""
@@ -43,9 +43,6 @@ export HISTFILESIZE=10000
 export SAVEHIST=10000
 export HISTSIZE=2000
 
-# Set history file
-export HISTFILE=~/.history
-
 # Set history append mode
 if [[ -n $ZSH_VERSION ]]; then
   setopt INC_APPEND_HISTORY
@@ -53,3 +50,6 @@ else
   shopt -s histappend
   PROMPT_COMMAND="history -a;$PROMPT_COMMAND"
 fi
+
+# Set history file
+export HISTFILE=$HOME/.history

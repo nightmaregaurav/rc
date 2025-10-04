@@ -5,6 +5,6 @@ export LD_LIBRARY_PATH=/usr/local/lib
 
 if [ -f /usr/local/bin/virtualenvwrapper.sh ]; then
   . /usr/local/bin/virtualenvwrapper.sh
-elif [ -f ~/.local/bin/virtualenvwrapper.sh ]; then
-  . ~/.local/bin/virtualenvwrapper.sh
+elif [ -f $HOME/.local/bin/virtualenvwrapper.sh ]; then
+  . $HOME/.local/bin/virtualenvwrapper.sh
 fi

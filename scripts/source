@@ -41,3 +41,5 @@ complete -o default -F _generic_help ls-openports
 complete -o default -F _generic_help now
 complete -o default -F _generic_help count
 complete -o default -F _generic_help cpu-usage
+complete -o default -F _mssql_backup mssql-backup
+complete -o default -F _mssql_restore mssql-restore

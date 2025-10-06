@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+_mssql_backup() {
+    local cur prev
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    # List of all flags
+    local flags=("-H" "--host" "-U" "--user" "-P" "--password" "-D" "--database" "-h" "--help")
+
+    # Flags that require a value
+    local flags_with_values=("-H" "--host" "-U" "--user" "-P" "--password" "-D" "--database")
+
+    # Check if previous word is a flag that requires a value
+    for flag in "${flags_with_values[@]}"; do
+        if [[ "$prev" == "$flag" ]]; then
+            # Do not suggest anything if waiting for a value
+            return
+        fi
+    done
+
+    # Track which flags have already been used (to avoid suggesting them again)
+    local used_flags=()
+    for word in "${COMP_WORDS[@]}"; do
+        for flag in "${flags[@]}"; do
+            if [[ "$word" == "$flag" ]]; then
+                used_flags+=("$flag")
+            fi
+        done
+    done
+
+    # Suggest unused flags only
+    local suggestions=()
+    for flag in "${flags[@]}"; do
+        if [[ ! " ${used_flags[*]} " =~ " $flag " ]]; then
+            suggestions+=("$flag")
+        fi
+    done
+
+    COMPREPLY=( $(compgen -W "${suggestions[*]}" -- "$cur") )
+}

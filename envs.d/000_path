@@ -10,14 +10,14 @@ PATH_LIST=(
     /usr/local/sbin
     /opt/mssql-tools/bin
     /opt/homebrew/bin
-    $HOME/bin
-    $HOME/local/bin
-    $HOME/.local/bin
-    $HOME/.local/share/bin
-    $HOME/.local/share/JetBrains/Toolbox/scripts
-    $HOME/.dotnet
-    $HOME/.dotnet/tools
-    $HOME/.config/composer/vendor/bin
-    $HOME/.flutter/bin
+    "$HOME/bin"
+    "$HOME/local/bin"
+    "$HOME/.local/bin"
+    "$HOME/.local/share/bin"
+    "$HOME/.local/share/JetBrains/Toolbox/scripts"
+    "$HOME/.dotnet"
+    "$HOME/.dotnet/tools"
+    "$HOME/.config/composer/vendor/bin"
+    "$HOME/.flutter/bin"
 )
 export PATH=$PATH:$(IFS=:; echo "${PATH_LIST[*]}")

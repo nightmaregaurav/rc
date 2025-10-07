@@ -1,9 +1,9 @@
 # environment setup for android
-export ANDROID_HOME=$HOME/Android/Sdk
-export ANDROID_USER_HOME=$HOME/.android
-export ANDROID_EMULATOR_HOME=$HOME/.android
-export ANDROID_AVD_HOME=$HOME/.android/avd
-export ANDROID_NDK_HOME=$HOME/Android/Sdk/ndk
+export ANDROID_HOME="$HOME/Android/Sdk"
+export ANDROID_USER_HOME="$HOME/.android"
+export ANDROID_EMULATOR_HOME="$HOME/.android"
+export ANDROID_AVD_HOME="$HOME/.android/avd"
+export ANDROID_NDK_HOME="$HOME/Android/Sdk/ndk"
 
 mkdir -p $ANDROID_HOME
 mkdir -p $ANDROID_USER_HOME

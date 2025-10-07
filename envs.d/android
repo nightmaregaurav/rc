@@ -5,11 +5,11 @@ export ANDROID_EMULATOR_HOME="$HOME/.android"
 export ANDROID_AVD_HOME="$HOME/.android/avd"
 export ANDROID_NDK_HOME="$HOME/Android/Sdk/ndk"
 
-mkdir -p $ANDROID_HOME
-mkdir -p $ANDROID_USER_HOME
-mkdir -p $ANDROID_EMULATOR_HOME
-mkdir -p $ANDROID_AVD_HOME
-mkdir -p $ANDROID_NDK_HOME
+mkdir -p "$ANDROID_HOME"
+mkdir -p "$ANDROID_USER_HOME"
+mkdir -p "$ANDROID_EMULATOR_HOME"
+mkdir -p "$ANDROID_AVD_HOME"
+mkdir -p "$ANDROID_NDK_HOME"
 
 export ANDROID_ADB_SERVER_PORT=5037
 

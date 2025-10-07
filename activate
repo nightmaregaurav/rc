@@ -18,9 +18,9 @@ if [ -n "${ZSH_VERSION}" ]; then
 fi
 
 # Source environment variables first, then scripts, then aliases, and finally functions
-source $current_rc_script_dir/envs
-source $current_rc_script_dir/scripts/source
-source $current_rc_script_dir/aliases
+source "$current_rc_script_dir/envs"
+source "$current_rc_script_dir/scripts/source"
+source "$current_rc_script_dir/aliases"
 
 # Save public IP Address to a file
 rm -f "$HOME/.ip.public"

@@ -14,19 +14,16 @@ fi
 # Detect OS
 os=$(uname | tr '[:upper:]' '[:lower:]')
 
-echo "Detected OS: $os"
-echo
-
 # Windows (via Git Bash or WSL)
 if [[ "$os" == *"mingw"* || "$os" == *"msys"* || "$os" == *"cygwin"* ]]; then
-    echo "Video devices (Windows - dshow):"
+    echo "Video devices (Windows[$os] - dshow):"
     ffmpeg -list_devices true -f dshow -i dummy 2>&1 | \
     grep '(video)' | \
     sed 's/.*"\(.*\)".*/\1/'
 
 # macOS
 elif [[ "$os" == "darwin" ]]; then
-    echo "Video devices (macOS - avfoundation):"
+    echo "Video devices (macOS[$os] - avfoundation):"
     ffmpeg -f avfoundation -list_devices true -i "" 2>&1 | \
     sed -n '/AVFoundation video devices:/,/AVFoundation audio devices:/p' | \
     sed '1d;$d' | \
@@ -35,7 +32,7 @@ elif [[ "$os" == "darwin" ]]; then
 
 # Linux
 elif [[ "$os" == "linux" ]]; then
-    echo "Video devices (Linux - v4l2):"
+    echo "Video devices (Linux[$os] - v4l2):"
     for device in /dev/video*; do
         if v4l2-ctl --device="$device" --all &> /dev/null; then
             name=$(v4l2-ctl \

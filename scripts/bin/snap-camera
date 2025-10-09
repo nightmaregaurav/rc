@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+
+# snap-camera: Capture a single frame from a specified camera source using ffmpeg (Windows dshow)
+
+show_help() {
+  echo "Usage: $0 -s <source> -d <destination>"
+  echo
+  echo "Options:"
+  echo "  -s, --source        Camera source name (e.g., 'Integrated Webcam')"
+  echo "  -d, --destination   Destination file path (e.g., '~/image.jpg')"
+  echo "  -h, --help          Show this help message"
+  echo
+  echo "Example:"
+  echo "  $0 -s 'Integrated Webcam' -d '~/snapshot.jpg'"
+}
+
+# Parse arguments
+SOURCE=""
+DESTINATION=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -s|--source)
+      SOURCE="$2"
+      shift 2
+      ;;
+    -d|--destination)
+      DESTINATION="$2"
+      shift 2
+      ;;
+    -h|--help)
+      show_help
+      exit 0
+      ;;
+    *)
+      echo "Unknown option: $1"
+      show_help
+      exit 1
+      ;;
+  esac
+done
+
+# Validate inputs
+if [[ -z "$SOURCE" || -z "$DESTINATION" ]]; then
+  echo "Error: Both --source and --destination are required."
+  show_help
+  exit 1
+fi
+
+# Detect platform
+os=$(uname | tr '[:upper:]' '[:lower:]')
+
+# Determine ffmpeg input format and device syntax
+if [[ "$os" == "linux" ]]; then
+  input_format="v4l2"
+  input_device="/dev/$SOURCE"
+elif [[ "$os" == "darwin" ]]; then
+  input_format="avfoundation"
+  input_device="$SOURCE:0"
+elif [[ "$os" == "mingw"* || "$os" == "msys"* || "$os" == "cygwin"* ]]; then
+  input_format="dshow"
+  input_device="video=$SOURCE"
+else
+  echo "Unsupported OS: $os"
+  exit 1
+fi
+
+# Run ffmpeg
+echo "Capturing from '$SOURCE' using format '$input_format'..."
+echo "Saving to '$DESTINATION'"
+
+ffmpeg -f "$input_format" -i "$input_device" -vframes 1 "$DESTINATION"
+status=$?
+
+if [[ $status -eq 0 ]]; then
+  echo "Snapshot saved successfully to $DESTINATION"
+else
+  echo "Failed to capture snapshot (ffmpeg exited with code $status)"
+fi

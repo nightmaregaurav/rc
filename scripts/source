@@ -43,3 +43,4 @@ complete -o default -F _generic_help count
 complete -o default -F _generic_help cpu-usage
 complete -o default -F _mssql_backup mssql-backup
 complete -o default -F _mssql_restore mssql-restore
+complete -o default -F _generic_help list-cameras

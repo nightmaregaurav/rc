@@ -17,14 +17,14 @@ os=$(uname | tr '[:upper:]' '[:lower:]')
 # Windows (via Git Bash or WSL)
 if [[ "$os" == *"mingw"* || "$os" == *"msys"* || "$os" == *"cygwin"* ]]; then
     echo "Video devices (Windows[$os] - dshow):"
-    ffmpeg -list_devices true -f dshow -i dummy 2>&1 | \
+    ffmpeg -hide_banner -list_devices true -f dshow -i dummy 2>&1 | \
     grep '(video)' | \
     sed 's/.*"\(.*\)".*/\1/'
 
 # macOS
 elif [[ "$os" == "darwin" ]]; then
     echo "Video devices (macOS[$os] - avfoundation):"
-    ffmpeg -f avfoundation -list_devices true -i "" 2>&1 | \
+    ffmpeg -hide_banner -f avfoundation -list_devices true -i "" 2>&1 | \
     sed -n '/AVFoundation video devices:/,/AVFoundation audio devices:/p' | \
     sed '1d;$d' | \
     sed 's/^\[AVFoundation[^]]*\] //' | \

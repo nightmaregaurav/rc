@@ -45,3 +45,5 @@ complete -o default -F _mssql_backup mssql-backup
 complete -o default -F _mssql_restore mssql-restore
 complete -o default -F _generic_help list-cameras
 complete -o default -F _snap_from_source snap-camera
+complete -o default -F _generic_help install-command-hook
+complete -o default -F _generic_help uninstall-command-hook

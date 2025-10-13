@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+set -e
+
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  echo "Usage: $0"
+  echo
+  echo "Uninstalls a persistent service that monitors a file."
+  echo "Executes its content as a command,"
+  echo "renames it to <file>.<timestamp>.bak, and keeps monitoring."
+  exit 0
+fi
+
+SERVICE_NAME="command-hook"
+MONITOR_SCRIPT="$HOME/.local/bin/${SERVICE_NAME}-monitor"
+
+rm -f "$MONITOR_SCRIPT"
+
+OS="$(uname -s)"
+
+if [[ "$OS" == "Linux" ]]; then
+  UNIT_FILE="$HOME/.config/systemd/user/$SERVICE_NAME.service"
+  if [[ ! -f "$UNIT_FILE" ]]; then
+    echo "Error: $SERVICE_NAME is not installed."
+    exit 1
+  fi
+  systemctl --user stop "$SERVICE_NAME.service" || true
+  systemctl --user disable "$SERVICE_NAME.service" || true
+  rm -f "$UNIT_FILE"
+  echo "✅ Uninstalled $SERVICE_NAME service."
+
+elif [[ "$OS" == "Darwin" ]]; then
+  PLIST="$HOME/Library/LaunchAgents/com.user.${SERVICE_NAME}.plist"
+  if [[ ! -f "$PLIST" ]]; then
+    echo "Error: $SERVICE_NAME is not installed."
+    exit 1
+  fi
+  launchctl unload "$PLIST" || true
+  rm -f "$PLIST"
+  echo "✅ Uninstalled macOS LaunchAgent $SERVICE_NAME."
+
+elif [[ "$OS" =~ MINGW|MSYS|CYGWIN|Windows_NT ]]; then
+  TASK_NAME="command-hook"
+  if ! schtasks /Query /TN "$TASK_NAME" >/dev/null 2>&1; then
+    echo "Error: $TASK_NAME not installed."
+    exit 1
+  fi
+  schtasks /Delete /TN "$TASK_NAME" /F
+  echo "✅ Uninstalled Windows Scheduled Task $TASK_NAME."
+
+else
+  echo "Unsupported OS: $OS"
+  exit 1
+fi

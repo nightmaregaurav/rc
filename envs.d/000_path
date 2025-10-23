@@ -2,7 +2,9 @@
 # path setup
 PATH_LIST=(
     /bin
+    /sbin
     /usr/bin
+    /usr/sbin
     /usr/bin/site_perl
     /usr/bin/vendor_perl
     /usr/bin/core_perl
@@ -10,6 +12,7 @@ PATH_LIST=(
     /usr/local/sbin
     /opt/mssql-tools/bin
     /opt/homebrew/bin
+    /opt/homebrew/sbin
     "$HOME/bin"
     "$HOME/local/bin"
     "$HOME/.local/bin"

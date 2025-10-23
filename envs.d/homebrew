@@ -2,3 +2,4 @@
 [[ -r "/opt/homebrew/etc/profile.d/bash_completion.sh" ]] && . "/opt/homebrew/etc/profile.d/bash_completion.sh"
 export HOMEBREW_UPGRADE_GREEDY=true
 export HOMEBREW_DISPLAY_INSTALL_TIMES=true
+export HOMEBREW_NO_AUTO_UPDATE=1

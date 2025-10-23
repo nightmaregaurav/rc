@@ -28,11 +28,13 @@ while true; do
   if [[ -f "$TARGET_FILE" ]]; then
     cmd=$(cat "$TARGET_FILE")
     timestamp=$(date +%Y%m%d_%H%M%S)
-    command_file="${TARGET_FILE}.$timestamp.bak"
+    command_file="${TARGET_FILE}.$timestamp.request"
+    response_file="${TARGET_FILE}.$timestamp.response"
 
     echo "Detected file. Executing command [$timestamp]: $cmd"
+    echo "Will report back the output to: $response_file"
     mv "$TARGET_FILE" "$command_file"
-    bash -c "$cmd" &
+    bash --noprofile --norc -c "$cmd" > "$response_file"
   fi
   sleep 2
 done

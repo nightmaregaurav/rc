@@ -53,3 +53,6 @@ fi
 
 # Set history file
 export HISTFILE="$HOME/.history"
+
+# Filters duplicates from path so reading it would be easier
+export PATH=$(echo $PATH | tr ':' '\n' | sort -u | tr '\n' ':' | sed 's/:$//')

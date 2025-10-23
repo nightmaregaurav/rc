@@ -1,14 +1,14 @@
 # Determine the directory of this sourced file
 if [ -n "${BASH_SOURCE[0]}" ]; then
-    current_rc_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    export current_rc_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 elif [ -n "${ZSH_VERSION}" ]; then
-    current_rc_script_dir="$(cd "$(dirname "${(%):-%x}")" && pwd)"
+    export current_rc_script_dir="$(cd "$(dirname "${(%):-%x}")" && pwd)"
     autoload -Uz compinit && compinit
     autoload -Uz bashcompinit && bashcompinit
 elif [ -n "${.sh.file}" ]; then
-    current_rc_script_dir="$(cd "$(dirname "${.sh.file}")" && pwd)"
+    export current_rc_script_dir="$(cd "$(dirname "${.sh.file}")" && pwd)"
 else
-    current_rc_script_dir="$(pwd)"
+    export current_rc_script_dir="$(pwd)"
 fi
 
 # Enable loading completion in zsh

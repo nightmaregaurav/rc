@@ -55,4 +55,4 @@ fi
 export HISTFILE="$HOME/.history"
 
 # Filters duplicates from path so reading it would be easier
-export PATH=$(echo $PATH | tr ':' '\n' | sort -u | tr '\n' ':' | sed 's/:$//')
+export PATH=$(echo "$PATH" | tr ':' '\n' | sort | awk '!seen[$0]++' | tr '\n' ':' | sed 's/:$//')

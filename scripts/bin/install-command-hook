@@ -106,7 +106,7 @@ elif [[ "$OS" =~ MINGW|MSYS|CYGWIN|Windows_NT ]]; then
     exit 1
   fi
 
-  schtasks /Create /SC ONLOGON /RL HIGHEST /TN "$TASK_NAME" /TR "\"$SCRIPT_PATH\" \"$TARGET_FILE\"" /F
+  cmd.exe "schtasks /Create /SC ONLOGON /RL HIGHEST /TN \"$TASK_NAME\" /TR \"\"$SCRIPT_PATH\" \"$TARGET_FILE\"\" /F"
   echo "✅ Installed Windows Scheduled Task $TASK_NAME."
 
 else

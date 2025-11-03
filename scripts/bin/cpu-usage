@@ -1,35 +1,30 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-  echo "Usage: cpu-usage"
-  echo
-  echo "Show the current CPU usage in percentage."
-  echo
-  echo "Examples:"
-  echo "  cpu-usage"
-  exit 0
-fi
+import sys
 
-OS="$(uname -s)"
+script_name = "cpu-usage"
 
-case "$OS" in
-    Linux)
-        # Use top in batch mode
-        # Grab the line with "Cpu(s)" and parse user+system
-        usage=$(top -b -n1 | grep "Cpu(s)" | awk '{usage=$2+$4; printf "%.1f", usage}')
-        echo "$usage"
-        ;;
-    Darwin)
-        # Use top non-interactive mode, parse "CPU usage:"
-        usage=$(top -l1 | grep "CPU usage" | awk -F'[:,%]' '{gsub(/ /,"",$2); printf "%.1f", $2}')
-        echo "$usage"
-        ;;
-    MINGW*|MSYS*|CYGWIN*|Windows_NT)
-        # Windows: use wmic
-        usage=$(wmic cpu get loadpercentage | awk 'NR==2{print $1}')
-        echo "$usage"
-        ;;
-    *)
-        echo "N/A"
-        ;;
-esac
+HELP_MSG = f"""Usage: {script_name}
+
+Show the current CPU usage in percentage.
+
+Examples:
+  {script_name}
+"""
+
+# Show help
+if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
+    print(HELP_MSG)
+    sys.exit(0)
+
+try:
+    import psutil
+except ImportError:
+    print("Error: 'psutil' module is required. Install it with 'pip install psutil'.")
+    sys.exit(1)
+
+# Get CPU usage over a short interval (0.5s) to average
+cpu_percent = psutil.cpu_percent(interval=0.5)
+
+# Print as single number like Bash script
+print(f"{cpu_percent:.1f}")

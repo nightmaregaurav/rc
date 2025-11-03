@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-import sys
 import os
+import sys
 import socket
 import platform
 import subprocess
@@ -21,6 +21,7 @@ if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
     print(HELP_MSG)
     sys.exit(0)
 
+
 def get_ip_linux_mac():
     try:
         # Fast socket method
@@ -37,7 +38,9 @@ def get_ip_linux_mac():
     if platform.system() == "Darwin":
         for iface in ["en0", "en1"]:
             try:
-                ip = subprocess.check_output(["ipconfig", "getifaddr", iface], stderr=subprocess.DEVNULL)
+                ip = subprocess.check_output(
+                    ["ipconfig", "getifaddr", iface], stderr=subprocess.DEVNULL
+                )
                 ip = ip.decode().strip()
                 if ip:
                     return ip
@@ -46,7 +49,11 @@ def get_ip_linux_mac():
 
     # Linux fallback
     try:
-        result = subprocess.check_output("ip -4 addr show scope global | grep inet", shell=True, stderr=subprocess.DEVNULL)
+        result = subprocess.check_output(
+            "ip -4 addr show scope global | grep inet",
+            shell=True,
+            stderr=subprocess.DEVNULL,
+        )
         for line in result.decode().splitlines():
             ip_addr = line.strip().split()[1].split("/")[0]
             if not ip_addr.startswith(("127.", "169.")):
@@ -56,16 +63,21 @@ def get_ip_linux_mac():
 
     return None
 
+
 def get_ip_windows():
     try:
-        cmd = ["powershell", "-Command",
-               "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.IPAddress -notlike '169.*' -and $_.IPAddress -notlike '127.*'} | Select-Object -First 1 -ExpandProperty IPAddress)"]
+        cmd = [
+            "powershell",
+            "-Command",
+            "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.IPAddress -notlike '169.*' -and $_.IPAddress -notlike '127.*'} | Select-Object -First 1 -ExpandProperty IPAddress)",
+        ]
         ip = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
         if ip:
             return ip
     except Exception:
         pass
     return None
+
 
 def main():
     os_type = platform.system()
@@ -80,6 +92,7 @@ def main():
         print(ip)
     else:
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 from datetime import datetime
 import time
 
-script_name = "now"
+script_name = os.path.basename(sys.argv[0])
 
 HELP_MSG = f"""Usage: {script_name}
 

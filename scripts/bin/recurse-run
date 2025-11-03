@@ -27,11 +27,15 @@ initial_command = " ".join(sys.argv[1:])
 master_root_dir = os.getcwd()
 root_dir = os.getcwd()
 
+
 # Signal handler
 def handle_exit(signum, frame):
-    print(f"\nExit signal received!\nGoing back to original directory: {master_root_dir}")
+    print(
+        f"\nExit signal received!\nGoing back to original directory: {master_root_dir}"
+    )
     os.chdir(master_root_dir)
     sys.exit(1)
+
 
 signal.signal(signal.SIGINT, handle_exit)
 signal.signal(signal.SIGTERM, handle_exit)
@@ -41,9 +45,11 @@ if initial_command:
     print(f"Executing initial command: [{initial_command}]")
     subprocess.run(initial_command, shell=True)
 
-def print_separator(char='_'):
+
+def print_separator(char="_"):
     cols = get_terminal_size((80, 20)).columns
     print(char * cols)
+
 
 while True:
     print(f"Starting recursion from: {root_dir}")
@@ -58,15 +64,15 @@ while True:
         break
 
     # List only non-hidden directories in current directory
-    dirs = [d for d in os.listdir('.') if os.path.isdir(d) and not d.startswith('.')]
+    dirs = [d for d in os.listdir(".") if os.path.isdir(d) and not d.startswith(".")]
     for dir_name in dirs:
         os.chdir(dir_name)
-        print_separator('_')
+        print_separator("_")
         print(f">>> [{dir_name}]")
         subprocess.run(cmd, shell=True)
         os.chdir(root_dir)
 
     print()
-    print_separator('*')
+    print_separator("*")
     print("Recursion complete!")
     os.chdir(root_dir)

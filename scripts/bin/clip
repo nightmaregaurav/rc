@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
+import os
 import sys
 import platform
 import subprocess
 
-script_name = "clip"
+script_name = os.path.basename(sys.argv[0])
 
 HELP_MSG = f"""Usage: {script_name} [text]
 
@@ -23,6 +24,7 @@ if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
 text_to_copy = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else None
 os_type = platform.system()
 
+
 def copy_to_clipboard(text):
     if os_type == "Darwin":
         subprocess.run("pbcopy", input=text.encode())
@@ -33,13 +35,11 @@ def copy_to_clipboard(text):
             print("Error: 'xclip' not installed.")
             sys.exit(1)
     elif os_type == "Windows":
-        subprocess.run(
-            ["powershell", "-Command", "Set-Clipboard"],
-            input=text.encode()
-        )
+        subprocess.run(["powershell", "-Command", "Set-Clipboard"], input=text.encode())
     else:
         print("Error: Clipboard functionality not supported on this platform.")
         sys.exit(1)
+
 
 def paste_from_clipboard():
     if os_type == "Darwin":
@@ -47,20 +47,24 @@ def paste_from_clipboard():
         print(result.stdout, end="")
     elif os_type == "Linux":
         try:
-            result = subprocess.run(["xclip", "-selection", "clipboard", "-o"], capture_output=True, text=True)
+            result = subprocess.run(
+                ["xclip", "-selection", "clipboard", "-o"],
+                capture_output=True,
+                text=True,
+            )
             print(result.stdout, end="")
         except FileNotFoundError:
             print("Error: 'xclip' not installed.")
             sys.exit(1)
     elif os_type == "Windows":
         result = subprocess.run(
-            ["powershell", "-Command", "Get-Clipboard"],
-            capture_output=True, text=True
+            ["powershell", "-Command", "Get-Clipboard"], capture_output=True, text=True
         )
         print(result.stdout, end="")
     else:
         print("Error: Clipboard functionality not supported on this platform.")
         sys.exit(1)
+
 
 if text_to_copy:
     copy_to_clipboard(text_to_copy)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
 import time
 
 script_name = "now"
@@ -23,10 +23,14 @@ if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
 now = datetime.now()
 
 # Get timezone offset as +HHMM
-offset_sec = time.localtime().tm_gmtoff if hasattr(time.localtime(), "tm_gmtoff") else -time.timezone
+offset_sec = (
+    time.localtime().tm_gmtoff
+    if hasattr(time.localtime(), "tm_gmtoff")
+    else -time.timezone
+)
 hours = offset_sec // 3600
 minutes = (abs(offset_sec) % 3600) // 60
-tz_str = f"{'+' if hours >=0 else '-'}{abs(hours):02d}{minutes:02d}"
+tz_str = f"{'+' if hours >= 0 else '-'}{abs(hours):02d}{minutes:02d}"
 
 formatted = now.strftime(f"%Y-%m-%d %A %H:%M:%S {tz_str}")
 print(formatted)

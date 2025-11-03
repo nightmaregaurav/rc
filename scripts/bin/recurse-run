@@ -1,48 +1,72 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
+
+import os
+import sys
+import signal
+import subprocess
+from shutil import get_terminal_size
+
+script_name = os.path.basename(sys.argv[0])
+
+HELP_MSG = f"""Usage: {script_name} <command>
+
+Starts a session to recursively run passed commands in all folders in the current directory.
+You can also pass an initial command to run before the recursion starts.
+
+Examples:
+  {script_name} "echo Hello World"
+"""
 
 # Help flag
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-  echo "Usage: recurse-run <command>"
-  echo
-  echo "Starts a session to recursively run passed commands in all folders in the current directory."
-  echo "You can also pass an initial command to run before the recursion starts."
-  echo
-  echo "Examples:"
-  echo "  recurse-run 'echo Hello World'"
-  exit 0
-fi
+if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
+    print(HELP_MSG)
+    sys.exit(0)
 
-initial_command="$*"
-master_root_dir=$(pwd)
-root_dir=$(pwd)
+# Capture initial command if passed
+initial_command = " ".join(sys.argv[1:])
+master_root_dir = os.getcwd()
+root_dir = os.getcwd()
 
-trap 'echo -e "\nExit signal received!\nGoing back to original directory: $master_root_dir"; cd "$master_root_dir"; exit 1' SIGINT SIGTERM
+# Signal handler
+def handle_exit(signum, frame):
+    print(f"\nExit signal received!\nGoing back to original directory: {master_root_dir}")
+    os.chdir(master_root_dir)
+    sys.exit(1)
 
-if [[ -n "$initial_command" ]]; then
-  echo "Executing initial command: [$initial_command]"
-  eval "$initial_command"
-fi
+signal.signal(signal.SIGINT, handle_exit)
+signal.signal(signal.SIGTERM, handle_exit)
 
-while true; do
-  echo "Starting recursion from: $root_dir"
-  echo -n "Enter command to run in all subdirectories >>> "
-  read -r cmd
+# Run initial command if any
+if initial_command:
+    print(f"Executing initial command: [{initial_command}]")
+    subprocess.run(initial_command, shell=True)
 
-  if [[ -z "$cmd" ]]; then
-    echo "No command entered. Exiting..."
-    break
-  fi
+def print_separator(char='_'):
+    cols = get_terminal_size((80, 20)).columns
+    print(char * cols)
 
-  find . -mindepth 1 -maxdepth 1 -type d -not -path '*/\.*' | while IFS= read -r dir; do
-    cd "$dir" || continue
-    printf '%*s\n' "$(tput cols)" '' | tr ' ' '_'
-    echo ">>> [$dir]"
-    eval "$cmd"
-    cd "$root_dir" || exit
-  done
+while True:
+    print(f"Starting recursion from: {root_dir}")
+    try:
+        cmd = input("Enter command to run in all subdirectories >>> ").strip()
+    except EOFError:
+        print("\nNo input received. Exiting...")
+        break
 
-  echo ""
-  printf '%*s\n' "$(tput cols)" '' | tr ' ' '*'
-  echo "Recursion complete!"
-  cd "$root_dir" || exit
-done
+    if not cmd:
+        print("No command entered. Exiting...")
+        break
+
+    # List only non-hidden directories in current directory
+    dirs = [d for d in os.listdir('.') if os.path.isdir(d) and not d.startswith('.')]
+    for dir_name in dirs:
+        os.chdir(dir_name)
+        print_separator('_')
+        print(f">>> [{dir_name}]")
+        subprocess.run(cmd, shell=True)
+        os.chdir(root_dir)
+
+    print()
+    print_separator('*')
+    print("Recursion complete!")
+    os.chdir(root_dir)

@@ -1,34 +1,41 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 
-# Help section
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-  echo "Usage: count '[pattern]'"
-  echo
-  echo "Counts the total number of files and folders in the current directory only (no subdirectories)."
-  echo "If a file pattern is provided, it also counts the matching files."
-  echo
-  echo "Examples:"
-  echo "  count             # Counts all files and folders"
-  echo "  count \"*.pdf\"     # Counts all files and folders, plus matching *.pdf files"
-  exit 0
-fi
+import sys
+import os
+import fnmatch
 
-# Default pattern is '*'
-pattern="${1:-*}"
+script_name = os.path.basename(sys.argv[0])
 
-# Count top-level directories and files
-total_folders=$(find . -maxdepth 1 -type d | wc -l)
-total_files=$(find . -maxdepth 1 -type f | wc -l)
-matching_files=$(find . -maxdepth 1 -type f -name "$pattern" | wc -l)
-matching_folders=$(find . -maxdepth 1 -type d -name "$pattern" | wc -l)
+HELP_MSG = f"""Usage: {script_name} '[pattern]'
 
-# Subtract 1 for '.' (current dir)
-total_folders=$((total_folders - 1))
+Counts the total number of files and folders in the current directory only (no subdirectories).
+If a file pattern is provided, it also counts the matching files.
+
+Examples:
+  {script_name}           # Counts all files and folders
+  {script_name} "*.pdf"   # Counts all files and folders, plus matching *.pdf files
+"""
+
+# Help flag
+if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
+    print(HELP_MSG)
+    sys.exit(0)
+
+# Pattern argument
+pattern = sys.argv[1] if len(sys.argv) > 1 else "*"
+
+# List top-level files and directories
+entries = os.listdir(".")
+files = [f for f in entries if os.path.isfile(f)]
+folders = [d for d in entries if os.path.isdir(d)]
+
+# Count matches
+matching_files = [f for f in files if fnmatch.fnmatch(f, pattern)]
+matching_folders = [d for d in folders if fnmatch.fnmatch(d, pattern)]
 
 # Print results
-echo "Total: $((total_folders + total_files))"
-echo "Folders: $total_folders"
-echo "Files: $total_files"
-if [[ "$pattern" != "*" ]]; then
-  echo "$pattern: $matching_files files, $matching_folders folders"
-fi
+print(f"Total: {len(files) + len(folders)}")
+print(f"Folders: {len(folders)}")
+print(f"Files: {len(files)}")
+if pattern != "*":
+    print(f"{pattern}: {len(matching_files)} files, {len(matching_folders)} folders")

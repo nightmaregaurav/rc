@@ -1,14 +1,32 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 
-# Help message
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-  echo "Usage: now"
-  echo
-  echo "Show the current date and time in a human-readable format."
-  echo
-  echo "Examples:"
-  echo "  now"
-  exit 0
-fi
+import sys
+from datetime import datetime, timezone, timedelta
+import time
 
-date "+%Y-%m-%d %A %T %Z"
+script_name = "now"
+
+HELP_MSG = f"""Usage: {script_name}
+
+Show the current date and time in a human-readable format, including timezone.
+
+Examples:
+  {script_name}
+"""
+
+# Show help
+if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
+    print(HELP_MSG)
+    sys.exit(0)
+
+# Get local time
+now = datetime.now()
+
+# Get timezone offset as +HHMM
+offset_sec = time.localtime().tm_gmtoff if hasattr(time.localtime(), "tm_gmtoff") else -time.timezone
+hours = offset_sec // 3600
+minutes = (abs(offset_sec) % 3600) // 60
+tz_str = f"{'+' if hours >=0 else '-'}{abs(hours):02d}{minutes:02d}"
+
+formatted = now.strftime(f"%Y-%m-%d %A %H:%M:%S {tz_str}")
+print(formatted)

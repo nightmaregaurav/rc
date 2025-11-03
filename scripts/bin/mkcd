@@ -1,22 +1,35 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
+
+import sys
+import os
+
+script_name = os.path.basename(sys.argv[0])
+
+HELP_MSG = f"""Usage: {script_name} <directory>
+
+Creates a directory and changes into it (if run in an interactive shell).
+
+Examples:
+  {script_name} new_folder
+"""
 
 # Show help
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-    echo "Usage: mkcd <directory>"
-    echo
-    echo "Creates a directory and changes into it (if run in interactive shell or sourced)."
-    echo
-    echo "Examples:"
-    echo "  mkcd new_folder"
-    exit 0
-fi
+if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
+    print(HELP_MSG)
+    sys.exit(0)
 
 # Check arguments
-if [ "$#" -ne 1 ]; then
-    echo "Invalid number of arguments."
-    echo "Try 'mkcd --help' for more information."
-    exit 1
-fi
+if len(sys.argv) != 2:
+    print("Invalid number of arguments.")
+    print(f"Try '{script_name} --help' for more information.")
+    sys.exit(1)
 
-# Create and cd
-mkdir -p "$1" && cd "$1" || exit 1
+directory = sys.argv[1]
+
+# Create directory
+try:
+    os.makedirs(directory, exist_ok=True)
+    os.chdir(directory)
+except Exception as e:
+    print(f"Error: {e}")
+    sys.exit(1)

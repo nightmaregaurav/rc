@@ -1,45 +1,85 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 
-# Help message
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-  echo "Usage: localip"
-  echo
-  echo "Fetches the local IP address."
-  echo
-  echo "Examples:"
-  echo "  localip"
-  exit 0
-fi
+import sys
+import os
+import socket
+import platform
+import subprocess
 
-# Detect OS
-OS=$(uname)
+script_name = os.path.basename(sys.argv[0])
 
-if [[ "$OS" == "Darwin" || "$OS" == "Linux" ]]; then
-    # Try to find the first non-loopback IPv4 address
-    IP=$(ip addr 2>/dev/null | grep -w inet | grep -v '127.0.0.1' | awk '{print $2}' | cut -d/ -f1 | head -n1)
+HELP_MSG = f"""Usage: {script_name}
 
-    # Fallback for macOS
-    if [[ -z "$IP" && "$OS" == "Darwin" ]]; then
-        IP=$(ipconfig getifaddr en0 2>/dev/null)
-        if [[ -z "$IP" ]]; then
-            IP=$(ipconfig getifaddr en1 2>/dev/null)
-        fi
-    fi
+Fetches the primary local IP address.
 
-    if [[ -z "$IP" ]]; then
-        exit 1
-    else
-        echo "$IP"
-    fi
+Examples:
+  {script_name}
+"""
 
-elif [[ "$OS" == *"MINGW"* || "$OS" == *"CYGWIN"* || "$OS" == *"MSYS"* ]]; then
-    # Windows (Git Bash / Cygwin)
-    IP=$(powershell.exe -Command "(Get-NetIPAddress -AddressFamily IPv4 -InterfaceAlias '*' | Where-Object {$_.IPAddress -notlike '169.*' -and $_.IPAddress -notlike '127.*'} | Select-Object -First 1 -ExpandProperty IPAddress)")
-    if [[ -z "$IP" ]]; then
-        exit 1
-    else
-        echo "$IP"
-    fi
-else
-    exit 1
-fi
+# Show help
+if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
+    print(HELP_MSG)
+    sys.exit(0)
+
+def get_ip_linux_mac():
+    try:
+        # Fast socket method
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        if ip and not ip.startswith(("127.", "169.")):
+            return ip
+    except Exception:
+        pass
+
+    # macOS fallback
+    if platform.system() == "Darwin":
+        for iface in ["en0", "en1"]:
+            try:
+                ip = subprocess.check_output(["ipconfig", "getifaddr", iface], stderr=subprocess.DEVNULL)
+                ip = ip.decode().strip()
+                if ip:
+                    return ip
+            except subprocess.CalledProcessError:
+                continue
+
+    # Linux fallback
+    try:
+        result = subprocess.check_output("ip -4 addr show scope global | grep inet", shell=True, stderr=subprocess.DEVNULL)
+        for line in result.decode().splitlines():
+            ip_addr = line.strip().split()[1].split("/")[0]
+            if not ip_addr.startswith(("127.", "169.")):
+                return ip_addr
+    except Exception:
+        pass
+
+    return None
+
+def get_ip_windows():
+    try:
+        cmd = ["powershell", "-Command",
+               "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.IPAddress -notlike '169.*' -and $_.IPAddress -notlike '127.*'} | Select-Object -First 1 -ExpandProperty IPAddress)"]
+        ip = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
+        if ip:
+            return ip
+    except Exception:
+        pass
+    return None
+
+def main():
+    os_type = platform.system()
+    ip = None
+
+    if os_type in ("Linux", "Darwin"):
+        ip = get_ip_linux_mac()
+    elif os_type == "Windows":
+        ip = get_ip_windows()
+
+    if ip:
+        print(ip)
+    else:
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()

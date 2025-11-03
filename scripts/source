@@ -26,6 +26,7 @@ if [ -n "$ZSH_VERSION" ]; then
 fi
 
 # Register completions
+complete -o default -F _generic_help clip
 complete -o default -F _git_as git-as
 complete -o default -F _git_rmprofile git-rmprofile
 complete -o default -F _git_mkprofile git-mkprofile

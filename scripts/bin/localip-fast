@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 
+SCRIPT=$(basename "$0")
+
+HELP_MESSAGE="Usage: $SCRIPT
+Fetches the local IP address stored in ~/.ip.local if it exists
+
+Example:
+    $SCRIPT"
+
 # Help message
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-  echo "Usage: localip-fast"
-  echo
-  echo "Fetches the local IP address stored in ~/.ip.local if it exists"
-  echo
-  echo "Examples:"
-  echo "  localip-fast"
+  echo "$HELP_MESSAGE"
   exit 0
 fi
 

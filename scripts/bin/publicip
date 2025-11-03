@@ -1,28 +1,47 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
+
+import sys
+import os
+import urllib.request
+import socket
+import ipaddress
+
+script_name = os.path.basename(sys.argv[0])
+
+HELP_MSG = f"""Usage: {script_name}
+
+Fetches the public IP address.
+
+Examples:
+  {script_name}
+"""
 
 # Help message
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-  echo "Usage: publicip"
-  echo
-  echo "Fetches the public IP address."
-  echo
-  echo "Examples:"
-  echo "  publicip"
-  exit 0
-fi
+if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
+    print(HELP_MSG)
+    sys.exit(0)
 
-# Fetch the public IP using multiple fallbacks
-addr=$(
-  timeout 3 curl -s http://whatismyip.akamai.com/ || \
-  timeout 3 curl -s http://ifconfig.io/ip || \
-  timeout 3 curl -s http://ifconfig.me/ip || \
-  timeout 3 curl -s http://ipecho.net/plain
-)
+urls = [
+    "http://whatismyip.akamai.com/",
+    "http://ifconfig.io/ip",
+    "http://ifconfig.me/ip",
+    "http://ipecho.net/plain"
+]
 
-# Fallback if all fail
-[ $? -ne 0 ] && addr="0.0.0.0"
+addr = "0.0.0.0"
 
-# Validate and show
-if [[ "$addr" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ || "$addr" =~ ^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$ ]]; then
-  echo "$addr"
-fi
+for url in urls:
+    try:
+        with urllib.request.urlopen(url, timeout=3) as response:
+            candidate = response.read().decode().strip()
+            # Validate IP
+            try:
+                ip = ipaddress.ip_address(candidate)
+                addr = str(ip)
+                break
+            except ValueError:
+                continue
+    except (urllib.error.URLError, socket.timeout):
+        continue
+
+print(addr)

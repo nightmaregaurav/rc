@@ -1,73 +1,119 @@
-#!/bin/bash
+#!/usr/bin/env -S uv run --script
 
-if ! command -v lsof >/dev/null 2>&1; then
-    echo "lsof is required. Please install it."
-    exit 1
-fi
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "psutil",
+# ]
+# ///
 
-echo "Scanning open network connections..."
+import os
+import sys
+import subprocess
+from collections import OrderedDict
 
-sudo lsof -i -n -P | awk '
-# Define portable dash function at top level
-function dash(n,   s,i){ s=""; for(i=1;i<=n;i++) s=s"-"; return s }
+script_name = os.path.basename(sys.argv[0])
 
-NR>1 {
-    proc=$1
-    type=$8
-    addr=$9
+HELP_MSG = f"""Usage: {script_name}
 
-    split(addr, parts, "->")
-    if (length(parts)==2) {
-        local_addr=parts[1]
-        remote_addr=parts[2]
-    } else {
-        local_addr=parts[1]
-        remote_addr="-"
-    }
+Shows active network connections with application names.
 
-    split(local_addr, la, ":")
-    src_port=la[length(la)]
-    if (src_port=="*" || src_port=="-") next
-    src_addr=substr(local_addr, 1, length(local_addr)-length(":"src_port))
+Columns:
+  Application | Source Address | Src Port | Dest Address | Dest Port | Proto
 
-    if (remote_addr != "-") {
-        split(remote_addr, ra, ":")
-        dest_port=ra[length(ra)]
-        if (dest_port=="*" || dest_port=="-") dest_port="-"
-        dest_addr=substr(remote_addr, 1, length(remote_addr)-length(":"dest_port))
-    } else {
-        dest_port="-"
-        dest_addr="-"
-    }
+Examples:
+  {script_name}
+"""
 
-    proto=type
-    key=proc "|" src_addr "|" src_port "|" dest_addr "|" dest_port "|" proto
+# Show help
+if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
+    print(HELP_MSG)
+    sys.exit(0)
 
-    if (!(key in seen)) {
-        seen[key]=1
-        connections[key]=proc "|" src_addr "|" src_port "|" dest_addr "|" dest_port "|" proto
-    }
-}
-END {
-    # Determine maximum widths
-    app_w=15; src_addr_w=15; src_port_w=10; dest_addr_w=15; dest_port_w=10; proto_w=6
-    for (k in connections) {
-        split(connections[k], c, "|")
-        if (length(c[1])>app_w) app_w=length(c[1])
-        if (length(c[2])>src_addr_w) src_addr_w=length(c[2])
-        if (length(c[3])>src_port_w) src_port_w=length(c[3])
-        if (length(c[4])>dest_addr_w) dest_addr_w=length(c[4])
-        if (length(c[5])>dest_port_w) dest_port_w=length(c[5])
-        if (length(c[6])>proto_w) proto_w=length(c[6])
-    }
 
-    # Print header
-    printf "%-*s %-*s %-*s %-*s %-*s %-*s\n", app_w, "Application", src_addr_w, "Source Address", src_port_w, "Src Port", dest_addr_w, "Dest Address", dest_port_w, "Dest Port", proto_w, "Proto"
-    printf "%-*s %-*s %-*s %-*s %-*s %-*s\n", app_w, dash(app_w), src_addr_w, dash(src_addr_w), src_port_w, dash(src_port_w), dest_addr_w, dash(dest_addr_w), dest_port_w, dash(dest_port_w), proto_w, dash(proto_w)
+# Ensure running as root/admin
+def is_root():
+    if os.name == "nt":
+        # On Windows, check via "net session" (requires admin)
+        try:
+            subprocess.check_output(
+                "net session", shell=True, stderr=subprocess.DEVNULL
+            )
+            return True
+        except subprocess.CalledProcessError:
+            return False
+    else:
+        return os.geteuid() == 0
 
-    # Print connections
-    for (k in connections) {
-        split(connections[k], c, "|")
-        printf "%-*s %-*s %-*s %-*s %-*s %-*s\n", app_w, c[1], src_addr_w, c[2], src_port_w, c[3], dest_addr_w, c[4], dest_port_w, c[5], proto_w, c[6]
-    }
-}'
+
+if not is_root():
+    print(f"Re-running '{script_name}' with elevated privileges...")
+    try:
+        if os.name == "nt":
+            # Relaunch via PowerShell as admin
+            subprocess.run(
+                [
+                    "powershell",
+                    "Start-Process",
+                    sys.executable,
+                    *sys.argv,
+                    "-Verb",
+                    "runAs",
+                ]
+            )
+        else:
+            os.execvp("sudo", ["sudo", sys.executable, *sys.argv])
+    except Exception as e:
+        print(f"Failed to elevate privileges: {e}")
+    sys.exit(0)
+
+try:
+    import psutil
+except ImportError:
+    print("Error: 'psutil' module is required. Install it with 'pip install psutil'.")
+    sys.exit(1)
+
+
+def dash(n):
+    return "-" * n
+
+
+# Collect connections
+connections = OrderedDict()
+for conn in psutil.net_connections(kind="inet"):
+    try:
+        proc_name = psutil.Process(conn.pid).name() if conn.pid else "-"
+    except Exception:
+        proc_name = "-"
+
+    laddr = conn.laddr.ip if hasattr(conn.laddr, "ip") else conn.laddr[0]
+    lport = str(conn.laddr.port if hasattr(conn.laddr, "port") else conn.laddr[1])
+    raddr = conn.raddr.ip if conn.raddr else "-"
+    rport = str(conn.raddr.port if conn.raddr else "-")
+    proto = "TCP" if conn.type == 1 else "UDP" if conn.type == 2 else str(conn.type)
+
+    key = f"{proc_name}|{laddr}|{lport}|{raddr}|{rport}|{proto}"
+    if key not in connections:
+        connections[key] = (proc_name, laddr, lport, raddr, rport, proto)
+
+# Determine column widths dynamically
+columns = list(zip(*connections.values())) if connections else [[]] * 6
+widths = [max(15, max((len(str(v)) for v in col), default=0)) for col in columns]
+app_w, src_addr_w, src_port_w, dest_addr_w, dest_port_w, proto_w = widths
+
+# Print header
+print(
+    f"{'Application':<{app_w}} {'Source Address':<{src_addr_w}} {'Src Port':<{src_port_w}} "
+    f"{'Dest Address':<{dest_addr_w}} {'Dest Port':<{dest_port_w}} {'Proto':<{proto_w}}"
+)
+print(
+    f"{dash(app_w):<{app_w}} {dash(src_addr_w):<{src_addr_w}} {dash(src_port_w):<{src_port_w}} "
+    f"{dash(dest_addr_w):<{dest_addr_w}} {dash(dest_port_w):<{dest_port_w}} {dash(proto_w):<{proto_w}}"
+)
+
+# Print connections
+for conn in connections.values():
+    print(
+        f"{conn[0]:<{app_w}} {conn[1]:<{src_addr_w}} {conn[2]:<{src_port_w}} "
+        f"{conn[3]:<{dest_addr_w}} {conn[4]:<{dest_port_w}} {conn[5]:<{proto_w}}"
+    )

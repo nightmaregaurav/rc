@@ -1,30 +1,86 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
 
-if [[ "$1" == "-h" || "$1" == "--help" ]]; then
-  echo "Usage: split-video <input.mp4> <output_prefix> [segment_duration]"
-  echo "Example: split-video input.mp4 part_ 00:05:00"
-  echo "Splits video into multiple segments (default duration: 00:10:00)"
-  exit 0
-fi
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "argcomplete",
+#   "ffmpeg-python",
+# ]
+# ///
 
-input="$1"
-output_prefix="$2"
-segment_duration="${3:-00:10:00}"
+import os
+import sys
+import ffmpeg
+import argparse
+import argcomplete
 
-if [[ -z "$input" || -z "$output_prefix" ]]; then
-  echo "Error: Missing arguments."
-  echo "Run 'split-video --help' for usage."
-  exit 1
-fi
 
-if [[ ! -f "$input" ]]; then
-  echo "Error: '$input' does not exist."
-  exit 1
-fi
+def split_video(input_file: str, output_prefix: str, segment_duration: str) -> None:
+    """Splits a video into segments of given duration using ffmpeg-python."""
+    if not os.path.isfile(input_file):
+        print(f"Error: '{input_file}' does not exist.")
+        sys.exit(1)
 
-if ! command -v ffmpeg >/dev/null 2>&1; then
-  echo "Error: ffmpeg is not installed or not in PATH."
-  exit 1
-fi
+    try:
+        (
+            ffmpeg
+            .input(input_file)
+            .output(
+                f"{output_prefix}%03d.mp4",
+                c="copy",
+                map=0,
+                f="segment",
+                segment_time=segment_duration,
+                reset_timestamps=1,
+                avoid_negative_ts="make_zero",
+            )
+            .run(quiet=False, overwrite_output=True)
+        )
+    except ffmpeg.Error as e:
+        sys.stderr.write(e.stderr.decode() if hasattr(e, "stderr") else str(e))
+        sys.exit(1)
 
-ffmpeg -i "$input" -c copy -map 0 -segment_time "$segment_duration" -f segment "${output_prefix}%03d.mp4"
+
+def complete_segment_duration(prefix, parsed_args, **_):
+    durations = ["00:05:00", "00:10:00", "00:15:00"]
+    return [d for d in durations if d.startswith(prefix)]
+
+
+def main():
+    script_name = os.path.basename(sys.argv[0])
+
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Split a video into smaller segments using FFmpeg.",
+        epilog=(
+            f"Examples:\n"
+            f"  {script_name} input.mp4 part_ 00:05:00\n"
+            f"  {script_name} input.mp4 part_"
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument("input", help="Input video file path.")
+    parser.add_argument("output_prefix", help="Output file prefix.")
+    parser.add_argument(
+        "segment_duration",
+        nargs="?",
+        default="00:10:00",
+        help="Duration of each segment (default: 00:10:00).",
+    ).completer = complete_segment_duration
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    split_video(args.input, args.output_prefix, args.segment_duration)
+
+
+if __name__ == "__main__":
+    main()

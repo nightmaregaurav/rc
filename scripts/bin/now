@@ -3,41 +3,59 @@
 # /// script
 # requires-python = ">=3.14"
 # dependencies = [
+#     "argcomplete",
 # ]
 # ///
 
 import os
 import sys
-from datetime import datetime
 import time
+from datetime import datetime
+import argparse
+import argcomplete
 
-script_name = os.path.basename(sys.argv[0])
 
-HELP_MSG = f"""Usage: {script_name}
+def get_local_datetime() -> str:
+    now = datetime.now()
 
-Show the current date and time in a human-readable format, including timezone.
+    offset_sec = (
+        time.localtime().tm_gmtoff
+        if hasattr(time.localtime(), "tm_gmtoff")
+        else -time.timezone
+    )
+    hours = offset_sec // 3600
+    minutes = (abs(offset_sec) % 3600) // 60
+    tz_str = f"{'+' if hours >= 0 else '-'}{abs(hours):02d}{minutes:02d}"
 
-Examples:
-  {script_name}
-"""
+    return now.strftime(f"%Y-%m-%d %A %H:%M:%S {tz_str}")
 
-# Show help
-if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
-    print(HELP_MSG)
-    sys.exit(0)
 
-# Get local time
-now = datetime.now()
+def complete_flags(prefix, parsed_args, **_):
+    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
 
-# Get timezone offset as +HHMM
-offset_sec = (
-    time.localtime().tm_gmtoff
-    if hasattr(time.localtime(), "tm_gmtoff")
-    else -time.timezone
-)
-hours = offset_sec // 3600
-minutes = (abs(offset_sec) % 3600) // 60
-tz_str = f"{'+' if hours >= 0 else '-'}{abs(hours):02d}{minutes:02d}"
 
-formatted = now.strftime(f"%Y-%m-%d %A %H:%M:%S {tz_str}")
-print(formatted)
+def main():
+    script_name = os.path.basename(sys.argv[0])
+
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Show the current date and time in a human-readable format, including timezone.",
+        epilog=f"Examples:\n  {script_name}",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    parser.parse_args()
+
+    print(get_local_datetime())
+
+
+if __name__ == "__main__":
+    main()

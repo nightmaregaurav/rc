@@ -52,3 +52,5 @@ case "$OS" in
         exit 1
         ;;
 esac
+
+uv tool install argcomplete

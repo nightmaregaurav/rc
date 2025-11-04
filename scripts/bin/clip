@@ -3,6 +3,7 @@
 # /// script
 # requires-python = ">=3.14"
 # dependencies = [
+#   "argcomplete",
 # ]
 # ///
 
@@ -10,47 +11,32 @@ import os
 import sys
 import platform
 import subprocess
+import argparse
+import argcomplete
 
 script_name = os.path.basename(sys.argv[0])
-
-HELP_MSG = f"""Usage: {script_name} [text]
-
-Copy text to the clipboard or paste from it.
-
-Examples:
-  {script_name} "Hello, World!"   # Copy to clipboard
-  {script_name}                    # Paste from clipboard
-"""
-
-# Show help
-if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
-    print(HELP_MSG)
-    sys.exit(0)
-
-text_to_copy = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else None
 os_type = platform.system()
 
 
-def copy_to_clipboard(text):
+def copy_to_clipboard(text: str):
     if os_type == "Darwin":
-        subprocess.run("pbcopy", input=text.encode())
+        subprocess.run(["pbcopy"], input=text.encode(), check=True)
     elif os_type == "Linux":
         try:
-            subprocess.run(["xclip", "-selection", "clipboard"], input=text.encode())
+            subprocess.run(["xclip", "-selection", "clipboard"], input=text.encode(), check=True)
         except FileNotFoundError:
-            print("Error: 'xclip' not installed.")
+            print("Error: 'xclip' not installed. Install it with 'sudo apt install xclip'.")
             sys.exit(1)
     elif os_type == "Windows":
-        subprocess.run(["powershell", "-Command", "Set-Clipboard"], input=text.encode())
+        subprocess.run(["powershell", "-Command", "Set-Clipboard"], input=text.encode(), check=True)
     else:
-        print("Error: Clipboard functionality not supported on this platform.")
+        print(f"Error: Clipboard functionality not supported on {os_type}.")
         sys.exit(1)
 
 
 def paste_from_clipboard():
     if os_type == "Darwin":
         result = subprocess.run(["pbpaste"], capture_output=True, text=True)
-        print(result.stdout, end="")
     elif os_type == "Linux":
         try:
             result = subprocess.run(
@@ -58,21 +44,59 @@ def paste_from_clipboard():
                 capture_output=True,
                 text=True,
             )
-            print(result.stdout, end="")
         except FileNotFoundError:
-            print("Error: 'xclip' not installed.")
+            print("Error: 'xclip' not installed. Install it with 'sudo apt install xclip'.")
             sys.exit(1)
     elif os_type == "Windows":
         result = subprocess.run(
-            ["powershell", "-Command", "Get-Clipboard"], capture_output=True, text=True
+            ["powershell", "-Command", "Get-Clipboard"],
+            capture_output=True,
+            text=True,
         )
-        print(result.stdout, end="")
     else:
-        print("Error: Clipboard functionality not supported on this platform.")
+        print(f"Error: Clipboard functionality not supported on {os_type}.")
         sys.exit(1)
 
+    print(result.stdout, end="")
 
-if text_to_copy:
-    copy_to_clipboard(text_to_copy)
-else:
-    paste_from_clipboard()
+
+def complete_flags(prefix, parsed_args, **_):
+    """Autocomplete available flags."""
+    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Copy text to the clipboard, or paste if no argument is given.",
+        epilog=f"Examples:\n  {script_name} 'Hello, World!'\n  {script_name}",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,  # keep the default help
+    )
+
+    parser.add_argument(
+        "text",
+        nargs="*",
+        help="Text to copy to the clipboard (omit to paste instead).",
+    )
+
+    # Add custom help flag
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit."
+    )
+
+    # Register completer
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    if args.text:
+        text = " ".join(args.text)
+        copy_to_clipboard(text)
+    else:
+        paste_from_clipboard()
+
+
+if __name__ == "__main__":
+    main()

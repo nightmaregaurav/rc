@@ -3,6 +3,7 @@
 # /// script
 # requires-python = ">=3.14"
 # dependencies = [
+#   "argcomplete",
 # ]
 # ///
 
@@ -11,26 +12,12 @@ import sys
 import socket
 import platform
 import subprocess
-
-script_name = os.path.basename(sys.argv[0])
-
-HELP_MSG = f"""Usage: {script_name}
-
-Fetches the primary local IP address.
-
-Examples:
-  {script_name}
-"""
-
-# Show help
-if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
-    print(HELP_MSG)
-    sys.exit(0)
+import argparse
+import argcomplete
 
 
 def get_ip_linux_mac():
     try:
-        # Fast socket method
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
@@ -40,20 +27,18 @@ def get_ip_linux_mac():
     except Exception:
         pass
 
-    # macOS fallback
     if platform.system() == "Darwin":
-        for iface in ["en0", "en1"]:
+        for iface in ("en0", "en1"):
             try:
                 ip = subprocess.check_output(
-                    ["ipconfig", "getifaddr", iface], stderr=subprocess.DEVNULL
-                )
-                ip = ip.decode().strip()
+                    ["ipconfig", "getifaddr", iface],
+                    stderr=subprocess.DEVNULL
+                ).decode().strip()
                 if ip:
                     return ip
             except subprocess.CalledProcessError:
                 continue
 
-    # Linux fallback
     try:
         result = subprocess.check_output(
             "ip -4 addr show scope global | grep inet",
@@ -75,7 +60,9 @@ def get_ip_windows():
         cmd = [
             "powershell",
             "-Command",
-            "(Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.IPAddress -notlike '169.*' -and $_.IPAddress -notlike '127.*'} | Select-Object -First 1 -ExpandProperty IPAddress)",
+            "(Get-NetIPAddress -AddressFamily IPv4 | "
+            "Where-Object {$_.IPAddress -notlike '169.*' -and $_.IPAddress -notlike '127.*'} | "
+            "Select-Object -First 1 -ExpandProperty IPAddress)"
         ]
         ip = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
         if ip:
@@ -85,7 +72,31 @@ def get_ip_windows():
     return None
 
 
+def complete_flags(prefix, parsed_args, **_):
+    """Autocomplete available flags."""
+    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
+
+
 def main():
+    script_name = os.path.basename(sys.argv[0])
+
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Fetch the primary local IP address.",
+        epilog=f"Examples:\n  {script_name}",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    parser.parse_args()
+
     os_type = platform.system()
     ip = None
 

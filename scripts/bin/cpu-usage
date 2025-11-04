@@ -4,34 +4,48 @@
 # requires-python = ">=3.14"
 # dependencies = [
 #   "psutil",
+#   "argcomplete",
 # ]
 # ///
 
 import sys
+import argparse
+import argcomplete
+import psutil
 
 script_name = "cpu-usage"
 
-HELP_MSG = f"""Usage: {script_name}
 
-Show the current CPU usage in percentage.
+def get_cpu_usage() -> float:
+    """Return average CPU usage percentage over a short interval."""
+    return psutil.cpu_percent(interval=0.5)
 
-Examples:
-  {script_name}
-"""
 
-# Show help
-if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
-    print(HELP_MSG)
-    sys.exit(0)
+def complete_flags(prefix, parsed_args, **_):
+    """Autocomplete available flags."""
+    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
 
-try:
-    import psutil
-except ImportError:
-    print("Error: 'psutil' module is required. Install it with 'pip install psutil'.")
-    sys.exit(1)
 
-# Get CPU usage over a short interval (0.5s) to average
-cpu_percent = psutil.cpu_percent(interval=0.5)
+def main():
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Show the current CPU usage in percentage.",
+        epilog=f"Examples:\n  {script_name}",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
 
-# Print as single number like Bash script
-print(f"{cpu_percent:.1f}")
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    parser.parse_args()
+
+    print(f"{get_cpu_usage():.1f}")
+
+
+if __name__ == "__main__":
+    main()

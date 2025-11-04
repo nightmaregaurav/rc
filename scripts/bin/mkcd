@@ -3,39 +3,64 @@
 # /// script
 # requires-python = ">=3.14"
 # dependencies = [
+#     "argcomplete",
 # ]
 # ///
 
 import os
 import sys
+import argparse
+import argcomplete
 
-script_name = os.path.basename(sys.argv[0])
 
-HELP_MSG = f"""Usage: {script_name} <directory>
+def create_and_enter_directory(directory: str):
+    """Create a directory and change into it if possible."""
+    try:
+        os.makedirs(directory, exist_ok=True)
+        os.chdir(directory)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 
-Creates a directory and changes into it (if run in an interactive shell).
 
-Examples:
-  {script_name} new_folder
-"""
+def complete_flags(prefix, parsed_args, **_):
+    """Autocomplete available flags."""
+    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
 
-# Show help
-if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
-    print(HELP_MSG)
-    sys.exit(0)
 
-# Check arguments
-if len(sys.argv) != 2:
-    print("Invalid number of arguments.")
-    print(f"Try '{script_name} --help' for more information.")
-    sys.exit(1)
+def main():
+    script_name = os.path.basename(sys.argv[0])
 
-directory = sys.argv[1]
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Create a directory and change into it (if run in an interactive shell).",
+        epilog=f"Examples:\n  {script_name} new_folder",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
 
-# Create directory and switch to it
-try:
-    os.makedirs(directory, exist_ok=True)
-    os.chdir(directory)
-except Exception as e:
-    print(f"Error: {e}")
-    sys.exit(1)
+    parser.add_argument(
+        "directory",
+        nargs="?",
+        help="Directory name to create and switch to.",
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    if not args.directory:
+        print("Error: missing directory name.")
+        print(f"Try '{script_name} --help' for more information.")
+        sys.exit(1)
+
+    create_and_enter_directory(args.directory)
+
+
+if __name__ == "__main__":
+    main()

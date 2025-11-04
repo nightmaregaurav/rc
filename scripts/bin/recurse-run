@@ -3,6 +3,7 @@
 # /// script
 # requires-python = ">=3.14"
 # dependencies = [
+#     "argcomplete",
 # ]
 # ///
 
@@ -11,45 +12,8 @@ import sys
 import signal
 import subprocess
 from shutil import get_terminal_size
-
-script_name = os.path.basename(sys.argv[0])
-
-HELP_MSG = f"""Usage: {script_name} <command>
-
-Starts a session to recursively run passed commands in all folders in the current directory.
-You can also pass an initial command to run before the recursion starts.
-
-Examples:
-  {script_name} "echo Hello World"
-"""
-
-# Help flag
-if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
-    print(HELP_MSG)
-    sys.exit(0)
-
-# Capture initial command if passed
-initial_command = " ".join(sys.argv[1:])
-master_root_dir = os.getcwd()
-root_dir = os.getcwd()
-
-
-# Signal handler
-def handle_exit(signum, frame):
-    print(
-        f"\nExit signal received!\nGoing back to original directory: {master_root_dir}"
-    )
-    os.chdir(master_root_dir)
-    sys.exit(1)
-
-
-signal.signal(signal.SIGINT, handle_exit)
-signal.signal(signal.SIGTERM, handle_exit)
-
-# Run initial command if any
-if initial_command:
-    print(f"Executing initial command: [{initial_command}]")
-    subprocess.run(initial_command, shell=True)
+import argparse
+import argcomplete
 
 
 def print_separator(char="_"):
@@ -57,28 +21,85 @@ def print_separator(char="_"):
     print(char * cols)
 
 
-while True:
-    print(f"Starting recursion from: {root_dir}")
-    try:
-        cmd = input("Enter command to run in all subdirectories >>> ").strip()
-    except EOFError:
-        print("\nNo input received. Exiting...")
-        break
+def handle_exit(signum, frame, master_root_dir):
+    print(f"\nExit signal received!\nGoing back to original directory: {master_root_dir}")
+    os.chdir(master_root_dir)
+    sys.exit(1)
 
-    if not cmd:
-        print("No command entered. Exiting...")
-        break
 
-    # List only non-hidden directories in current directory
-    dirs = [d for d in os.listdir(".") if os.path.isdir(d) and not d.startswith(".")]
-    for dir_name in dirs:
-        os.chdir(dir_name)
-        print_separator("_")
-        print(f">>> [{dir_name}]")
-        subprocess.run(cmd, shell=True)
+def run_recursive_commands(initial_command: str):
+    master_root_dir = os.getcwd()
+    root_dir = master_root_dir
+
+    # Attach signal handlers
+    signal.signal(signal.SIGINT, lambda s, f: handle_exit(s, f, master_root_dir))
+    signal.signal(signal.SIGTERM, lambda s, f: handle_exit(s, f, master_root_dir))
+
+    # Run initial command if provided
+    if initial_command:
+        print(f"Executing initial command: [{initial_command}]")
+        subprocess.run(initial_command, shell=True)
+
+    # Main recursive loop
+    while True:
+        print(f"Starting recursion from: {root_dir}")
+        try:
+            cmd = input("Enter command to run in all subdirectories >>> ").strip()
+        except EOFError:
+            print("\nNo input received. Exiting...")
+            break
+
+        if not cmd:
+            print("No command entered. Exiting...")
+            break
+
+        dirs = [d for d in os.listdir(".") if os.path.isdir(d) and not d.startswith(".")]
+        for dir_name in dirs:
+            os.chdir(dir_name)
+            print_separator("_")
+            print(f">>> [{dir_name}]")
+            subprocess.run(cmd, shell=True)
+            os.chdir(root_dir)
+
+        print()
+        print_separator("*")
+        print("Recursion complete!")
         os.chdir(root_dir)
 
-    print()
-    print_separator("*")
-    print("Recursion complete!")
-    os.chdir(root_dir)
+
+def complete_flags(prefix, parsed_args, **_):
+    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
+
+
+def main():
+    script_name = os.path.basename(sys.argv[0])
+
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Starts a session to recursively run passed commands in all folders in the current directory.\nYou can also pass an initial command to run before the recursion starts.",
+        epilog=f"Examples:\n  {script_name} \"echo Hello World\"",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "command",
+        nargs=argparse.REMAINDER,
+        help="Initial command to execute before starting recursion.",
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    initial_command = " ".join(args.command)
+    run_recursive_commands(initial_command)
+
+
+if __name__ == "__main__":
+    main()

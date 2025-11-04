@@ -3,6 +3,7 @@
 # /// script
 # requires-python = ">=3.14"
 # dependencies = [
+#     "argcomplete",
 # ]
 # ///
 
@@ -11,43 +12,60 @@ import sys
 import urllib.request
 import socket
 import ipaddress
+import argparse
+import argcomplete
 
-script_name = os.path.basename(sys.argv[0])
 
-HELP_MSG = f"""Usage: {script_name}
+def fetch_public_ip() -> str:
+    urls = [
+        "https://ifconfig.io/ip",
+        "https://ifconfig.me/ip",
+        "https://api.ipify.org",
+        "https://icanhazip.com",
+    ]
 
-Fetches the public IP address.
+    for url in urls:
+        try:
+            with urllib.request.urlopen(url, timeout=3) as response:
+                candidate = response.read().decode().strip()
+                try:
+                    ip = ipaddress.ip_address(candidate)
+                    return str(ip)
+                except ValueError:
+                    continue
+        except (urllib.error.URLError, socket.timeout):
+            continue
 
-Examples:
-  {script_name}
-"""
+    return "0.0.0.0"
 
-# Help message
-if len(sys.argv) > 1 and sys.argv[1] in ("--help", "-h"):
-    print(HELP_MSG)
-    sys.exit(0)
 
-urls = [
-    "http://whatismyip.akamai.com/",
-    "http://ifconfig.io/ip",
-    "http://ifconfig.me/ip",
-    "http://ipecho.net/plain",
-]
+def complete_flags(prefix, parsed_args, **_):
+    """Autocomplete available flags."""
+    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
 
-addr = "0.0.0.0"
 
-for url in urls:
-    try:
-        with urllib.request.urlopen(url, timeout=3) as response:
-            candidate = response.read().decode().strip()
-            # Validate IP
-            try:
-                ip = ipaddress.ip_address(candidate)
-                addr = str(ip)
-                break
-            except ValueError:
-                continue
-    except (urllib.error.URLError, socket.timeout):
-        continue
+def main():
+    script_name = os.path.basename(sys.argv[0])
 
-print(addr)
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Fetch the public IP address.",
+        epilog=f"Examples:\n  {script_name}",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    parser.parse_args()
+
+    print(fetch_public_ip())
+
+
+if __name__ == "__main__":
+    main()

@@ -39,9 +39,6 @@ def fetch_public_ip() -> str:
     return "0.0.0.0"
 
 
-def complete_flags(prefix, parsed_args, **_):
-    """Autocomplete available flags."""
-    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
 
 
 def main():

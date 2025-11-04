@@ -33,9 +33,6 @@ def count_entries(pattern: str = "*"):
         print(f"{pattern}: {len(matching_files)} files, {len(matching_folders)} folders")
 
 
-def complete_flags(prefix, parsed_args, **_):
-    """Autocomplete available flags."""
-    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
 
 
 def main():

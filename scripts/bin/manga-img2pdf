@@ -15,9 +15,6 @@ import argcomplete
 import img2pdf
 
 
-def complete_flags(prefix, parsed_args, **_):
-    """Autocomplete available flags."""
-    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
 
 
 def collect_image_paths(folder_path: str) -> list[str]:

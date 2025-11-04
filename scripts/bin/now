@@ -30,10 +30,6 @@ def get_local_datetime() -> str:
     return now.strftime(f"%Y-%m-%d %A %H:%M:%S {tz_str}")
 
 
-def complete_flags(prefix, parsed_args, **_):
-    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
-
-
 def main():
     script_name = os.path.basename(sys.argv[0])
 

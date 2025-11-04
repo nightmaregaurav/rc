@@ -14,9 +14,6 @@ import argparse
 import argcomplete
 
 
-def complete_flags(prefix, parsed_args, **_):
-    """Autocomplete available flags."""
-    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
 
 
 def get_primary_ip() -> str | None:

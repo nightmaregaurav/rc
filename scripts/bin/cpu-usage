@@ -21,9 +21,6 @@ def get_cpu_usage() -> float:
     return psutil.cpu_percent(interval=0.5)
 
 
-def complete_flags(prefix, parsed_args, **_):
-    """Autocomplete available flags."""
-    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
 
 
 def main():

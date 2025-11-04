@@ -31,9 +31,6 @@ def find_free_port_after(start_port: int) -> int:
     return -1
 
 
-def complete_flags(prefix, parsed_args, **_):
-    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
-
 
 def main():
     script_name = os.path.basename(sys.argv[0])

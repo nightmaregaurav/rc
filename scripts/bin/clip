@@ -15,9 +15,6 @@ import argcomplete
 import pyperclip
 
 
-def complete_flags(prefix, parsed_args, **_):
-    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
-
 
 def copy_to_clipboard(text: str):
     try:

@@ -16,9 +16,6 @@ import sys
 import ffmpeg
 
 
-def complete_flags(prefix, parsed_args, **_):
-    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
-
 def complete_volume(prefix, parsed_args, **_):
     percentages = [f"{i}%" for i in range(0, 501, 25) if i != 100]
     return [opt for opt in percentages if opt.startswith(prefix)]

@@ -23,9 +23,6 @@ def create_and_enter_directory(directory: str):
         sys.exit(1)
 
 
-def complete_flags(prefix, parsed_args, **_):
-    """Autocomplete available flags."""
-    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
 
 
 def main():

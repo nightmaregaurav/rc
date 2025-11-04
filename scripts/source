@@ -59,3 +59,4 @@ complete -o default -F _generic_help localip-fast
 complete -o default -F _generic_help install-command-hook
 complete -o default -F _generic_help uninstall-command-hook
 complete -o default -F _generic_help setup-uv
+complete -o default -F _generic_help snap-camera-remote

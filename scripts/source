@@ -53,11 +53,11 @@ complete -o default -F _git_lsprofile git-lsprofile
 complete -o default -F _split_video split-video
 complete -o default -F _serve serve
 complete -o default -F _remind_me remind-me
-complete -o default -F _generic_help localip-fast
 complete -o default -F _mssql_backup mssql-backup
 complete -o default -F _mssql_restore mssql-restore
-complete -o default -F _generic_help list-cameras
 complete -o default -F _snap_from_source snap-camera
+complete -o default -F _generic_help localip-fast
+complete -o default -F _generic_help list-cameras
 complete -o default -F _generic_help install-command-hook
 complete -o default -F _generic_help uninstall-command-hook
 complete -o default -F _generic_help setup-uv

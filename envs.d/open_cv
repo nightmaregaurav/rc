@@ -1,0 +1,1 @@
+export OPENCV_LOG_LEVEL="FATAL"

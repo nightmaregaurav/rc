@@ -43,7 +43,7 @@ if command -v register-python-argcomplete >/dev/null 2>&1; then
     eval "$(register-python-argcomplete manga-img2pdf 2>/dev/null || true)"
     eval "$(register-python-argcomplete youtube-get 2>/dev/null || true)"
     eval "$(register-python-argcomplete split-video 2>/dev/null || true)"
-    eval "$(register-python-argcomplete recurse-run 2>/dev/null || true)"
+    eval "$(register-python-argcomplete snap-camera 2>/dev/null || true)"
 fi
 
 complete -o default -F _git_as git-as
@@ -54,9 +54,7 @@ complete -o default -F _serve serve
 complete -o default -F _remind_me remind-me
 complete -o default -F _mssql_backup mssql-backup
 complete -o default -F _mssql_restore mssql-restore
-complete -o default -F _snap_from_source snap-camera
 complete -o default -F _generic_help localip-fast
-complete -o default -F _generic_help list-cameras
 complete -o default -F _generic_help install-command-hook
 complete -o default -F _generic_help uninstall-command-hook
 complete -o default -F _generic_help setup-uv

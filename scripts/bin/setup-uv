@@ -53,4 +53,5 @@ case "$OS" in
         ;;
 esac
 
+uv python install 3.14
 uv tool install argcomplete

@@ -1,79 +1,131 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
 
-# snap-camera: Capture a single frame from a specified camera source using ffmpeg (Windows dshow)
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "opencv-python",
+#   "argcomplete",
+# ]
+# ///
 
-show_help() {
-  echo "Usage: $0 -s <source> -d <destination>"
-  echo
-  echo "Options:"
-  echo "  -s, --source        Camera source name (e.g., 'Integrated Webcam')"
-  echo "  -d, --destination   Destination file path (e.g., '~/image.jpg')"
-  echo "  -h, --help          Show this help message"
-  echo
-  echo "Example:"
-  echo "  $0 -s 'Integrated Webcam' -d '~/snapshot.jpg'"
-}
+import os
+import cv2
+import sys
+import time
+import platform
+import argparse
+import argcomplete
 
-# Parse arguments
-SOURCE=""
-DESTINATION=""
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    -s|--source)
-      SOURCE="$2"
-      shift 2
-      ;;
-    -d|--destination)
-      DESTINATION="$2"
-      shift 2
-      ;;
-    -h|--help)
-      show_help
-      exit 0
-      ;;
-    *)
-      echo "Unknown option: $1"
-      show_help
-      exit 1
-      ;;
-  esac
-done
+def detect_backend():
+    """Choose the most reliable capture backend depending on the OS."""
+    os_type = platform.system()
+    if os_type == "Darwin":
+        return cv2.CAP_AVFOUNDATION
+    elif os_type == "Windows":
+        return cv2.CAP_DSHOW  # or CAP_MSMF
+    else:
+        return cv2.CAP_V4L2  # Linux
 
-# Validate inputs
-if [[ -z "$SOURCE" || -z "$DESTINATION" ]]; then
-  echo "Error: Both --source and --destination are required."
-  show_help
-  exit 1
-fi
 
-# Detect platform
-os=$(uname | tr '[:upper:]' '[:lower:]')
+def list_available_camera_ports():
+    """
+    Test the ports and returns a tuple with the available ports and the ones that are working.
+    """
+    port = 0
+    non_working_ports = []
+    working_ports = []
+    backend = detect_backend()
+    while len(non_working_ports) < 6: # if there are more than 5 non working ports stop the testing.
+        camera = cv2.VideoCapture(port, backend)
+        if not camera.isOpened():
+            non_working_ports.append(port)
+        else:
+            working_ports.append(port)
+        port +=1
+    return working_ports,non_working_ports
 
-# Determine ffmpeg input format and device syntax
-if [[ "$os" == "linux" ]]; then
-  input_format="v4l2"
-  input_device="/dev/$SOURCE"
-elif [[ "$os" == "darwin" ]]; then
-  input_format="avfoundation"
-  input_device="$SOURCE:0"
-elif [[ "$os" == "mingw"* || "$os" == "msys"* || "$os" == "cygwin"* ]]; then
-  input_format="dshow"
-  input_device="video=$SOURCE"
-else
-  echo "Unsupported OS: $os"
-  exit 1
-fi
 
-# Run ffmpeg
-echo "Capturing from '$SOURCE' using format '$input_format'..."
-echo "Saving to '$DESTINATION'"
+def capture_from_all_cameras(destination: str):
+    """Capture one frame from each available camera and save it."""
+    available, _ = list_available_camera_ports()
+    if not available:
+        print("No available cameras found.")
+        sys.exit(1)
 
-ffmpeg -hide_banner -f "$input_format" -i "$input_device" -vframes 1 "$DESTINATION"
-status=$?
+    os_type = platform.system()
+    base = os.path.expanduser(destination)
+    base_dir = os.path.dirname(base) or "."
+    base_name, ext = os.path.splitext(os.path.basename(base))
+    os.makedirs(base_dir, exist_ok=True)
 
-if [[ $status -eq 0 ]]; then
-  echo "Snapshot saved successfully to $DESTINATION"
-else
-  echo "Failed to capture snapshot (ffmpeg exited with code $status)"
-fi
+    backend = detect_backend()
+
+    for idx in available:
+        print(f"[INFO] Accessing camera {idx} ({os_type})...")
+        cap = cv2.VideoCapture(idx, backend)
+
+        if not cap.isOpened():
+            print(f"[WARN] Could not open camera {idx}.")
+            continue
+
+        # macOS cameras need warm-up time
+        warmup_frames = 5 if os_type == "Darwin" else 2
+        time.sleep(1.2 if os_type == "Darwin" else 0.5)
+
+        frame = None
+        for _ in range(warmup_frames):
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                break
+            time.sleep(0.2)
+
+        cap.release()
+
+        if frame is None:
+            print(f"[WARN] Failed to capture a valid frame from camera {idx}.")
+            continue
+
+        output_path = os.path.join(base_dir, f"{base_name}_CAM{idx}{ext}")
+        success = cv2.imwrite(output_path, frame)
+        if success:
+            print(f"[OK] Snapshot saved: {output_path}")
+        else:
+            print(f"[ERROR] Failed to save image for camera {idx}.")
+
+
+def main():
+    script_name = os.path.basename(sys.argv[0])
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Capture one frame from all connected cameras using OpenCV (cross-platform).",
+        epilog=(
+            f"Examples:\n"
+            f"  {script_name} -d ~/snapshot.jpg\n"
+            f"  {script_name} --destination ./captures/image.png"
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    parser.add_argument(
+        "-d", "--destination",
+        required=True,
+        help="Base destination file path (e.g., '~/snapshot.jpg'). "
+        "Images will be saved as <filename>_CAM<index>.<ext>.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    capture_from_all_cameras(args.destination)
+
+
+if __name__ == "__main__":
+    main()

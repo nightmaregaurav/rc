@@ -21,4 +21,4 @@ ANDROID_PATH_LIST=(
     $ANDROID_HOME/tools/bin
     $ANDROID_HOME/cmdline-tools/latest/bin
 )
-export PATH=$PATH:$(IFS=:; echo "${ANDROID_PATH_LIST[*]}")
+export PATH=$(IFS=:; echo "${ANDROID_PATH_LIST[*]}"):$PATH

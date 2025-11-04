@@ -8,7 +8,7 @@ if [ -d "$current_rc_script_dir/scripts/bin" ]; then
   done
 fi
 
-PATH="$PATH:$current_rc_script_dir/scripts/bin"
+PATH="$current_rc_script_dir/scripts/bin:$PATH"
 
 # Make sure all completion functions are sourced
 if [ -d "$current_rc_script_dir/scripts/completions" ]; then

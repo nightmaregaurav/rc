@@ -1,26 +1,26 @@
 # this file is named 000_path to make sure it is sourced first
 # path setup
 PATH_LIST=(
-    /bin
-    /sbin
-    /usr/bin
-    /usr/sbin
-    /usr/bin/site_perl
-    /usr/bin/vendor_perl
-    /usr/bin/core_perl
-    /usr/local/bin
-    /usr/local/sbin
+    "$HOME/.flutter/bin"
+    "$HOME/.config/composer/vendor/bin"
+    "$HOME/.dotnet/tools"
+    "$HOME/.dotnet"
+    "$HOME/.local/share/JetBrains/Toolbox/scripts"
+    "$HOME/.local/share/bin"
+    "$HOME/.local/bin"
+    "$HOME/local/bin"
+    "$HOME/bin"
     /opt/mssql-tools/bin
     /opt/homebrew/bin
     /opt/homebrew/sbin
-    "$HOME/bin"
-    "$HOME/local/bin"
-    "$HOME/.local/bin"
-    "$HOME/.local/share/bin"
-    "$HOME/.local/share/JetBrains/Toolbox/scripts"
-    "$HOME/.dotnet"
-    "$HOME/.dotnet/tools"
-    "$HOME/.config/composer/vendor/bin"
-    "$HOME/.flutter/bin"
+    /usr/local/bin
+    /usr/local/sbin
+    /usr/bin/core_perl
+    /usr/bin/vendor_perl
+    /usr/bin/site_perl
+    /usr/bin
+    /usr/sbin
+    /bin
+    /sbin
 )
-export PATH=$PATH:$(IFS=:; echo "${PATH_LIST[*]}")
+export PATH=$(IFS=:; echo "${PATH_LIST[*]}"):$PATH

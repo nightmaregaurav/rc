@@ -40,7 +40,7 @@ if command -v register-python-argcomplete >/dev/null 2>&1; then
     eval "$(register-python-argcomplete now 2>/dev/null || true)"
     eval "$(register-python-argcomplete recurse-run 2>/dev/null || true)"
     eval "$(register-python-argcomplete amplify 2>/dev/null || true)"
-    eval "$(register-python-argcomplete recurse-run 2>/dev/null || true)"
+    eval "$(register-python-argcomplete manga-img2pdf 2>/dev/null || true)"
     eval "$(register-python-argcomplete recurse-run 2>/dev/null || true)"
     eval "$(register-python-argcomplete recurse-run 2>/dev/null || true)"
     eval "$(register-python-argcomplete recurse-run 2>/dev/null || true)"

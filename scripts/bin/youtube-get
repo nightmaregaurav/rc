@@ -55,11 +55,6 @@ def download(mode: str, urls: list[str]) -> None:
                 print(f"Error downloading {url}: {e}")
 
 
-def complete_modes(prefix, parsed_args, **_):
-    modes = ["bestaudio", "mp3", "bestvideo", "mp4"]
-    return [m for m in modes if m.startswith(prefix)]
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="youtube-get",
@@ -75,8 +70,10 @@ def main() -> None:
 
     parser.add_argument(
         "mode",
-        help="Download mode: bestaudio, mp3, bestvideo, or mp4",
-    ).completer = complete_modes
+        choices=["bestaudio", "mp3", "bestvideo", "mp4"],
+        default="mp4",
+        help="Download mode (default: mp4).",
+    ).completer = None  # choices already provide sensible completion
 
     parser.add_argument(
         "urls",

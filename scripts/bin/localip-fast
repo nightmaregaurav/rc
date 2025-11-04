@@ -1,17 +1,53 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
 
-SCRIPT=$(basename "$0")
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
 
-HELP_MESSAGE="Usage: $SCRIPT
-Fetches the local IP address stored in ~/.ip.local if it exists
+import os
+import sys
+import argparse
+import argcomplete
 
-Example:
-    $SCRIPT"
 
-# Help message
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-  echo "$HELP_MESSAGE"
-  exit 0
-fi
+def read_local_ip():
+    ip_file = os.path.expanduser("~/.ip.local")
+    if not os.path.exists(ip_file):
+        print("Error: ~/.ip.local not found.")
+        sys.exit(1)
+    with open(ip_file, "r", encoding="utf-8") as f:
+        print(f.read().strip())
 
-cat ~/.ip.local
+
+def complete_flags(prefix, parsed_args, **_):
+    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
+
+
+def main():
+    script_name = os.path.basename(sys.argv[0])
+
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Fetches the local IP address stored in ~/.ip.local if it exists.",
+        epilog=f"Examples:\n  {script_name}",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    parser.parse_args()
+
+    read_local_ip()
+
+
+if __name__ == "__main__":
+    main()

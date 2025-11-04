@@ -1,35 +1,90 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
 
-if [[ "$1" == "-h" || "$1" == "--help" ]]; then
-  echo "Usage: amplify <input.mp4> <output.mp4> <gain>"
-  echo "Example: amplify input.mp4 output.mp4 40dB"
-  echo "Amplifies audio by the specified dB (e.g., 10dB, 40dB)"
-  exit 0
-fi
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+#     "ffmpeg-python",
+# ]
+# ///
 
-input="$1"
-output="$2"
-gain="$3"
+import argparse
+import argcomplete
+import os
+import re
+import sys
+import ffmpeg
 
-if [[ -z "$input" || -z "$output" || -z "$gain" ]]; then
-  echo "Error: Missing arguments."
-  echo "Run 'amplify --help' for usage."
-  exit 1
-fi
 
-if [[ ! -f "$input" ]]; then
-  echo "Error: '$input' does not exist."
-  exit 1
-fi
+def complete_flags(prefix, parsed_args, **_):
+    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
 
-if ! [[ "$gain" =~ ^[0-9]+(\.[0-9]+)?dB$ ]]; then
-  echo "Error: Gain must be in format like '40dB' or '10.5dB'"
-  exit 1
-fi
+def complete_volume(prefix, parsed_args, **_):
+    percentages = [f"{i}%" for i in range(0, 501, 25) if i != 100]
+    return [opt for opt in percentages if opt.startswith(prefix)]
 
-if ! command -v ffmpeg >/dev/null 2>&1; then
-  echo "Error: ffmpeg not found. Please install ffmpeg."
-  exit 1
-fi
+def parse_volume(volume: str) -> float:
+    """
+    Converts a positive percentage volume string (e.g., '150%', '75.5%')
+    into a volume multiplier usable by FFmpeg.
+    """
+    if not re.fullmatch(r"\d+(\.\d+)?%", volume):
+        print("Error: volume must be in format like '150%%' or '75.5%%'.")
+        sys.exit(1)
 
-ffmpeg -i "$input" -vcodec copy -af "volume=$gain" "$output"
+    value = float(volume.strip("%"))
+    if value < 0:
+        print("Error: volume percentage must be greater or equal to 0%.")
+        sys.exit(1)
+    if value > 1000:
+        print("Error: volume percentage too high (max 1000%).")
+        sys.exit(1)
+
+    return value / 100.0
+
+
+def amplify(input_file: str, output_file: str, volume: str) -> None:
+    volume_factor = parse_volume(volume)
+    try:
+        (
+            ffmpeg
+            .input(input_file)
+            .output(output_file, vcodec="copy", af=f"volume={volume_factor:.4f}")
+            .run(quiet=False, overwrite_output=True)
+        )
+    except FileNotFoundError:
+        print("Error: FFmpeg executable not found. Please install FFmpeg.")
+        sys.exit(1)
+    except ffmpeg.Error as e:
+        sys.stderr.write(e.stderr.decode() if hasattr(e, "stderr") else str(e))
+        sys.exit(1)
+
+
+def main():
+    script_name = os.path.basename(sys.argv[0])
+
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Amplifies or attenuates audio volume by a positive percentage (e.g., 150%%, 75%%).",
+        epilog=f"Example:\n  {script_name} input.mp4 output.mp4 150%%",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+    parser.add_argument("input", type=str, help="Input video file path.").completer = argcomplete.completers.FilesCompleter()
+    parser.add_argument("output", type=str, help="Output video file path.").completer = argcomplete.completers.FilesCompleter()
+    parser.add_argument("volume", type=str, help="Volume percentage (e.g., 150%%, 75%%).").completer = complete_volume
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    if not os.path.isfile(args.input):
+        print(f"Error: '{args.input}' does not exist.")
+        sys.exit(1)
+
+    amplify(args.input, args.output, args.volume)
+
+
+if __name__ == "__main__":
+    main()

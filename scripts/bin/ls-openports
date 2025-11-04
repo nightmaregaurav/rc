@@ -3,60 +3,179 @@
 # /// script
 # requires-python = ">=3.14"
 # dependencies = [
-#     "argcomplete",
+#   "psutil",
+#   "argcomplete",
 # ]
 # ///
 
 import os
 import sys
+import socket
 import argparse
+from collections import OrderedDict
+
+import psutil
 import argcomplete
 
 
-def create_and_enter_directory(directory: str):
-    """Create a directory and change into it if possible."""
+def is_admin() -> bool:
+    if os.name == "nt":
+        try:
+            import ctypes
+
+            return ctypes.windll.shell32.IsUserAnAdmin() != 0  # type: ignore
+        except Exception:
+            return False
+    else:
+        try:
+            return os.geteuid() == 0
+        except AttributeError:
+            return False
+
+
+def ensure_admin():
+    if is_admin():
+        return
+    print("Permission denied: listing all system connections requires elevated privileges.")
+    print("Re-run this command with elevated privileges (e.g., using `sudo`).")
+    sys.exit(1)
+
+
+def fmt_addr(addr):
+    if not addr:
+        return "-", "-"
     try:
-        os.makedirs(directory, exist_ok=True)
-        os.chdir(directory)
+        ip = getattr(addr, "ip", addr[0])
+        port = getattr(addr, "port", addr[1])
+    except Exception:
+        s = str(addr)
+        if ":" in s:
+            parts = s.split(":")
+            return parts[0], parts[-1]
+        return s, "-"
+    return str(ip), str(port)
+
+
+def proto_name(conn_type):
+    try:
+        if conn_type == socket.SOCK_STREAM:
+            return "TCP"
+        if conn_type == socket.SOCK_DGRAM:
+            return "UDP"
+    except Exception:
+        pass
+    return str(conn_type)
+
+
+def collect_connections(kind: str = "inet"):
+    connections = OrderedDict()
+
+    try:
+        raw = psutil.net_connections(kind=kind)
+    except psutil.AccessDenied:
+        raise PermissionError("Access denied while reading network connections.")
     except Exception as e:
-        print(f"Error: {e}")
-        sys.exit(1)
+        raise RuntimeError(f"Failed to collect connections: {e}")
+
+    for conn in raw:
+        proc_name = "-"
+        if conn.pid:
+            try:
+                proc_name = psutil.Process(conn.pid).name()
+            except Exception:
+                proc_name = "-"
+
+        l_ip, l_port = fmt_addr(conn.laddr) if conn.laddr else ("-", "-")
+        r_ip, r_port = fmt_addr(conn.raddr) if conn.raddr else ("-", "-")
+        proto = proto_name(conn.type)
+        status = getattr(conn, "status", "-")
+
+        key = (proc_name, l_ip, l_port, r_ip, r_port, proto, status)
+        if key not in connections:
+            connections[key] = key
+
+    return list(connections.values())
 
 
+def compute_column_widths(rows, min_width=8):
+    if not rows:
+        return [15, 15, 7, 15, 7, 6, 10]
+    cols = list(zip(*rows))
+    widths = []
+    for col in cols:
+        max_len = max((len(str(x)) for x in col), default=0)
+        widths.append(max(min_width, max_len))
+    widths[0] = max(widths[0], 15)
+    return widths
+
+
+def dash(n):
+    return "-" * n
+
+
+def print_connections(conns):
+    if not conns:
+        print("No active connections found.")
+        return
+
+    headers = [
+        "Application",
+        "Source Address",
+        "Src Port",
+        "Dest Address",
+        "Dest Port",
+        "Proto",
+        "Status",
+    ]
+
+    cols = list(zip(*conns))
+    widths = [max(len(h), max(len(str(v)) for v in col)) for h, col in zip(headers, cols)]
+
+    fmt = " ".join(f"{{:<{w}}}" for w in widths)
+    print(fmt.format(*headers))
+    print(fmt.format(*["-" * w for w in widths]))
+
+    for row in conns:
+        print(fmt.format(*row))
+
+
+def complete_flags(prefix, parsed_args, **_):
+    return [opt for opt in ("-h", "--help") if opt.startswith(prefix)]
 
 
 def main():
-    script_name = os.path.basename(sys.argv[0])
-
+    prog = os.path.basename(sys.argv[0])
     parser = argparse.ArgumentParser(
-        prog=script_name,
-        description="Create a directory and change into it (if run in an interactive shell).",
-        epilog=f"Examples:\n  {script_name} new_folder",
+        prog=prog,
+        description="Lists all active network connections with associated process names.",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )
 
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
     parser.add_argument(
-        "directory",
-        nargs="?",
-        help="Directory name to create and switch to.",
-    )
-
-    parser.add_argument(
-        "-h", "--help",
-        action="help",
-        help="Show help message and exit.",
-    )
+        "-p",
+        "--protocol",
+        choices=["inet", "tcp", "udp"],
+        default="inet",
+        help="Filter by protocol type (default: inet).",
+    ).completer = None  # choices already provide sensible completion
 
     argcomplete.autocomplete(parser, always_complete_options=False)
     args = parser.parse_args()
 
-    if not args.directory:
-        print("Error: missing directory name.")
-        print(f"Try '{script_name} --help' for more information.")
+    ensure_admin()
+
+    try:
+        conns = collect_connections(kind=args.protocol)
+    except PermissionError:
+        print("Permission denied: could not access all connection details. Try running as root/admin.")
+        sys.exit(1)
+    except Exception as exc:
+        print(f"Error: {exc}")
         sys.exit(1)
 
-    create_and_enter_directory(args.directory)
+    print_connections(conns)
 
 
 if __name__ == "__main__":

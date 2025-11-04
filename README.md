@@ -30,16 +30,19 @@ The following scripts are included to simplify common tasks:
 - **`adbw-brute-connect`**: Connects to an Android device over wireless ADB by scanning ports.
 - **`adbw-brute-pair`**: Pairs with an Android device over wireless ADB.
 - **`amplify`**: Boosts volume in the provided video/audio file.
+- **`clip`**: Copies and pastes text to/from the clipboard.
 - **`count`**: Counts the total number of files and folders in the current directory.
 - **`cpu-usage`**: Displays CPU usage percentage.
 - **`extract-gps-location-from-image`**: Extracts GPS location metadata from images or videos.
 - **`extract-image-from-pdf`**: Extracts images from a PDF file.
 - **`free-port-after`**: Finds a free port after a specified port.
-- **`from-clipboard`**: Pastes text from the clipboard.
 - **`localip`**: Prints the local IP address.
 - **`localip-fast`**: Prints the local IP address, a little faster than `localip`.
 - **`ls-openports`**: Lists open ports on the local machine.
+- **`manga-image2pdf`**: Converts a directory of manga images into a single PDF file.
 - **`mkcd`**: Creates a directory and changes into it.
+- **`mssql-backup`**: Wrapper of `sqlpackage` to easily backup SQL Server databases.
+- **`mssql-restore`**: Wrapper of `sqlpackage` to easily restore SQL Server databases.
 - **`now`**: Shows the current date and time in a human-readable format.
 - **`organize-images-and-videos-by-date`**: Organizes images and videos in a folder by their creation date.
 - **`publicip`**: Prints the public IP address.
@@ -47,8 +50,8 @@ The following scripts are included to simplify common tasks:
 - **`recurse-run`**: Recursively runs a command in all subdirectories.
 - **`remind-me`**: Sets a reminder with a message at a specific time and date.
 - **`serve`**: Simple wrapper for http-server (node)
+- **`setup-uv`**: Installs and configures the `uv` package to run python scripts in this repository.
 - **`split-video`**: Splits a video file into multiple parts in chunks of the specified duration.
-- **`to-clipboard`**: Copies text to the clipboard.
 - **`update-rc`**: Updates this project to the latest version.
 - **`youtube-get`**: Downloads YouTube videos or audio.
 
@@ -67,7 +70,7 @@ After sourcing the activate script, all the environment variables, aliases, and 
 ## Soft Requirement (only errors out while executing related commands)
 - **`android-platform-tools`**: Used by `adbw-brute-connect` and `adbw-brute-pair`
 - **`nmap`**: Used by `adbw-brute-connect` and `adbw-brute-pair`
-- **`ffmpeg`**: Used by `amplify`
+- **`ffmpeg`**: Used by `amplify`, `split-video`, and `youtube-get`
 - There are some others, will add eventually... sorry...
 
 ## Contributing

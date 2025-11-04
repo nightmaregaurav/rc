@@ -1,56 +1,104 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
 
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-    echo "Usage: youtube-get <bestaudio|mp3|bestvideo|mp4> <URL1> [URL2] ..."
-    echo
-    echo "Downloads YouTube videos or audio using yt-dlp."
-    echo
-    echo "Options:"
-    echo "  bestaudio   Download the best audio quality."
-    echo "  mp3         Download and convert to mp3 format."
-    echo "  bestvideo   Download the best video quality."
-    echo "  mp4         Download the best video quality in mp4 format."
-    echo
-    echo "Examples:"
-    echo "  youtube-get bestaudio https://www.youtube.com/watch?v=example"
-    echo "  youtube-get mp3 https://www.youtube.com/watch?v=example"
-    exit 0
-fi
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "yt-dlp",
+#   "argcomplete",
+# ]
+# ///
 
-if [ -z "$(command -v yt-dlp)" ]; then
-    echo "yt-dlp not found. Please make sure yt-dlp is installed...";
-    exit 1;
-fi
+import sys
+import argparse
+import argcomplete
+from yt_dlp import YoutubeDL
 
-if [ $# -lt 2 ]; then
-    echo "Usage: youtube-get <bestaudio|mp3|bestvideo|mp4> <URL1> [URL2] ..."
-    exit 1
-fi
 
-mode=$1
-shift
+def build_options(mode: str) -> dict:
+    base_opts = {
+        "nocheckcertificate": True,
+        "concurrent_fragment_downloads": 4,
+        "outtmpl": "%(title)s.%(ext)s",
+        "quiet": False,
+    }
 
-case "$mode" in
-    bestaudio)
-        opts='--no-check-certificates --concurrent-fragments 4 -f bestaudio/bestaudio'
-        ;;
-    mp3)
-        opts='--no-check-certificates --concurrent-fragments 4 --extract-audio --audio-format mp3'
-        ;;
-    bestvideo)
-        opts='--no-check-certificates --concurrent-fragments 4 -f bestvideo+bestaudio/bestvideo+bestaudio'
-        ;;
-    mp4)
-        opts='--no-check-certificates --concurrent-fragments 4 -f bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio'
-        ;;
-    *)
-        echo "Unknown mode: $mode"
-        echo "Valid modes: bestaudio, mp3, bestvideo, mp4"
-        exit 1
-        ;;
-esac
+    match mode:
+        case "bestaudio":
+            base_opts["format"] = "bestaudio/bestaudio"
+        case "mp3":
+            base_opts.update({
+                "format": "bestaudio/bestaudio",
+                "postprocessors": [
+                    {"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}
+                ],
+            })
+        case "bestvideo":
+            base_opts["format"] = "bestvideo+bestaudio/bestvideo+bestaudio"
+        case "mp4":
+            base_opts["format"] = (
+                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio"
+            )
+        case _:
+            raise ValueError(f"Unknown mode '{mode}'. Valid: bestaudio, mp3, bestvideo, mp4")
 
-for url in "$@"; do
-    echo "Downloading $url with mode $mode..."
-    yt-dlp $opts "$url"
-done
+    return base_opts
+
+
+def download(mode: str, urls: list[str]) -> None:
+    opts = build_options(mode)
+    with YoutubeDL(opts) as ydl:
+        for url in urls:
+            print(f"Downloading {url} with mode {mode}...")
+            try:
+                ydl.download([url])
+            except Exception as e:
+                print(f"Error downloading {url}: {e}")
+
+
+def complete_modes(prefix, parsed_args, **_):
+    modes = ["bestaudio", "mp3", "bestvideo", "mp4"]
+    return [m for m in modes if m.startswith(prefix)]
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="youtube-get",
+        description="Download YouTube videos or audio using the yt-dlp Python API.",
+        epilog=(
+            "Examples:\n"
+            "  youtube-get bestaudio https://www.youtube.com/watch?v=example\n"
+            "  youtube-get mp3 https://www.youtube.com/watch?v=example"
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "mode",
+        help="Download mode: bestaudio, mp3, bestvideo, or mp4",
+    ).completer = complete_modes
+
+    parser.add_argument(
+        "urls",
+        nargs="+",
+        help="One or more YouTube URLs to download.",
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    try:
+        download(args.mode, args.urls)
+    except Exception as e:
+        print(f"Fatal error: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

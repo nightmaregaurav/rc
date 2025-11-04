@@ -1,0 +1,79 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "argcomplete",
+#   "mss",
+#   "pillow"
+# ]
+# ///
+
+import os
+import sys
+import platform
+import argparse
+import argcomplete
+import mss
+from PIL import Image
+
+
+def capture_screens(destination: str):
+    """Capture screenshots from all monitors and save them."""
+    os_type = platform.system()
+    base = os.path.expanduser(destination)
+    base_dir = os.path.dirname(base) or "."
+    base_name, ext = os.path.splitext(os.path.basename(base))
+    os.makedirs(base_dir, exist_ok=True)
+
+    with mss.mss() as sct:
+        monitors = sct.monitors[1:]  # skip index 0 (represents all monitors)
+        if not monitors:
+            print("No monitors detected.")
+            sys.exit(1)
+
+        for idx, monitor in enumerate(monitors):
+            screenshot = sct.grab(monitor)
+            img = Image.frombytes("RGB", screenshot.size, screenshot.rgb)
+
+            output_path = os.path.join(base_dir, f"{base_name}_MON{idx}{ext or '.png'}")
+            img.save(output_path)
+            print(f"[OK] Screenshot saved: {output_path}")
+
+
+def main():
+    script_name = os.path.basename(sys.argv[0])
+
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Capture full-screen screenshots from all connected monitors.",
+        epilog=(
+            f"Examples:\n"
+            f"  {script_name} -d ~/screen.png\n"
+            f"  {script_name} --destination ./screens/snap.jpg"
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    parser.add_argument(
+        "-d", "--destination",
+        required=True,
+        help="Base destination file path (e.g., '~/screen.png'). "
+        "Screenshots will be saved as <filename>_MON<index>.<ext>.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    capture_screens(args.destination)
+
+
+if __name__ == "__main__":
+    main()

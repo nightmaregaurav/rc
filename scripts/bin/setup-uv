@@ -32,9 +32,16 @@ case "$OS" in
         ;;
 
     Linux)
-        echo "Detected Linux."
-        echo "Installing uv with curl..."
-        curl -LsSf https://astral.sh/uv/install.sh | sh
+        # if $TERMUX_VERSION env var is set it's Amdroid(termux)
+        if [[ -n "$TERMUX_VERSION" ]]; then
+            echo "Detected Android(termux)."
+            echo "Installing uv with pkg..."
+            pkg install uv
+        else
+            echo "Detected Linux."
+            echo "Installing uv with curl..."
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+        fi
         ;;
 
     MINGW*|MSYS*|CYGWIN*|Windows_NT)

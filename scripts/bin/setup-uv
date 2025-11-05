@@ -51,7 +51,7 @@ case "$OS" in
             exit 1
         fi
         echo "Installing uv with winget..."
-        winget install --id=astral-sh.uv -e
+        winget install --id=astral-sh.uv -e --source winget
         ;;
 
     *)

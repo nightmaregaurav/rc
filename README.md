@@ -57,6 +57,7 @@ The following scripts are included to simplify common tasks:
 - **`snap-screen-remote`**: Captures screenshots using `snap-screen` on a ssh remote server and downloads them.
 - **`split-video`**: Splits a video file into multiple parts in chunks of the specified duration.
 - **`update-rc`**: Updates this project to the latest version.
+- **`volume-control`**: Controls the volume of the system.
 - **`youtube-get`**: Downloads YouTube videos or audio.
 
 ### Extras

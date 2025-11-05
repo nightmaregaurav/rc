@@ -1,0 +1,48 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "argcomplete",
+#   "volume-control",
+# ]
+# ///
+
+import argparse
+import os
+import sys
+import argcomplete
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Set the system master volume (cross-platform, default device)."
+    )
+    parser.add_argument(
+        "percent",
+        type=int,
+        help="Volume percentage (0-100)."
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    if args.percent < 0 or args.percent > 100:
+        print("Error: percent must be between 0 and 100.")
+        sys.exit(1)
+
+    try:
+        import pyvolume as vc
+    except ImportError:
+        print(f"Error: volume-control library not installed. Run: pip install volume-control")
+        sys.exit(1)
+
+    try:
+        vc.custom(percent=args.percent)
+        print(f"Volume set to {args.percent}%.")
+    except Exception as e:
+        print(f"Error: could not set volume: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

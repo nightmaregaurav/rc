@@ -47,16 +47,8 @@ def complete_segment_duration(prefix, parsed_args, **_):
 
 
 def main():
-    script_name = os.path.basename(sys.argv[0])
-
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Split a video into smaller segments using FFmpeg.",
-        epilog=(
-            f"Examples:\n"
-            f"  {script_name} input.mp4 part_ 00:05:00\n"
-            f"  {script_name} input.mp4 part_"
-        ),
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

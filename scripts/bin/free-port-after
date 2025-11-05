@@ -33,12 +33,8 @@ def find_free_port_after(start_port: int) -> int:
 
 
 def main():
-    script_name = os.path.basename(sys.argv[0])
-
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Finds a free TCP port after the specified port (inclusive).",
-        epilog=f"Examples:\n  {script_name} 5000",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

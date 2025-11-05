@@ -33,12 +33,8 @@ def paste_from_clipboard():
 
 
 def main():
-    script_name = os.path.basename(sys.argv[0])
-
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Copy text to the clipboard, or paste if no argument is given.",
-        epilog=f"Examples:\n  {script_name} 'Hello, World!'\n  {script_name}",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

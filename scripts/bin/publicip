@@ -42,12 +42,8 @@ def fetch_public_ip() -> str:
 
 
 def main():
-    script_name = os.path.basename(sys.argv[0])
-
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Fetch the public IP address.",
-        epilog=f"Examples:\n  {script_name}",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

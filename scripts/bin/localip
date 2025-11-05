@@ -30,12 +30,8 @@ def get_primary_ip() -> str | None:
 
 
 def main():
-    script_name = os.path.basename(sys.argv[0])
-
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Fetch the primary local IP address.",
-        epilog=f"Examples:\n  {script_name}",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

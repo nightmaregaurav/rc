@@ -46,12 +46,8 @@ def convert_folder_to_pdf(folder_path: str, output_pdf: str) -> None:
 
 
 def main():
-    script_name = os.path.basename(sys.argv[0])
-
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Convert image folders into PDFs, one PDF per subfolder.",
-        epilog=f"Examples:\n  {script_name} /path/to/images",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

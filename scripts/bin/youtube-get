@@ -59,11 +59,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         prog="youtube-get",
         description="Download YouTube videos or audio using the yt-dlp Python API.",
-        epilog=(
-            "Examples:\n"
-            "  youtube-get bestaudio https://www.youtube.com/watch?v=example\n"
-            "  youtube-get mp3 https://www.youtube.com/watch?v=example"
-        ),
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

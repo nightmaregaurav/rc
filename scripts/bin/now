@@ -31,12 +31,8 @@ def get_local_datetime() -> str:
 
 
 def main():
-    script_name = os.path.basename(sys.argv[0])
-
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Show the current date and time in a human-readable format, including timezone.",
-        epilog=f"Examples:\n  {script_name}",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

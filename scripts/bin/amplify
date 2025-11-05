@@ -58,12 +58,8 @@ def amplify(input_file: str, output_file: str, volume: str) -> None:
 
 
 def main():
-    script_name = os.path.basename(sys.argv[0])
-
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Amplifies or attenuates audio volume by a positive percentage (e.g., 150%%, 75%%).",
-        epilog=f"Example:\n  {script_name} input.mp4 output.mp4 150%%",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

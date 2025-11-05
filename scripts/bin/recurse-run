@@ -69,12 +69,8 @@ def run_recursive_commands(initial_command: str):
 
 
 def main():
-    script_name = os.path.basename(sys.argv[0])
-
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Starts a session to recursively run passed commands in all folders in the current directory.\nYou can also pass an initial command to run before the recursion starts.",
-        epilog=f"Examples:\n  {script_name} \"echo Hello World\"",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

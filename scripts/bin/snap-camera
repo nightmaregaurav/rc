@@ -95,15 +95,8 @@ def capture_from_all_cameras(destination: str):
 
 
 def main():
-    script_name = os.path.basename(sys.argv[0])
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Capture one frame from all connected cameras using OpenCV (cross-platform).",
-        epilog=(
-            f"Examples:\n"
-            f"  {script_name} -d ~/snapshot.jpg\n"
-            f"  {script_name} --destination ./captures/image.png"
-        ),
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

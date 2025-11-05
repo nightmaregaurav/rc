@@ -26,12 +26,8 @@ def create_and_enter_directory(directory: str):
 
 
 def main():
-    script_name = os.path.basename(sys.argv[0])
-
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Create a directory and change into it (if run in an interactive shell).",
-        epilog=f"Examples:\n  {script_name} new_folder",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )
@@ -53,7 +49,6 @@ def main():
 
     if not args.directory:
         print("Error: missing directory name.")
-        print(f"Try '{script_name} --help' for more information.")
         sys.exit(1)
 
     create_and_enter_directory(args.directory)

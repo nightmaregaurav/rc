@@ -13,8 +13,6 @@ import argparse
 import argcomplete
 import psutil
 
-script_name = "cpu-usage"
-
 
 def get_cpu_usage() -> float:
     """Return average CPU usage percentage over a short interval."""
@@ -25,9 +23,7 @@ def get_cpu_usage() -> float:
 
 def main():
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Show the current CPU usage in percentage.",
-        epilog=f"Examples:\n  {script_name}",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

@@ -42,16 +42,8 @@ def capture_screens(destination: str):
 
 
 def main():
-    script_name = os.path.basename(sys.argv[0])
-
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Capture full-screen screenshots from all connected monitors.",
-        epilog=(
-            f"Examples:\n"
-            f"  {script_name} -d ~/screen.png\n"
-            f"  {script_name} --destination ./screens/snap.jpg"
-        ),
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

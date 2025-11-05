@@ -13,8 +13,6 @@ import fnmatch
 import argparse
 import argcomplete
 
-script_name = os.path.basename(sys.argv[0])
-
 
 def count_entries(pattern: str = "*"):
     """Count files and folders in the current directory (no recursion)."""
@@ -37,13 +35,7 @@ def count_entries(pattern: str = "*"):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Count files and folders in the current directory (no subdirectories).",
-        epilog=(
-            f"Examples:\n"
-            f"  {script_name}           # Count all files and folders\n"
-            f"  {script_name} '*.pdf'   # Count and filter matching *.pdf files"
-        ),
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

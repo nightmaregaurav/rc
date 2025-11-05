@@ -24,12 +24,8 @@ def read_public_ip():
 
 
 def main():
-    script_name = os.path.basename(sys.argv[0])
-
     parser = argparse.ArgumentParser(
-        prog=script_name,
         description="Fetches the public IP address stored in ~/.ip.public if it exists.",
-        epilog=f"Examples:\n  {script_name}",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

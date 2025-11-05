@@ -60,3 +60,4 @@ complete -o default -F _generic_help localip-fast
 complete -o default -F _generic_help setup-uv
 complete -o default -F _generic_help snap-camera-remote
 complete -o default -F _generic_help snap-screen-remote
+complete -o default -F _generic_help snap-screen-remote

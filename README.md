@@ -51,6 +51,10 @@ The following scripts are included to simplify common tasks:
 - **`remind-me`**: Sets a reminder with a message at a specific time and date.
 - **`serve`**: Simple wrapper for http-server (node)
 - **`setup-uv`**: Installs and configures the `uv` package to run python scripts in this repository.
+- **`snap-camera`**: Captures photos using available cameras.
+- **`snap-camera-remote`**: Captures photos using `snap-camera` on a ssh remote server and downloads them.
+- **`snap-screen`**: Captures screenshots for all available screens.
+- **`snap-screen-remote`**: Captures screenshots using `snap-screen` on a ssh remote server and downloads them.
 - **`split-video`**: Splits a video file into multiple parts in chunks of the specified duration.
 - **`update-rc`**: Updates this project to the latest version.
 - **`youtube-get`**: Downloads YouTube videos or audio.

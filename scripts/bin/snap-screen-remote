@@ -3,7 +3,7 @@
 SCRIPT=$(basename "$0")
 
 HELP_MESSAGE="Usage: $SCRIPT <remote-hostname>
-Runs the snap-camera command on the remote machine and copies the captured file(s) to local Downloads.
+Runs the snap-screen command on the remote machine and copies the captured file(s) to local Downloads.
 
 Example:
   $SCRIPT my-remote-host"
@@ -23,11 +23,11 @@ if [ -z "$remote" ]; then
   exit 1
 fi
 
-# Run the snap-camera command on the remote machine
-ssh "$remote" "bash -c '~/Repositories/rc/scripts/bin/snap-camera -d ~/Capture.jpg'"
+# Run the snap-screen command on the remote machine
+ssh "$remote" "bash -c '~/Repositories/rc/scripts/bin/snap-screen -d ~/SS.png'"
 
 # Copy the captured file(s) to local Downloads
-scp "$remote:~/Capture*.jpg" ~/Downloads/
+scp "$remote:~/SS*.png" ~/Downloads/
 
 # Clean up the remote file(s)
-ssh "$remote" "bash -c 'rm ~/Capture*.jpg'"
+ssh "$remote" "bash -c 'rm ~/SS*.png'"

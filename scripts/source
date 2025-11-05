@@ -57,8 +57,6 @@ complete -o default -F _remind_me remind-me
 complete -o default -F _mssql_backup mssql-backup
 complete -o default -F _mssql_restore mssql-restore
 complete -o default -F _generic_help localip-fast
-complete -o default -F _generic_help install-command-hook
-complete -o default -F _generic_help uninstall-command-hook
 complete -o default -F _generic_help setup-uv
 complete -o default -F _generic_help snap-camera-remote
 complete -o default -F _generic_help snap-screen-remote

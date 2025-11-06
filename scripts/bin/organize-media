@@ -1,0 +1,138 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "argcomplete",
+#   "pillow",
+#   "hachoir"
+# ]
+# ///
+
+
+import argparse
+import sys
+import shutil
+from pathlib import Path
+from datetime import datetime
+from PIL import Image, ExifTags
+import argcomplete
+from hachoir.parser import createParser
+from hachoir.metadata import extractMetadata
+from argcomplete.completers import DirectoriesCompleter
+
+
+# ----------------------------- Core Logic ----------------------------- #
+
+SUPPORTED_EXTS = {".jpg", ".jpeg", ".png", ".gif", ".mp4", ".mov", ".mkv"}
+
+
+def get_creation_date_image(path: Path) -> datetime | None:
+    """Extract original date from image EXIF metadata."""
+    try:
+        with Image.open(path) as img:
+            exif = img.getexif()
+            if not exif:
+                return None
+
+            tags = {ExifTags.TAGS.get(k): v for k, v in exif.items() if k in ExifTags.TAGS}
+            date_str = tags.get("DateTimeOriginal") or tags.get("DateTime")
+            if not date_str:
+                return None
+
+            return datetime.strptime(date_str, "%Y:%m:%d %H:%M:%S")
+    except Exception:
+        return None
+
+
+def get_creation_date_video(path: Path) -> datetime | None:
+    """Extract creation date from video metadata using hachoir."""
+    try:
+        parser = createParser(str(path))
+        if not parser:
+            return None
+        metadata = extractMetadata(parser)
+        if not metadata:
+            return None
+
+        for item in metadata.exportPlaintext():
+            if "creation date" in item.lower() or "encoded date" in item.lower():
+                # Example format: "Creation date: 2023-03-14 09:15:23"
+                try:
+                    date_str = item.split(":", 1)[1].strip()
+                    return datetime.fromisoformat(date_str)
+                except Exception:
+                    continue
+        return None
+    except Exception:
+        return None
+
+
+def get_creation_date(path: Path) -> datetime | None:
+    """Determine file type and extract creation date if possible."""
+    ext = path.suffix.lower()
+    if ext in {".jpg", ".jpeg", ".png", ".gif"}:
+        return get_creation_date_image(path)
+    elif ext in {".mp4", ".mov", ".mkv"}:
+        return get_creation_date_video(path)
+    return None
+
+
+def organize_media(folder: Path) -> None:
+    """Move media files into subfolders named by their creation date."""
+    if not folder.is_dir():
+        sys.exit(f"[!] Error: '{folder}' is not a valid directory.")
+
+    print(f"📂 Processing files in: {folder}\n")
+
+    files = [f for f in folder.iterdir() if f.is_file() and f.suffix.lower() in SUPPORTED_EXTS]
+    if not files:
+        sys.exit("[!] No supported media files found.")
+
+    for file in files:
+        print(f"---------------------------------------")
+        print(f"📄 Processing: {file.name}")
+
+        date = get_creation_date(file)
+        if not date:
+            print(f"⚠️  No creation date found for '{file.name}'. Skipping.")
+            continue
+
+        folder_name = date.strftime("%d %b %Y")
+        print(f"📅 Date detected: {folder_name}")
+
+        target_folder = folder / folder_name
+        target_folder.mkdir(exist_ok=True)
+
+        destination = target_folder / file.name
+        shutil.move(str(file), str(destination))
+        print(f"📦 Moved → {destination}")
+
+    print("\n✅ Processing complete.")
+
+
+# ----------------------------- CLI ----------------------------- #
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Organize images and videos by their original creation date (EXIF or metadata).",
+        add_help=False,
+    )
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+
+    parser.add_argument(
+        "folder",
+        type=Path,
+        help="Path to the folder containing media files."
+    ).completer = DirectoriesCompleter()
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    folder = args.folder.expanduser().resolve()
+    organize_media(folder)
+
+
+if __name__ == "__main__":
+    main()

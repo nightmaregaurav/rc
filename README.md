@@ -42,7 +42,7 @@ The following scripts are included to simplify common tasks:
 - **`mssql-backup`**: Wrapper of `sqlpackage` to easily backup SQL Server databases.
 - **`mssql-restore`**: Wrapper of `sqlpackage` to easily restore SQL Server databases.
 - **`now`**: Shows the current date and time in a human-readable format.
-- **`organize-images-and-videos-by-date`**: Organizes images and videos in a folder by their creation date.
+- **`organize-media`**: Organizes images and videos in a folder by their creation date.
 - **`img2pdf`**: Converts images into a single PDF file.
 - **`publicip`**: Prints the public IP address.
 - **`publicip-fast`**: Prints the public IP address, a little faster than `publicip`.

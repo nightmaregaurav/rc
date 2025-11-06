@@ -103,22 +103,21 @@ def linux_unmute():
 # ----------------------------- Windows ----------------------------- #
 
 def ensure_audio_device_cmdlets() -> bool:
-    """Ensure that the AudioDeviceCmdlets PowerShell module is installed and imported."""
-    check_cmd = [
-        "powershell", "-NoProfile", "-Command",
-        "if (Get-Module -ListAvailable -Name AudioDeviceCmdlets) { Write-Output 'OK' }"
-    ]
-    if run_command(check_cmd) == "OK":
-        return True
-
-    install_cmd = [
-        "powershell", "-NoProfile", "-Command",
-        "try { Install-Module -Name AudioDeviceCmdlets -Force -Scope CurrentUser -ErrorAction Stop; Write-Output 'OK' } "
-        "catch { Write-Output 'FAIL' }"
-    ]
-    result = run_command(install_cmd)
-    return result == "OK"
-
+    """Ensure AudioDeviceCmdlets module is installed; install if missing."""
+    ps_script = r"""
+        if (-not (Get-Module -ListAvailable -Name AudioDeviceCmdlets)) {
+            try {
+                Install-Module -Name AudioDeviceCmdlets -Force -Scope CurrentUser -ErrorAction Stop
+                Write-Output 'OK'
+            } catch {
+                Write-Output 'FAIL'
+            }
+        } else {
+            Write-Output 'OK'
+        }
+    """
+    result = run_command(["powershell", "-NoProfile", "-Command", ps_script])
+    return result and "OK" in result
 
 def win_get() -> str | None:
     """Return volume string like 'xx%' or 'xx% (muted)'."""
@@ -132,7 +131,6 @@ def win_get() -> str | None:
     if mute and mute.strip().lower() == "true":
         return f"{vol} (muted)"
     return vol
-
 
 def win_set(level: int) -> bool:
     ps = f"Set-AudioDevice -PlaybackVolume {level}"

@@ -85,6 +85,24 @@ def linux_unmute():
 
 
 # ----------------------------- Windows ----------------------------- #
+def ensure_audio_device_cmdlets() -> bool:
+    """Ensure that the AudioDeviceCmdlets PowerShell module is installed and imported."""
+    # Check if module is already available
+    check_cmd = [
+        "powershell", "-NoProfile", "-Command",
+        "if (Get-Module -ListAvailable -Name AudioDeviceCmdlets) { Write-Output 'OK' }"
+    ]
+    if run_command(check_cmd) == "OK":
+        return True
+
+    # Try to install the module
+    install_cmd = [
+        "powershell", "-NoProfile", "-Command",
+        "try { Install-Module -Name AudioDeviceCmdlets -Force -Scope CurrentUser -ErrorAction Stop; Write-Output 'OK' } "
+        "catch { Write-Output 'FAIL' }"
+    ]
+    result = run_command(install_cmd)
+    return result == "OK"
 
 def win_get():
     ps = "(Get-AudioDevice -Playback | Get-Volume).Volume"
@@ -146,6 +164,7 @@ def get_volume():
     if "linux" in sysname:
         return linux_get()
     if "windows" in sysname:
+        ensure_audio_device_cmdlets()
         return win_get()
     return None
 
@@ -159,6 +178,7 @@ def set_volume(level: int):
     if "linux" in sysname:
         return linux_set(level)
     if "windows" in sysname:
+        ensure_audio_device_cmdlets()
         return win_set(level)
     return False
 
@@ -172,6 +192,7 @@ def mute_volume():
     if "linux" in sysname:
         return linux_mute()
     if "windows" in sysname:
+        ensure_audio_device_cmdlets()
         return win_mute()
     return False
 

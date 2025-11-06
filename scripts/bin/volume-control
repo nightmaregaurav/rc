@@ -11,6 +11,7 @@ import argparse
 import platform
 import subprocess
 import sys
+import json
 import argcomplete
 
 
@@ -37,7 +38,16 @@ def detect_android() -> bool:
 # ----------------------------- macOS ----------------------------- #
 
 def mac_get():
-    return int(run_command(["osascript", "-e", "output volume of (get volume settings)"]) or 0)
+    """Return volume string like 'xx%' or 'xx% (muted)'."""
+    vol = run_command(["osascript", "-e", "output volume of (get volume settings)"])
+    muted = run_command(["osascript", "-e", "output muted of (get volume settings)"])
+    if not vol:
+        return None
+    vol = vol.strip()
+    if muted and muted.strip().lower() == "true":
+        return f"{vol}% (muted)"
+    return f"{vol}%"
+
 
 def mac_set(level: int):
     return run_command(["osascript", "-e", f"set volume output volume {level}"]) is not None
@@ -52,23 +62,29 @@ def mac_unmute():
 # ----------------------------- Linux ----------------------------- #
 
 def linux_get():
+    """Return volume string like 'xx%' or 'xx% (muted)'."""
+    # Try pactl first
     output = run_command(["pactl", "get-sink-volume", "@DEFAULT_SINK@"])
+    mute = run_command(["pactl", "get-sink-mute", "@DEFAULT_SINK@"])
     if output:
         for token in output.split():
             if token.endswith("%"):
-                try:
-                    return int(token.strip("%"))
-                except ValueError:
-                    pass
+                vol = token.strip("%")
+                if mute and "yes" in mute.lower():
+                    return f"{vol}% (muted)"
+                return f"{vol}%"
 
+    # Fallback: amixer
     output = run_command(["amixer", "get", "Master"])
     if output:
-        for token in output.split():
-            if token.endswith("%"):
-                try:
-                    return int(token.strip("[]%"))
-                except ValueError:
-                    pass
+        import re
+        vol_match = re.search(r"\[(\d+)%\]", output)
+        mute_match = re.search(r"\[(on|off)\]", output)
+        if vol_match:
+            vol = vol_match.group(1)
+            if mute_match and mute_match.group(1).lower() == "off":
+                return f"{vol}% (muted)"
+            return f"{vol}%"
     return None
 
 def linux_set(level: int):
@@ -85,9 +101,9 @@ def linux_unmute():
 
 
 # ----------------------------- Windows ----------------------------- #
+
 def ensure_audio_device_cmdlets() -> bool:
     """Ensure that the AudioDeviceCmdlets PowerShell module is installed and imported."""
-    # Check if module is already available
     check_cmd = [
         "powershell", "-NoProfile", "-Command",
         "if (Get-Module -ListAvailable -Name AudioDeviceCmdlets) { Write-Output 'OK' }"
@@ -95,7 +111,6 @@ def ensure_audio_device_cmdlets() -> bool:
     if run_command(check_cmd) == "OK":
         return True
 
-    # Try to install the module
     install_cmd = [
         "powershell", "-NoProfile", "-Command",
         "try { Install-Module -Name AudioDeviceCmdlets -Force -Scope CurrentUser -ErrorAction Stop; Write-Output 'OK' } "
@@ -104,41 +119,51 @@ def ensure_audio_device_cmdlets() -> bool:
     result = run_command(install_cmd)
     return result == "OK"
 
-def win_get():
-    ps = "(Get-AudioDevice -Playback | Get-Volume).Volume"
-    out = run_command(["powershell", "-NoProfile", "-Command", ps])
-    try:
-        return int(float(out.strip())) if out else None
-    except Exception:
+
+def win_get() -> str | None:
+    """Return volume string like 'xx%' or 'xx% (muted)'."""
+    vol_cmd = "Get-AudioDevice -PlaybackVolume"
+    mute_cmd = "Get-AudioDevice -PlaybackCommunicationMute"
+    vol = run_command(["powershell", "-NoProfile", "-Command", vol_cmd])
+    mute = run_command(["powershell", "-NoProfile", "-Command", mute_cmd])
+    if not vol:
         return None
+    vol = vol.strip()
+    if mute and mute.strip().lower() == "true":
+        return f"{vol} (muted)"
+    return vol
 
-def win_set(level: int):
-    ps = f"(Get-AudioDevice -Playback | Set-Volume -Level {level})"
+
+def win_set(level: int) -> bool:
+    ps = f"Set-AudioDevice -PlaybackVolume {level}"
     return run_command(["powershell", "-NoProfile", "-Command", ps]) is not None
 
-def win_mute():
-    ps = "(Get-AudioDevice -Playback | Set-Volume -Mute $true)"
+def win_mute() -> bool:
+    ps = "Set-AudioDevice -PlaybackCommunicationMute $true"
     return run_command(["powershell", "-NoProfile", "-Command", ps]) is not None
 
-def win_unmute():
-    ps = "(Get-AudioDevice -Playback | Set-Volume -Mute $false)"
+def win_unmute() -> bool:
+    ps = "Set-AudioDevice -PlaybackCommunicationMute $false"
     return run_command(["powershell", "-NoProfile", "-Command", ps]) is not None
 
 
-# ----------------------------- Android (Termux only) ----------------------------- #
+# ----------------------------- Android (Termux) ----------------------------- #
 
 def android_get():
+    """Return volume string like 'xx%' or 'xx% (muted)'."""
     out = run_command(["termux-volume"])
     if not out:
         return None
     try:
-        import json
         data = json.loads(out)
         for stream in data:
             if stream["stream"] == "music":
-                return int(stream["volume"] * 100 / stream["max_volume"])
+                vol = int(stream["volume"] * 100 / stream["max_volume"])
+                if vol == 0:
+                    return f"{vol}% (muted)"
+                return f"{vol}%"
     except Exception:
-        return None
+        pass
     return None
 
 def android_set(level: int):
@@ -149,7 +174,7 @@ def android_mute():
     return run_command(["termux-volume", "music", "0"]) is not None
 
 def android_unmute():
-    # No direct unmute in Termux API, restore to 50% as a heuristic
+    # Restore to 50% as a heuristic
     return run_command(["termux-volume", "music", "7"]) is not None
 
 
@@ -206,6 +231,7 @@ def unmute_volume():
     if "linux" in sysname:
         return linux_unmute()
     if "windows" in sysname:
+        ensure_audio_device_cmdlets()
         return win_unmute()
     return False
 
@@ -219,12 +245,7 @@ def main():
         add_help=False,
     )
 
-    parser.add_argument(
-        "-h", "--help",
-        action="help",
-        help="Show help message and exit.",
-    )
-
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
     parser.add_argument("-s", "--set", help="Set system volume (e.g., 50%%)")
     parser.add_argument("-m", "--mute", action="store_true", help="Mute system output")
     parser.add_argument("-u", "--unmute", action="store_true", help="Unmute system output")

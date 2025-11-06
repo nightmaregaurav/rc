@@ -33,10 +33,10 @@ The following scripts are included to simplify common tasks:
 - **`clip`**: Copies and pastes text to/from the clipboard.
 - **`count`**: Counts the total number of files and folders in the current directory.
 - **`cpu-usage`**: Displays CPU usage percentage.
-- **`extract-gps-location-from-image`**: Extracts GPS location metadata from images or videos.
 - **`free-port-after`**: Finds a free port after a specified port.
 - **`localip`**: Prints the local IP address.
 - **`localip-fast`**: Prints the local IP address, a little faster than `localip`.
+- **`location-of`**: Extracts GPS location metadata from images or videos.
 - **`ls-openports`**: Lists open ports on the local machine.
 - **`mkcd`**: Creates a directory and changes into it.
 - **`mssql-backup`**: Wrapper of `sqlpackage` to easily backup SQL Server databases.

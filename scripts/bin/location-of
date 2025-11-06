@@ -1,0 +1,137 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "argcomplete",
+#   "pillow",
+#   "hachoir",
+# ]
+# ///
+
+import argparse
+import sys
+from pathlib import Path
+from typing import Optional, Tuple
+from PIL import Image, ExifTags
+from hachoir.parser import createParser
+from hachoir.metadata import extractMetadata
+import argcomplete
+
+
+# ----------------------------- Core Logic ----------------------------- #
+
+def dms_to_decimal(dms, ref):
+    """Convert degrees, minutes, seconds tuple to decimal degrees."""
+    try:
+        degrees, minutes, seconds = dms
+        decimal = degrees + (minutes / 60.0) + (seconds / 3600.0)
+        if ref in ["S", "W"]:
+            decimal *= -1
+        return decimal
+    except Exception:
+        return None
+
+
+def extract_gps_from_image(path: Path) -> Optional[Tuple[float, float]]:
+    """Extract GPS coordinates from an image file using EXIF metadata."""
+    try:
+        with Image.open(path) as img:
+            exif = img._getexif()
+            if not exif:
+                return None
+
+            exif_data = {
+                ExifTags.TAGS.get(k, k): v for k, v in exif.items() if k in ExifTags.TAGS
+            }
+
+            gps_info = exif_data.get("GPSInfo")
+            if not gps_info:
+                return None
+
+            def get_coord(tag_id):
+                value = gps_info.get(tag_id)
+                if value and isinstance(value[0], tuple):
+                    return tuple(float(x[0]) / float(x[1]) for x in value)
+                return value
+
+            lat = get_coord(2)
+            lat_ref = gps_info.get(1)
+            lon = get_coord(4)
+            lon_ref = gps_info.get(3)
+
+            if lat and lon and lat_ref and lon_ref:
+                return (dms_to_decimal(lat, lat_ref), dms_to_decimal(lon, lon_ref))
+    except Exception:
+        return None
+    return None
+
+
+def extract_gps_from_video(path: Path) -> Optional[str]:
+    """Try to extract GPS-like metadata from video files using hachoir."""
+    try:
+        parser = createParser(str(path))
+        if not parser:
+            return None
+        metadata = extractMetadata(parser)
+        if not metadata:
+            return None
+
+        gps_tags = [
+            "location", "com.apple.quicktime.location.ISO6709",
+            "xyz", "gps coordinates", "geo"
+        ]
+        for item in metadata.exportDictionary().get("Metadata", {}).items():
+            key, value = item
+            if any(tag.lower() in key.lower() for tag in gps_tags):
+                return str(value)
+    except Exception:
+        return None
+    return None
+
+
+def extract_location(file_path: Path) -> Optional[str]:
+    """Determine file type and extract GPS coordinates or metadata."""
+    suffix = file_path.suffix.lower()
+    if suffix in {".jpg", ".jpeg", ".png", ".heic", ".tiff", ".webp"}:
+        coords = extract_gps_from_image(file_path)
+        if coords:
+            lat, lon = coords
+            return f"{lat:.6f}, {lon:.6f}"
+    elif suffix in {".mp4", ".mov", ".mkv", ".avi", ".3gp"}:
+        gps = extract_gps_from_video(file_path)
+        if gps:
+            return gps
+    return None
+
+
+# ----------------------------- CLI ----------------------------- #
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Extract GPS location from image or video metadata.",
+        add_help=True,
+    )
+    parser.add_argument(
+        "file",
+        help="Input file path (image or video with embedded location data).",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    file_path = Path(args.file).expanduser().resolve()
+
+    if not file_path.exists():
+        sys.exit(f"[!] File not found: {file_path}")
+
+    result = extract_location(file_path)
+
+    if result:
+        print(f"[✓] Location found: {result}")
+    else:
+        print("[i] No GPS/location metadata found in the file.")
+
+
+if __name__ == "__main__":
+    main()

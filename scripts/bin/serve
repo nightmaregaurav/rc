@@ -1,55 +1,107 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
 
-port=4200
-host="localhost"
-proxy="http://localhost:4200?"
-dirlist=true
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "argcomplete",
+#   "requests",
+# ]
+# ///
 
-if [[ "$1" == "-h" || "$1" == "--help" ]]; then
-  echo "Usage: serve [--port PORT] [--host HOST] [--proxy URL] [--dirlist true|false]"
-  echo
-  echo "Defaults:"
-  echo "  --port     4200"
-  echo "  --host     localhost"
-  echo "  --proxy    http://localhost:4200?"
-  echo "  --dirlist  true"
-  echo
-  echo "Examples:"
-  echo "  serve                          # Start server with defaults"
-  echo "  serve --port 3000              # Use custom port"
-  echo "  serve --dirlist false          # Disable directory listing"
-  echo "  serve --proxy http://api.localhost:3000?  # Custom fallback proxy"
-  exit 0
-fi
+import argparse
+import http.server
+import socketserver
+import urllib.request
+import urllib.error
+import urllib.parse
+import sys
+import os
+import argcomplete
+import requests
 
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --port)
-      port="$2"
-      shift 2
-      ;;
-    --host)
-      host="$2"
-      shift 2
-      ;;
-    --proxy)
-      proxy="$2"
-      shift 2
-      ;;
-    --dirlist)
-      dirlist="$2"
-      shift 2
-      ;;
-    *)
-      echo "Unknown option: $1"
-      echo "Use --help for usage."
-      exit 1
-      ;;
-  esac
-done
 
-cmd="npx http-server \"$(pwd)\" -a $host --port $port --proxy $proxy --log-ip --gzip --brotli"
-[[ "$dirlist" == false ]] && cmd+=" -d false"
+class ProxyFallbackHandler(http.server.SimpleHTTPRequestHandler):
+    """Custom handler that optionally proxies missing files to another server."""
 
-echo "Running: $cmd"
-eval "$cmd"
+    def __init__(self, *args, proxy=None, dirlist=True, **kwargs):
+        self.proxy = proxy
+        self.dirlist = dirlist
+        super().__init__(*args, **kwargs)
+
+    def list_directory(self, path):
+        if not self.dirlist:
+            self.send_error(403, "Directory listing disabled.")
+            return None
+        return super().list_directory(path)
+
+    def do_GET(self):
+        """Serve GET request; proxy fallback if 404."""
+        # Try to serve local file first
+        path = self.translate_path(self.path)
+        if os.path.exists(path):
+            return super().do_GET()
+
+        # If file not found and proxy is defined, fallback
+        if self.proxy:
+            try:
+                proxied = urllib.parse.urljoin(self.proxy, self.path.lstrip("/"))
+                resp = requests.get(proxied, stream=True, timeout=5)
+                self.send_response(resp.status_code)
+                for key, val in resp.headers.items():
+                    if key.lower() not in ("transfer-encoding", "content-encoding", "content-length", "connection"):
+                        self.send_header(key, val)
+                self.end_headers()
+                self.wfile.write(resp.content)
+                return
+            except Exception as e:
+                self.send_error(502, f"Proxy failed: {e}")
+                return
+
+        # Default 404 if not found and no proxy
+        self.send_error(404, f"File not found: {self.path}")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Serve the current directory over HTTP with optional proxy and directory listing.",
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    parser.add_argument("-P", "--port", type=int, default=4200, help="Port number to listen on (default: 4200)")
+    parser.add_argument("-H", "--host", default="localhost", help="Host address to bind (default: localhost)")
+    parser.add_argument("-X", "--proxy", default=None, help="Proxy fallback URL (default: none)")
+    parser.add_argument("-D", "--dirlist", choices=["true", "false"], default="true", help="Enable directory listing (default: true)")
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    dirlist_enabled = args.dirlist.lower() == "true"
+
+    handler_factory = lambda *h_args, **h_kwargs: ProxyFallbackHandler(
+        *h_args, proxy=args.proxy, dirlist=dirlist_enabled, **h_kwargs
+    )
+
+    try:
+        with socketserver.TCPServer((args.host, args.port), handler_factory) as httpd:
+            addr = f"http://{args.host}:{args.port}"
+            print(f"Serving directory: {os.getcwd()}")
+            print(f"Listening on: {addr}")
+            if args.proxy:
+                print(f"Proxy fallback: {args.proxy}")
+            print(f"Directory listing: {'enabled' if dirlist_enabled else 'disabled'}")
+            print("Press Ctrl+C to stop.")
+            httpd.serve_forever()
+    except OSError as e:
+        sys.exit(f"Error: Failed to start server on port {args.port} ({e})")
+    except KeyboardInterrupt:
+        print("\nServer stopped.")
+
+
+if __name__ == "__main__":
+    main()

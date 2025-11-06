@@ -46,13 +46,13 @@ if command -v register-python-argcomplete >/dev/null 2>&1; then
     eval "$(register-python-argcomplete snap-camera 2>/dev/null || true)"
     eval "$(register-python-argcomplete snap-screen 2>/dev/null || true)"
     eval "$(register-python-argcomplete volume-control 2>/dev/null || true)"
+    eval "$(register-python-argcomplete serve 2>/dev/null || true)"
 fi
 
 complete -o default -F _git_as git-as
 complete -o default -F _git_rmprofile git-rmprofile
 complete -o default -F _git_mkprofile git-mkprofile
 complete -o default -F _git_lsprofile git-lsprofile
-complete -o default -F _serve serve
 complete -o default -F _remind_me remind-me
 complete -o default -F _mssql_backup mssql-backup
 complete -o default -F _mssql_restore mssql-restore

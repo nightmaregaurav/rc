@@ -110,8 +110,11 @@ def extract_location(file_path: Path) -> Optional[str]:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Extract GPS location from image or video metadata.",
-        add_help=True,
+        add_help=False,
     )
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+
     parser.add_argument(
         "file",
         help="Input file path (image or video with embedded location data).",

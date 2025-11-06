@@ -51,8 +51,10 @@ def pdf_to_images(input_pdf: Path, prefix: str, dpi: int = 150) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Convert each page of a PDF into an image using PyMuPDF (fitz).",
-        add_help=True,
+        add_help=False,
     )
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
 
     parser.add_argument(
         "input",

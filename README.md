@@ -39,14 +39,16 @@ The following scripts are included to simplify common tasks:
 - **`localip`**: Prints the local IP address.
 - **`localip-fast`**: Prints the local IP address, a little faster than `localip`.
 - **`ls-openports`**: Lists open ports on the local machine.
-- **`manga-image2pdf`**: Converts a directory of manga images into a single PDF file.
 - **`mkcd`**: Creates a directory and changes into it.
 - **`mssql-backup`**: Wrapper of `sqlpackage` to easily backup SQL Server databases.
 - **`mssql-restore`**: Wrapper of `sqlpackage` to easily restore SQL Server databases.
 - **`now`**: Shows the current date and time in a human-readable format.
 - **`organize-images-and-videos-by-date`**: Organizes images and videos in a folder by their creation date.
+- **`img2pdf`**: Converts images into a single PDF file.
 - **`publicip`**: Prints the public IP address.
 - **`publicip-fast`**: Prints the public IP address, a little faster than `publicip`.
+- **`pdf2img`**: Converts a pdf pages into images.
+- **`pdf2img-extract`**: Extracts images from PDF file.
 - **`recurse-run`**: Recursively runs a command in all subdirectories.
 - **`remind-me`**: Sets a reminder with a message at a specific time and date.
 - **`serve`**: Simple wrapper for http-server (node)

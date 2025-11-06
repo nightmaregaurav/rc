@@ -1,0 +1,101 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "argcomplete",
+#   "pillow",
+# ]
+# ///
+
+import argparse
+import sys
+import glob
+from pathlib import Path
+from PIL import Image
+import argcomplete
+from argcomplete.completers import FilesCompleter
+
+
+# ----------------------------- Core Logic ----------------------------- #
+
+def load_image(path: Path) -> Image.Image:
+    """Load an image and convert it to RGB if needed (handles RGBA)."""
+    try:
+        img = Image.open(path)
+        img.load()
+        if img.mode in ("RGBA", "LA"):
+            bg = Image.new("RGB", img.size, (255, 255, 255))
+            bg.paste(img, mask=img.split()[-1])
+            return bg
+        elif img.mode != "RGB":
+            return img.convert("RGB")
+        return img
+    except Exception as e:
+        sys.exit(f"[!] Failed to open '{path}': {e}")
+
+
+def images_to_pdf(image_paths: list[Path], output_pdf: Path) -> None:
+    """Combine multiple images into a single PDF."""
+    if not image_paths:
+        sys.exit("[!] No input images provided.")
+
+    images = [load_image(p) for p in image_paths]
+
+    try:
+        images[0].save(
+            output_pdf,
+            "PDF",
+            resolution=100.0,
+            save_all=True,
+            append_images=images[1:],
+        )
+        print(f"[✓] Created PDF: {output_pdf}")
+    except Exception as e:
+        sys.exit(f"[!] Failed to create PDF: {e}")
+
+
+# ----------------------------- CLI ----------------------------- #
+
+def expand_wildcards(patterns: list[str]) -> list[Path]:
+    """Expand wildcard patterns into file paths."""
+    expanded: list[Path] = []
+    for pattern in patterns:
+        matches = sorted(glob.glob(pattern, recursive=True))
+        if not matches:
+            sys.exit(f"[!] No files matched pattern: {pattern}")
+        expanded.extend(Path(m).resolve() for m in matches)
+    return expanded
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Combine multiple images into a single PDF using Pillow.",
+        add_help=True,
+    )
+    parser.add_argument(
+        "images",
+        nargs="+",
+        help="Input image file paths (supports wildcards like '*.png' or 'dir/*.jpg')."
+    ).completer = FilesCompleter()
+
+    parser.add_argument(
+        "-o", "--output",
+        required=True,
+        help="Output PDF file path."
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    image_paths = expand_wildcards(args.images)
+    output_pdf = Path(args.output).expanduser().resolve()
+
+    # Ensure directory for PDF exists
+    output_pdf.parent.mkdir(parents=True, exist_ok=True)
+
+    images_to_pdf(image_paths, output_pdf)
+
+
+if __name__ == "__main__":
+    main()

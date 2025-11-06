@@ -1,0 +1,85 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "argcomplete",
+#   "pymupdf",
+#   "pillow",
+# ]
+# ///
+
+import argparse
+import sys
+from pathlib import Path
+import fitz  # PyMuPDF
+from PIL import Image
+import argcomplete
+from argcomplete.completers import FilesCompleter
+
+
+# ----------------------------- Core Logic ----------------------------- #
+
+def pdf_to_images(input_pdf: Path, prefix: str, dpi: int = 150) -> None:
+    """Convert each page of a PDF into an image file using PyMuPDF."""
+    try:
+        doc = fitz.open(input_pdf)
+    except Exception as e:
+        sys.exit(f"[!] Failed to open PDF '{input_pdf}': {e}")
+
+    if len(doc) == 0:
+        sys.exit("[!] The provided PDF contains no pages.")
+
+    for i, page in enumerate(doc, start=1):
+        try:
+            pix = page.get_pixmap(dpi=dpi)
+            out_name = f"{prefix}_{i}.png"
+            pix.save(out_name)
+
+            # Ensure Pillow compatibility (optional re-encode)
+            img = Image.open(out_name)
+            img.convert("RGB").save(out_name, "PNG")
+            print(f"[✓] Saved: {out_name}")
+        except Exception as e:
+            print(f"[!] Failed on page {i}: {e}", file=sys.stderr)
+
+    print(f"\n[✓] Extracted {len(doc)} page(s) from {input_pdf.name}")
+
+
+# ----------------------------- CLI ----------------------------- #
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Convert each page of a PDF into an image using PyMuPDF (fitz).",
+        add_help=True,
+    )
+
+    parser.add_argument(
+        "input",
+        help="Input PDF file path."
+    ).completer = FilesCompleter(allowednames=[".pdf"], directories=True)
+    parser.add_argument(
+        "prefix",
+        help="Prefix for output image files. Example: 'page' → page_1.png, page_2.png, ..."
+    )
+    parser.add_argument(
+        "--dpi",
+        type=int,
+        default=150,
+        help="Rendering DPI (default: 150). Higher values give sharper images but increase file size."
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    input_pdf = Path(args.input).expanduser().resolve()
+    prefix = args.prefix
+
+    if not input_pdf.exists():
+        sys.exit(f"[!] File not found: {input_pdf}")
+
+    pdf_to_images(input_pdf, prefix, dpi=args.dpi)
+
+
+if __name__ == "__main__":
+    main()

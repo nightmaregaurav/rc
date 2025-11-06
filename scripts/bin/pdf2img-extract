@@ -1,0 +1,101 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "argcomplete",
+#   "pymupdf",
+#   "pillow",
+# ]
+# ///
+
+import argparse
+import sys
+import re
+from pathlib import Path
+from io import BytesIO
+import fitz  # PyMuPDF
+from PIL import Image
+import argcomplete
+from argcomplete.completers import FilesCompleter
+
+
+# ----------------------------- Core Logic ----------------------------- #
+
+def sanitize_filename(name: str) -> str:
+    """Sanitize name to be filesystem-safe."""
+    return re.sub(r'[^A-Za-z0-9._-]+', '_', name.strip())
+
+
+def extract_images_from_pdf(input_pdf: Path, prefix: str) -> None:
+    """Extract embedded images from a PDF, preserving quality and partial names."""
+    try:
+        doc = fitz.open(input_pdf)
+    except Exception as e:
+        sys.exit(f"[!] Failed to open PDF '{input_pdf}': {e}")
+
+    image_count = 0
+    seen_images: set[int] = set()
+
+    for page_index, page in enumerate(doc, start=1):
+        for img_index, img in enumerate(page.get_images(full=True), start=1):
+            xref = img[0]
+            if xref in seen_images:
+                continue
+            seen_images.add(xref)
+
+            try:
+                base_image = doc.extract_image(xref)
+                image_bytes = base_image["image"]
+                image_ext = base_image["ext"].lower()
+
+                # Try to get internal name safely
+                name_entry = doc.xref_get_key(xref, "Name")[1]
+                if not name_entry or name_entry.lower() in {"null", "none"}:
+                    clean_name = None
+                else:
+                    clean_name = sanitize_filename(name_entry)
+
+                image_count += 1
+                if clean_name:
+                    out_name = f"{prefix}_{image_count}_{clean_name}.{image_ext}"
+                else:
+                    out_name = f"{prefix}_{image_count}.{image_ext}"
+
+                out_path = Path(out_name)
+
+                with open(out_path, "wb") as f:
+                    f.write(image_bytes)
+
+                print(f"[✓] Saved: {out_name}")
+
+            except Exception as e:
+                print(f"[!] Failed extracting image #{img_index} on page {page_index}: {e}", file=sys.stderr)
+
+    if image_count == 0:
+        print("[i] No embedded images found in the PDF.")
+    else:
+        print(f"\n[✓] Extracted {image_count} image(s) from {input_pdf.name}")
+
+
+# ----------------------------- CLI ----------------------------- #
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Extract original embedded images from a PDF using PyMuPDF (fitz), preserving quality and partial names."
+    )
+    parser.add_argument("input", help="Input PDF file path.").completer = FilesCompleter(allowednames=[".pdf"])
+    parser.add_argument("prefix", help="Prefix for output image filenames.")
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    input_pdf = Path(args.input).expanduser().resolve()
+    if not input_pdf.exists():
+        sys.exit(f"[!] File not found: {input_pdf}")
+
+    extract_images_from_pdf(input_pdf, args.prefix)
+
+
+if __name__ == "__main__":
+    main()

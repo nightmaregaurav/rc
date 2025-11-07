@@ -34,10 +34,10 @@ fi
 
 # Run PowerShell script to register the task
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
-\$sshd = 'C:\\Program Files\\OpenSSH\\sshd.exe'
+\$sshd = 'C:\\\\Program Files\\\\OpenSSH\\\\sshd.exe'
 \$port = 1022
 \$taskName = '$taskName'
-\$jsPath = \"\$env:ProgramData\\StartSSHDHidden.js\"
+\$jsPath = \"\$env:ProgramData\\\\StartSSHDHidden.js\"
 
 # Create JS launcher
 \$jsCode = @'

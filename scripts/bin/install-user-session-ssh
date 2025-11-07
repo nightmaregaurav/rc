@@ -1,0 +1,58 @@
+SCRIPT=$(basename "$0")
+
+HELP_MESSAGE="Usage: $SCRIPT
+Installs a task in windows system that runs ssh server on 1022 port in the windows session.
+
+Example:
+  $SCRIPT"
+
+# Help message
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  echo "$HELP_MESSAGE"
+  exit 0
+fi
+
+set -e  # Exit immediately if a command exits with a non-zero status
+
+# Check if the OS is Windows (Git Bash sets 'OS' to 'Windows_NT')
+if [ "$OS" != "Windows_NT" ]; then
+  echo "Unsupported OS"
+  exit 1
+fi
+
+# Task name
+taskName="StartSSHDatLogon"
+
+# Check if the scheduled task already exists
+taskExists=$(powershell.exe -NoProfile -Command "if (Get-ScheduledTask -TaskName '$taskName' -ErrorAction SilentlyContinue) { Write-Output 'yes' } else { Write-Output 'no' }" | tr -d '\r')
+
+if [ "$taskExists" == "yes" ]; then
+  echo "Task '$taskName' already exists. Skipping."
+  exit 0
+fi
+
+# Run PowerShell script to register the task
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
+\$sshd = 'C:\\Program Files\\OpenSSH\\sshd.exe'
+\$port = 1022
+\$taskName = '$taskName'
+\$jsPath = \"\$env:ProgramData\\StartSSHDHidden.js\"
+
+# Create JS launcher
+\$jsCode = @'
+var shell = new ActiveXObject(\"WScript.Shell\");
+shell.Run(\"\"' + \$sshd + '\" -p ' + \$port, 0, false);
+'@
+Set-Content -Path \$jsPath -Value \$jsCode -Encoding ASCII
+
+# Create and register scheduled task
+\$action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument '\"' + \$jsPath + '\"'
+\$trigger = New-ScheduledTaskTrigger -AtLogOn
+\$principal = New-ScheduledTaskPrincipal -UserId \$env:USERNAME -RunLevel Highest
+\$settings = New-ScheduledTaskSettingsSet -Hidden
+
+Register-ScheduledTask -TaskName \$taskName -Action \$action -Trigger \$trigger -Principal \$principal -Settings \$settings -Description 'Start sshd silently at logon'
+"
+
+echo "Task '$taskName' created successfully."
+run "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Unregister-ScheduledTask -TaskName '$taskName' -Confirm:\$false\" to remove the task."

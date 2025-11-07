@@ -53,9 +53,7 @@ The following scripts are included to simplify common tasks:
 - **`serve`**: Simple wrapper for http-server (node)
 - **`setup-uv`**: Installs and configures the `uv` package to run python scripts in this repository.
 - **`snap-camera`**: Captures photos using available cameras.
-- **`snap-camera-remote`**: Captures photos using `snap-camera` on a ssh remote server and downloads them.
 - **`snap-screen`**: Captures screenshots for all available screens.
-- **`snap-screen-remote`**: Captures screenshots using `snap-screen` on a ssh remote server and downloads them.
 - **`split-video`**: Splits a video file into multiple parts in chunks of the specified duration.
 - **`update-rc`**: Updates this project to the latest version.
 - **`user-session-ssh`**: Tool to install/uninstall ssh server to run on logged in user's session for Windows.

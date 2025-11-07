@@ -61,7 +61,7 @@ def extract_gps_from_image(path: Path) -> Optional[Tuple[float, float]]:
             lon_ref = gps_info.get(3)
 
             if lat and lon and lat_ref and lon_ref:
-                return (dms_to_decimal(lat, lat_ref), dms_to_decimal(lon, lon_ref))
+                return dms_to_decimal(lat, lat_ref), dms_to_decimal(lon, lon_ref)
     except Exception:
         return None
     return None

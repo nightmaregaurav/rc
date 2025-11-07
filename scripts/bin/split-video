@@ -48,7 +48,7 @@ def complete_segment_duration(prefix, parsed_args, **_):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Split a video into smaller segments using FFmpeg.",
+        description="Split a video into smaller segments using ffmpeg.",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

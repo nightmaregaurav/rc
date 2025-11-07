@@ -8,7 +8,6 @@
 # ]
 # ///
 
-import sys
 import argparse
 import argcomplete
 import psutil

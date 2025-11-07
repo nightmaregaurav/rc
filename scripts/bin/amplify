@@ -16,14 +16,14 @@ import sys
 import ffmpeg
 
 
-def complete_volume(prefix, parsed_args, **_):
+def complete_volume(prefix, _, **__):
     percentages = [f"{i}%" for i in range(0, 501, 25) if i != 100]
     return [opt for opt in percentages if opt.startswith(prefix)]
 
 def parse_volume(volume: str) -> float:
     """
     Converts a positive percentage volume string (e.g., '150%', '75.5%')
-    into a volume multiplier usable by FFmpeg.
+    into a volume multiplier usable by ffmpeg.
     """
     if not re.fullmatch(r"\d+(\.\d+)?%", volume):
         print("Error: volume must be in format like '150%%' or '75.5%%'.")
@@ -50,7 +50,7 @@ def amplify(input_file: str, output_file: str, volume: str) -> None:
             .run(quiet=False, overwrite_output=True)
         )
     except FileNotFoundError:
-        print("Error: FFmpeg executable not found. Please install FFmpeg.")
+        print("Error: ffmpeg executable not found. Please install ffmpeg.")
         sys.exit(1)
     except ffmpeg.Error as e:
         sys.stderr.write(e.stderr.decode() if hasattr(e, "stderr") else str(e))

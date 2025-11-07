@@ -7,13 +7,10 @@
 # ]
 # ///
 
-import os
 import sys
 import socket
 import argparse
 import argcomplete
-
-
 
 
 def get_primary_ip() -> str | None:

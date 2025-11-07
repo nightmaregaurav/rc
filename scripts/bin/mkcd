@@ -23,8 +23,6 @@ def create_and_enter_directory(directory: str):
         sys.exit(1)
 
 
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="Create a directory and change into it (if run in an interactive shell).",

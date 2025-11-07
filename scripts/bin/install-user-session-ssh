@@ -20,40 +20,39 @@ if [ "$OS" != "Windows_NT" ]; then
   exit 1
 fi
 
-# Task name
-taskName="StartSSHDatLogon"
-
 # Check if the scheduled task already exists
-taskExists=$(powershell.exe -NoProfile -Command "if (Get-ScheduledTask -TaskName '$taskName' -ErrorAction SilentlyContinue) { Write-Output 'yes' } else { Write-Output 'no' }" | tr -d '\r')
+taskExists=$(powershell.exe -NoProfile -Command "if (Get-ScheduledTask -TaskName 'StartSSHDatLogon' -ErrorAction SilentlyContinue) { Write-Output 'yes' } else { Write-Output 'no' }" | tr -d '\r')
 
 if [ "$taskExists" == "yes" ]; then
-  echo "Task '$taskName' already exists. Skipping."
-  echo "To remove the task run: powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Unregister-ScheduledTask -TaskName '$taskName' -Confirm:\\\$false\""
+  echo "Task 'StartSSHDatLogon' already exists. Skipping."
+  echo "To remove the task run: powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Unregister-ScheduledTask -TaskName 'StartSSHDatLogon' -Confirm:\\\$false\""
   exit 0
 fi
 
+read -r -d '' PS_CODE <<'EOF'
+$sshd = "C:\\Program Files\\OpenSSH\\sshd.exe"
+$port = 1022
+$taskName = "StartSSHDatLogon"
+$jsPath = "$env:ProgramData\\StartSSHDHidden.js"
+
+# Create a small JScript file to start sshd hidden
+$jsCode = @"
+var shell = new ActiveXObject("WScript.Shell");
+shell.Run("\"$sshd\" -p $port", 0, false);
+"@
+Set-Content -Path $jsPath -Value $jsCode -Encoding ASCII
+
+# Create a scheduled task that runs the JS script via wscript.exe (no console)
+$action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$jsPath`""
+$trigger = New-ScheduledTaskTrigger -AtLogOn
+$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest
+$settings = New-ScheduledTaskSettingsSet -Hidden
+
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "Start sshd silently at logon"
+EOF
+
 # Run PowerShell script to register the task
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
-\$sshd = 'C:\\\\Program Files\\\\OpenSSH\\\\sshd.exe'
-\$port = 1022
-\$taskName = '$taskName'
-\$jsPath = \"\$env:ProgramData\\\\StartSSHDHidden.js\"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$PS_CODE"
 
-# Create JS launcher
-\$jsCode = @'
-var shell = new ActiveXObject(\"WScript.Shell\");
-shell.Run(\"\\\"\$sshd\\\" -p \$port\", 0, false);
-'@
-Set-Content -Path \$jsPath -Value \$jsCode -Encoding ASCII
-
-# Create and register scheduled task
-\$action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument ('\"{0}\"' -f \$jsPath)
-\$trigger = New-ScheduledTaskTrigger -AtLogOn
-\$principal = New-ScheduledTaskPrincipal -UserId \$env:USERNAME -RunLevel Highest
-\$settings = New-ScheduledTaskSettingsSet -Hidden
-
-Register-ScheduledTask -TaskName \$taskName -Action \$action -Trigger \$trigger -Principal \$principal -Settings \$settings -Description 'Start sshd silently at logon'
-"
-
-echo "Task '$taskName' created successfully."
-echo "To remove the task run: powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Unregister-ScheduledTask -TaskName '$taskName' -Confirm:\\\$false\""
+echo "Task 'StartSSHDatLogon' created successfully."
+echo "To remove the task run: powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Unregister-ScheduledTask -TaskName 'StartSSHDatLogon' -Confirm:\\\$false\""

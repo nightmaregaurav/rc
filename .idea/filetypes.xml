@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-    <component name="FileTypeManager" version="17">
-        <patternMap>
-            <mapping pattern="#!/usr/bin/env -S uv run --script*" type="Python" />
-        </patternMap>
-    </component>
-</project>

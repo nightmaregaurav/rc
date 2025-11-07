@@ -42,7 +42,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "
 # Create JS launcher
 \$jsCode = @'
 var shell = new ActiveXObject(\"WScript.Shell\");
-shell.Run(\"\\\"\$sshd\\\" -p \$port, 0, false);
+shell.Run(\"\\\"\$sshd\\\" -p \$port\", 0, false);
 '@
 Set-Content -Path \$jsPath -Value \$jsCode -Encoding ASCII
 

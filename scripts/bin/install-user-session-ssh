@@ -28,6 +28,7 @@ taskExists=$(powershell.exe -NoProfile -Command "if (Get-ScheduledTask -TaskName
 
 if [ "$taskExists" == "yes" ]; then
   echo "Task '$taskName' already exists. Skipping."
+  echo "To remove the task run: powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Unregister-ScheduledTask -TaskName '$taskName' -Confirm:\$false\""
   exit 0
 fi
 
@@ -55,4 +56,4 @@ Register-ScheduledTask -TaskName \$taskName -Action \$action -Trigger \$trigger 
 "
 
 echo "Task '$taskName' created successfully."
-run "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Unregister-ScheduledTask -TaskName '$taskName' -Confirm:\$false\" to remove the task."
+echo "To remove the task run: powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Unregister-ScheduledTask -TaskName '$taskName' -Confirm:\$false\""

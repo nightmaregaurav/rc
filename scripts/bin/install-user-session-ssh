@@ -1,60 +1,124 @@
-SCRIPT=$(basename "$0")
+#!/usr/bin/env -S uv run --script
 
-HELP_MESSAGE="Usage: $SCRIPT
-Installs a task in windows system that runs ssh server on 1022 port in the windows session.
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
 
-Example:
-  $SCRIPT"
+import subprocess
+import sys
+import base64
+import argparse
+import argcomplete
+from pathlib import Path
 
-# Help message
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-  echo "$HELP_MESSAGE"
-  exit 0
-fi
 
-set -e  # Exit immediately if a command exits with a non-zero status
+TASK_NAME = "StartSSHDatLogon"
 
-# Check if the OS is Windows (Git Bash sets 'OS' to 'Windows_NT')
-if [ "$OS" != "Windows_NT" ]; then
-  echo "Unsupported OS"
-  exit 1
-fi
 
-# Check if the scheduled task already exists
-taskExists=$(powershell.exe -NoProfile -Command "if (Get-ScheduledTask -TaskName 'StartSSHDatLogon' -ErrorAction SilentlyContinue) { Write-Output 'yes' } else { Write-Output 'no' }" | tr -d '\r')
+def powershell(cmd: str) -> str:
+    """Run a simple PowerShell command and return output."""
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"PowerShell error:\n{result.stderr.strip()}")
+    return result.stdout.strip()
 
-if [ "$taskExists" == "yes" ]; then
-  echo "Task 'StartSSHDatLogon' already exists. Skipping."
-  echo "To remove the task run: powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Unregister-ScheduledTask -TaskName 'StartSSHDatLogon' -Confirm:\\\$false\""
-  exit 0
-fi
 
-read -r -d '' PS_CODE <<'EOF'
-$sshd = "C:\\Program Files\\OpenSSH\\sshd.exe"
+def powershell_script(script: str):
+    """Run a multi-line PowerShell script safely using -EncodedCommand."""
+    encoded = base64.b64encode(script.encode("utf-16le")).decode("ascii")
+    subprocess.run(
+        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded],
+        check=True,
+    )
+
+
+def task_exists() -> bool:
+    """Check if the StartSSHDatLogon scheduled task exists."""
+    ps = (
+        f"if (Get-ScheduledTask -TaskName '{TASK_NAME}' -ErrorAction SilentlyContinue) "
+        "{'yes'} else {'no'}"
+    )
+    output = powershell(ps)
+    return output.lower() == "yes"
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Installs a Windows scheduled task that runs sshd at user logon on port 1022.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show this help message and exit.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    parser.parse_args()
+
+    # Check OS
+    if sys.platform != "win32":
+        print("❌ Unsupported OS — this must be run on Windows.")
+        sys.exit(1)
+
+    # Check if sshd exists
+    sshd_path = Path(r"C:\Program Files\OpenSSH\sshd.exe")
+    if not sshd_path.exists():
+        print(f"❌ sshd.exe not found at: {sshd_path}")
+        print("Please install OpenSSH Server via 'Add Optional Features' in Windows Settings.")
+        sys.exit(1)
+
+    # Check if task already exists
+    if task_exists():
+        print(f"✅ Task '{TASK_NAME}' already exists. Skipping.")
+        print(
+            f"To remove it, run:\n"
+            f"  powershell.exe -NoProfile -ExecutionPolicy Bypass "
+            f"-Command \"Unregister-ScheduledTask -TaskName '{TASK_NAME}' -Confirm:$false\""
+        )
+        sys.exit(0)
+
+    # PowerShell code block
+    ps_code = r'''
+$sshd = "C:\Program Files\OpenSSH\sshd.exe"
 $port = 1022
 $taskName = "StartSSHDatLogon"
-$jsPath = "$env:ProgramData\\StartSSHDHidden.js"
+$jsPath = "$env:ProgramData\StartSSHDHidden.js"
 
-# Create a small JScript file to start sshd hidden
-$jsCode = @"
+# Create JScript file to start sshd hidden
+$jsCode = @'
 var shell = new ActiveXObject("WScript.Shell");
-shell.Run("\"$sshd\" -p $port", 0, false);
-"@
+shell.Run("\"C:\\Program Files\\OpenSSH\\sshd.exe\" -p 1022", 0, false);
+'@
 Set-Content -Path $jsPath -Value $jsCode -Encoding ASCII
 
-# Create a scheduled task that runs the JS script via wscript.exe (no console)
-$action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"$jsPath`""
+# Create scheduled task to run it
+$action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument ("`"$jsPath`"")
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest
 $settings = New-ScheduledTaskSettingsSet -Hidden
 
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "Start sshd silently at logon"
-EOF
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
+    -Principal $principal -Settings $settings -Description "Start sshd silently at logon"
+'''
 
-ENCODED_PS=$(printf "%s" "$PS_CODE" | iconv -t UTF-16LE | base64 -w 0)
+    print("🔧 Creating scheduled task to start sshd at logon...")
+    powershell_script(ps_code)
+    print(f"✅ Task '{TASK_NAME}' created successfully.")
+    print(
+        f"To remove it, run:\n"
+        f"  powershell.exe -NoProfile -ExecutionPolicy Bypass "
+        f"-Command \"Unregister-ScheduledTask -TaskName '{TASK_NAME}' -Confirm:$false\""
+    )
 
-# Run PowerShell script to register the task
-powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand "$ENCODED_PS"
 
-echo "Task 'StartSSHDatLogon' created successfully."
-echo "To remove the task run: powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Unregister-ScheduledTask -TaskName 'StartSSHDatLogon' -Confirm:\\\$false\""
+if __name__ == "__main__":
+    main()

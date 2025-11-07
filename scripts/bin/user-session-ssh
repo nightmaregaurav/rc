@@ -43,10 +43,15 @@ def powershell_script(script: str):
 def task_exists() -> bool:
     """Return True if the scheduled task already exists."""
     ps = (
-        f"if (Get-ScheduledTask -TaskName '{TASK_NAME}' -ErrorAction SilentlyContinue) "
-        "{{'yes'}} else {{'no'}}"
+        f"$t = Get-ScheduledTask -TaskName '{TASK_NAME}' -ErrorAction SilentlyContinue; "
+        "if ($null -ne $t) { Write-Host 'yes' -NoNewline } else { Write-Host 'no' -NoNewline }"
     )
-    return powershell(ps).lower() == "yes"
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", ps],
+        capture_output=True,
+    )
+    output = (result.stdout or b"").decode("utf-8", errors="ignore").strip().lower()
+    return "yes" in output
 
 
 # ──────────────────────────────── actions ────────────────────────────────

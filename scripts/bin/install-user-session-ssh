@@ -51,8 +51,10 @@ $settings = New-ScheduledTaskSettingsSet -Hidden
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "Start sshd silently at logon"
 EOF
 
+ENCODED_PS=$(printf "%s" "$PS_CODE" | iconv -t UTF-16LE | base64 -w 0)
+
 # Run PowerShell script to register the task
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$PS_CODE"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -EncodedCommand "$ENCODED_PS"
 
 echo "Task 'StartSSHDatLogon' created successfully."
 echo "To remove the task run: powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"Unregister-ScheduledTask -TaskName 'StartSSHDatLogon' -Confirm:\\\$false\""

@@ -56,9 +56,18 @@ def task_exists() -> bool:
 
 # ──────────────────────────────── actions ────────────────────────────────
 def install_task():
-    sshd_path = Path(r"C:\Program Files\OpenSSH\sshd.exe")
-    if not sshd_path.exists():
-        print(f"❌ sshd.exe not found at: {sshd_path}")
+    # Try both common locations
+    possible_paths = [
+        Path(r"C:\Program Files\OpenSSH\sshd.exe"),
+        Path(r"C:\Windows\System32\OpenSSH\sshd.exe"),
+    ]
+    sshd_path = next((p for p in possible_paths if p.exists()), None)
+
+    if not sshd_path:
+        print("❌ sshd.exe not found in any known location.")
+        print("Checked:")
+        for p in possible_paths:
+            print(f"   - {p}")
         print("Please install the Windows OpenSSH Server feature first.")
         sys.exit(1)
 
@@ -66,8 +75,8 @@ def install_task():
         print(f"✅ Task '{TASK_NAME}' already exists.")
         return
 
-    ps_code = r'''
-$sshd = "C:\Program Files\OpenSSH\sshd.exe"
+    ps_code = rf'''
+$sshd = "{sshd_path}"
 $port = 1022
 $taskName = "StartSSHDatLogon"
 $jsPath = "$env:ProgramData\StartSSHDHidden.js"
@@ -75,7 +84,7 @@ $jsPath = "$env:ProgramData\StartSSHDHidden.js"
 # Create JScript file to start sshd hidden
 $jsCode = @'
 var shell = new ActiveXObject("WScript.Shell");
-shell.Run("\"C:\\Program Files\\OpenSSH\\sshd.exe\" -p 1022", 0, false);
+shell.Run("\"{sshd_path}\" -p 1022", 0, false);
 '@
 Set-Content -Path $jsPath -Value $jsCode -Encoding ASCII
 
@@ -87,7 +96,7 @@ $settings = New-ScheduledTaskSettingsSet -Hidden
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
     -Principal $principal -Settings $settings -Description "Start sshd silently at logon"
 '''
-    print("🔧 Creating scheduled task…")
+    print(f"🔧 Creating scheduled task using sshd at: {sshd_path}")
     powershell_script(ps_code)
     print(f"✅ Task '{TASK_NAME}' created successfully.")
 

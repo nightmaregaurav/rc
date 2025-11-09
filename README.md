@@ -48,6 +48,7 @@ The following scripts are included to simplify common tasks:
 - **`publicip-fast`**: Prints the public IP address, a little faster than `publicip`.
 - **`pdf2img`**: Converts a pdf pages into images.
 - **`pdf2img-extract`**: Extracts images from PDF file.
+- **`re-run`**: Keeps running a command on given time intervals.
 - **`recurse-run`**: Recursively runs a command in all subdirectories.
 - **`remind-me`**: Sets a reminder with a message at a specific time and date.
 - **`serve`**: Simple wrapper for http-server (node)

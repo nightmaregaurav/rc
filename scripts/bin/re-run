@@ -1,0 +1,114 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
+
+import argparse
+import argcomplete
+import re
+import subprocess
+import time
+import sys
+import signal
+from shutil import get_terminal_size
+
+
+def parse_time_expression(expr: str) -> float:
+    """Parses a time expression like '1h3s', '2minutes', '5m', etc. into seconds."""
+    expr = expr.lower().replace(" ", "")
+    pattern = r"(?:(\d+)\s*(?:h|hour|hours))?|(?:(\d+)\s*(?:m|minute|minutes))?|(?:(\d+)\s*(?:s|second|seconds))?"
+    matches = re.findall(pattern, expr)
+    if not matches:
+        raise ValueError(f"Invalid time format: '{expr}'")
+
+    total_seconds = 0
+    for h, m, s in matches:
+        if h:
+            total_seconds += int(h) * 3600
+        if m:
+            total_seconds += int(m) * 60
+        if s:
+            total_seconds += int(s)
+    if total_seconds == 0:
+        raise ValueError(f"No valid time components found in '{expr}'")
+    return total_seconds
+
+
+def print_separator(char="_"):
+    cols = get_terminal_size((80, 20)).columns
+    print(char * cols)
+
+
+def handle_exit(signum, frame):
+    print("\nExit signal received. Stopping the loop...")
+    sys.exit(0)
+
+
+def repeat_command(interval_seconds: float, command: str):
+    """Runs the command repeatedly at the given interval."""
+    print(f"Re-running every {interval_seconds} second(s). Press Ctrl+C to stop.")
+    print_separator("=")
+
+    signal.signal(signal.SIGINT, handle_exit)
+    signal.signal(signal.SIGTERM, handle_exit)
+
+    iteration = 1
+    while True:
+        print_separator("_")
+        print(f"[Run #{iteration}] Executing: {command}")
+        result = subprocess.run(command, shell=True)
+        print(f"[Run #{iteration}] Exit code: {result.returncode}")
+        iteration += 1
+        print_separator("*")
+        time.sleep(interval_seconds)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Repeats a given command at regular intervals.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "--every",
+        required=True,
+        metavar="<time>",
+        help="Time interval between runs (e.g. 5s, 2m, 1h30s, 3hours10seconds)",
+    )
+
+    parser.add_argument(
+        "command",
+        nargs=argparse.REMAINDER,
+        help="Command to execute repeatedly.",
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    if not args.command:
+        print("Error: No command provided to re-run.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        interval_seconds = parse_time_expression(args.every)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    command = " ".join(args.command)
+    repeat_command(interval_seconds, command)
+
+
+if __name__ == "__main__":
+    main()

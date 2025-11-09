@@ -59,9 +59,11 @@ def repeat_command(interval_seconds: float, command: str):
     iteration = 1
     while True:
         print_separator("_")
-        print(f"[Run #{iteration}] Executing: {command}")
+        now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        print(f"[Run #{iteration}] [{now}] Executing: {command}")
         result = subprocess.run(command, shell=True)
-        print(f"[Run #{iteration}] Exit code: {result.returncode}")
+        now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        print(f"[Run #{iteration}] [{now}] Exit code: {result.returncode}")
         iteration += 1
         print_separator("*")
         time.sleep(interval_seconds)

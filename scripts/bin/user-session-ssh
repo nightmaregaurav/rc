@@ -59,7 +59,10 @@ def install_task():
     sshd_path = Path(r"C:\Program Files\OpenSSH\sshd.exe")
     if not sshd_path.exists():
         print(f"❌ sshd.exe not found at: {sshd_path}")
-        print("Please install the Windows OpenSSH Server feature first.")
+        print ("It is possible that you are using windows built-in OpenSSH which is installed as optional feature.")
+        print("This script requires the OpenSSH Server installed via winget (or official installer) to work properly.")
+        print("Please uninstall the built-in OpenSSH Server optional feature and install OpenSSH via winget:")
+        print("  winget install OpenSSH.Server")
         sys.exit(1)
 
     if task_exists():

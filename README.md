@@ -34,6 +34,10 @@ The following scripts are included to simplify common tasks:
 - **`count`**: Counts the total number of files and folders in the current directory.
 - **`cpu-usage`**: Displays CPU usage percentage.
 - **`free-port-after`**: Finds a free port after a specified port.
+- **`git as`** or **`git-as`** To run git commands as a profile.
+- **`git lsprofile`** or **`git-lsprofile`** To list all git profiles.
+- **`git mkprofile`** or **`git-mkprofile`** To create a new git profile.
+- **`git rmprofile`** or **`git-rmprofile`** To remove a git profile.
 - **`localip`**: Prints the local IP address.
 - **`localip-fast`**: Prints the local IP address, a little faster than `localip`.
 - **`location-of`**: Extracts GPS location metadata from images or videos.
@@ -59,15 +63,6 @@ The following scripts are included to simplify common tasks:
 - **`user-session-ssh`**: Tool to install/uninstall ssh server to run on logged in user's session for Windows.
 - **`volume-control`**: Controls the volume of the system.
 - **`youtube-get`**: Downloads YouTube videos or audio.
-
-### Extras
-The following extra features are included to simplify tasks:
-- Added `as <profile_name>`, `mkprofile`, `lsprofile`, and `rmprofile` aliases to `git` command so that it's easy to switch between git profiles (username, email and ssh key).
-  - Examples:
-    - `git mkprofile` [Follow steps] To create a new git profile.
-    - `git lsprofile` To list all git profiles.
-    - `git rmprofile <profile_name>` To remove a git profile.
-    - `git as <profile_name> commit -m "initial commit as a profile"` To make a commit using a profile.
 
 ## Usage
 After sourcing the activate script, all the environment variables, aliases, and functions will be available in your shell. Use the `--help` or `-h` flag with any function to see detailed usage instructions.

@@ -58,5 +58,4 @@ if command -v register-python-argcomplete >/dev/null 2>&1; then
     eval "$(register-python-argcomplete git-lsprofiles 2>/dev/null || true)"
 fi
 
-complete -o default -F _remind_me remind-me
 complete -o default -F _generic_help setup-uv

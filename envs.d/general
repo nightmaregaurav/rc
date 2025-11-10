@@ -1,0 +1,2 @@
+export PROJECT_HOME="$HOME/Repositories"
+export LD_LIBRARY_PATH="/lib:/usr/lib:/usr/local/lib"

@@ -50,7 +50,6 @@ The following scripts are included to simplify common tasks:
 - **`pdf2img-extract`**: Extracts images from PDF file.
 - **`re-run`**: Keeps running a command on given time intervals.
 - **`recurse-run`**: Recursively runs a command in all subdirectories.
-- **`remind-me`**: Sets a reminder with a message at a specific time and date.
 - **`serve`**: Simple wrapper for http-server (node)
 - **`setup-uv`**: Installs and configures the `uv` package to run python scripts in this repository.
 - **`snap-camera`**: Captures photos using available cameras.

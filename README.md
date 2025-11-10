@@ -27,7 +27,6 @@ Environment variables are set up to aid with the following:
 ### Scripts
 The following scripts are included to simplify common tasks:
 
-- **`adbw-brute-connect`**: Connects to an Android device over wireless ADB by scanning ports.
 - **`adbw-brute-pair`**: Pairs with an Android device over wireless ADB.
 - **`amplify`**: Boosts volume in the provided video/audio file.
 - **`clip`**: Copies and pastes text to/from the clipboard.

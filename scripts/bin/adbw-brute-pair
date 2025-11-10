@@ -1,50 +1,149 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
 
-# Help
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-  echo "Usage: adbw-brute-pair <IP Address or Hostname>"
-  echo
-  echo "Pairs with an Android device using adb pair command."
-  echo "This script uses nmap to find open ports in the range 37000-44000 and tries to pair with each one."
-  echo
-  echo "Examples:"
-  echo "  adbw-brute-pair 192.168.1.1"
-  exit 0
-fi
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
 
-if [ -z "$1" ]; then
-  echo "Missing argument: <IP Address or Hostname>"
-  echo "Try 'adbw-brute-pair --help' for more information."
-  exit 1
-fi
+import argparse
+import argcomplete
+import asyncio
+import shutil
+import subprocess
+import sys
+import signal
+import time
+from typing import List
 
-ip="$1"
+CONNECT_TIMEOUT = 1.0               # seconds for each connect attempt
+CONCURRENCY = 512                  # number of concurrent connection tasks
+PORT_RANGE_START = 37000
+PORT_RANGE_END = 44000
 
-if ! command -v nmap >/dev/null 2>&1; then
-  echo "Error: nmap not found. Please install nmap."
-  exit 1
-fi
 
-if ! command -v adb >/dev/null 2>&1; then
-  echo "Error: adb not found. Please install Android Platform Tools."
-  exit 1
-fi
+def ensure_command_exists(cmd: str) -> None:
+    if shutil.which(cmd) is None:
+        print(f"Error: {cmd} not found. Please install {cmd}.", file=sys.stderr)
+        sys.exit(1)
 
-ports=$(nmap -p 37000-44000 "$ip" -oG - | awk '/Ports:/{print $5}' | tr ',' '\n' | awk -F/ '$2=="open" {print $1}')
 
-if [[ -z "$ports" ]]; then
-  echo "No open ports found in range 37000-44000 on $ip."
-  exit 1
-fi
+async def _try_connect(ip: str, port: int, sem: asyncio.Semaphore) -> int | None:
+    """Return port if open, else None. Uses asyncio.open_connection with timeout."""
+    try:
+        async with sem:
+            # asyncio.open_connection will raise on failure
+            await asyncio.wait_for(asyncio.open_connection(ip, port), timeout=CONNECT_TIMEOUT)
+            return port
+    except Exception:
+        return None
 
-skipped_once=false
-for port in $ports; do
-  if [ "$skipped_once" = false ]; then
-    skipped_once=true
-    echo "Skipping port $port assuming it's used for wireless adb, pairing will take place on the next port available"
-    continue
-  fi
 
-  echo "Trying to pair with $ip:$port"
-  adb pair "$ip:$port"
-done
+async def find_open_ports_async(
+        ip: str, start: int = PORT_RANGE_START,
+        end: int = PORT_RANGE_END, concurrency: int = CONCURRENCY
+) -> List[int]:
+    """Scan ports [start, end] and return list of open ports (ints)."""
+    sem = asyncio.Semaphore(concurrency)
+    tasks = [asyncio.create_task(_try_connect(ip, p, sem)) for p in range(start, end + 1)]
+    open_ports: List[int] = []
+    for task in asyncio.as_completed(tasks):
+        res = await task
+        if res is not None:
+            open_ports.append(res)
+    open_ports.sort()
+    return open_ports
+
+
+def adb_pair(ip: str, port: int) -> int:
+    """
+    Call adb pair ip:port.
+    Returns the adb exit code.
+    """
+    try:
+        return subprocess.run(["adb", "pair", f"{ip}:{port}"], text=True).returncode
+    except Exception as e:
+        print(f"Error executing adb: {e}", file=sys.stderr)
+        return 2
+
+
+def handle_exit(signum, frame):
+    print("\nExit signal received. Aborting.")
+    sys.exit(0)
+
+
+async def main_async():
+    parser = argparse.ArgumentParser(
+        add_help=False,
+        description="Connect with adb device wirelessly by brute-forcing pairing ports and/or codes."
+    )
+
+    parser.add_argument(
+        "-H", "--host",
+        dest="host",
+        required=True,
+        help="IP or hostname of the Android device"
+    )
+
+    parser.add_argument(
+        "-P", "--port",
+        dest="port",
+        type=int,
+        help=f"Specific port to target (optional). If not provided the script scans {PORT_RANGE_START}-{PORT_RANGE_END}."
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit."
+    )
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    ip = args.host
+    specified_port = args.port
+
+    ensure_command_exists("adb")
+
+    # If a specific port is provided, check whether it's open first.
+    if specified_port is not None:
+        print(f"Checking provided port {specified_port} on {ip}...")
+        # reuse the same connection attempt logic to validate the port is open
+        res = await _try_connect(ip, specified_port, asyncio.Semaphore(1))
+        if res is None:
+            print(f"Port {specified_port} appears closed on {ip}. Aborting.")
+            sys.exit(1)
+        open_ports = [0, specified_port]  # dummy 0 to skip first port in loop below
+    else:
+        print(f"Scanning {ip} ports {PORT_RANGE_START}-{PORT_RANGE_END}")
+        start_time = time.time()
+        open_ports = await find_open_ports_async(ip)
+        elapsed = time.time() - start_time
+        print(f"Scan finished in {elapsed:.1f}s. Open ports found: {len(open_ports)}")
+
+        if not open_ports:
+            print(f"No open ports found in range {PORT_RANGE_START}-{PORT_RANGE_END} on {ip}.")
+            sys.exit(1)
+
+
+    for port in open_ports:
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] Trying to pair with {ip}:{port}")
+        code_exit = adb_pair(ip, port)
+        print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] adb exit code: {code_exit}")
+        if code_exit == 0:
+            print(f"Successfully paired {ip}:{port}.")
+            print("Done.")
+            return
+        else:
+            print(f"Failed to pair with {ip}:{port}. Trying next port...")
+            continue
+
+    print("All ports processed. No successful pairing detected.")
+    sys.exit(1)
+
+
+if __name__ == "__main__":
+    signal.signal(signal.SIGINT, handle_exit)
+    signal.signal(signal.SIGTERM, handle_exit)
+    asyncio.run(main_async())

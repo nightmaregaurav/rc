@@ -24,6 +24,7 @@ fi
 
 # Register completions
 if command -v register-python-argcomplete >/dev/null 2>&1; then
+    eval "$(register-python-argcomplete adbw-brute-pair 2>/dev/null || true)"
     eval "$(register-python-argcomplete clip 2>/dev/null || true)"
     eval "$(register-python-argcomplete count 2>/dev/null || true)"
     eval "$(register-python-argcomplete cpu-usage 2>/dev/null || true)"

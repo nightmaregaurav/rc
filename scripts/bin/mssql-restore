@@ -102,7 +102,7 @@ def main():
         "-F", "--file",
         required=True,
         help="Path to .bacpac file to restore from"
-    ).completer = FilesCompleter(allowednames=[".bacpac"], directories=False)
+    ).completer = FilesCompleter(allowednames=[".bacpac"], directories=True)
     parser.add_argument(
         "-h", "--help",
         action="help",

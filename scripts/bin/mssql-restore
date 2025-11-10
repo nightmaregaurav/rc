@@ -1,57 +1,130 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
 
-show_help() {
-  echo "Usage: $0 [options]"
-  echo
-  echo "Options:"
-  echo "  -H, --host       SQL Server host (default: localhost)"
-  echo "  -U, --user       SQL Server user (default: sa)"
-  echo "  -P, --password   SQL Server password"
-  echo "  -D, --database   Database name to restore into"
-  echo "  -F, --file       Backup file path to restore from"
-  echo "  -h, --help       Show this help message"
-  echo
-  echo "Example:"
-  echo "  $0 -H localhost -U sa -P MyPassword123 -D demodb -F /var/opt/mssql/data/demodb-20251006-101200.bak"
-  exit 0
-}
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
 
-# Check if sqlpackage is installed
-if ! command -v sqlpackage &> /dev/null; then
-  echo "Error: 'sqlpackage' command not found."
-  echo "You can install it by running:"
-  echo "  dotnet tool install -g microsoft.sqlpackage"
-  exit 1
-fi
+import subprocess
+import sys
+import shutil
+import argparse
+import argcomplete
+from pathlib import Path
+from argcomplete.completers import FilesCompleter
 
-# Default values
-HOST="localhost"
-USER="sa"
 
-# Parse args
-while [[ $# -gt 0 ]]; do
-  case $1 in
-    -H|--host) HOST="$2"; shift 2 ;;
-    -U|--user) USER="$2"; shift 2 ;;
-    -P|--password) PASSWORD="$2"; shift 2 ;;
-    -D|--database) DATABASE="$2"; shift 2 ;;
-    -F|--file) FILE="$2"; shift 2 ;;
-    --help) show_help ;;
-    *) echo "Unknown option: $1"; show_help ;;
-  esac
-done
+# ──────────────────────────────── helpers ────────────────────────────────
+def check_sqlpackage_installed() -> None:
+    """Ensure sqlpackage is installed and available in PATH (cross-platform)."""
+    if shutil.which("sqlpackage") is None:
+        print("❌ Error: 'sqlpackage' command not found in PATH.")
+        print("You can install it by running:")
+        print("  dotnet tool install -g microsoft.sqlpackage")
+        print()
+        if sys.platform == "win32":
+            print("On Windows, ensure your PATH includes:")
+            print("  %USERPROFILE%\\.dotnet\\tools")
+        else:
+            print("On Linux/macOS, ensure your PATH includes:")
+            print("  $HOME/.dotnet/tools")
+        sys.exit(1)
 
-if [[ -z "$DATABASE" || -z "$PASSWORD" || -z "$FILE" ]]; then
-  echo "Error: --database, --password, and --file are required"
-  exit 1
-fi
 
-command="sqlpackage /Action:Import /SourceFile:\"$FILE\" /TargetServerName:\"$HOST\" /TargetDatabaseName:\"$DATABASE\" /TargetUser:\"$USER\" /TargetPassword:\"$PASSWORD\" /TargetEncryptConnection:False /TargetTrustServerCertificate:True"
-echo "Executing command: $command"
-eval "$command"
+def run_command(command: list[str]) -> None:
+    """Run a system command and raise an error if it fails."""
+    try:
+        subprocess.run(command, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Command failed: {' '.join(command)}")
+        print(e)
+        sys.exit(1)
 
-if [[ $? -eq 0 ]]; then
-  echo "Restore command executed successfully: $FILE → $DATABASE"
-else
-  echo "Restore failed!"
-fi
+
+def restore_database(host: str, user: str, password: str, database: str, file_path: Path) -> None:
+    """Restore a SQL Server database from a .bacpac file."""
+    if not file_path.exists():
+        print(f"❌ Backup file not found: {file_path}")
+        sys.exit(1)
+
+    cmd = [
+        "sqlpackage",
+        f"/Action:Import",
+        f"/SourceFile:{file_path}",
+        f"/TargetServerName:{host}",
+        f"/TargetDatabaseName:{database}",
+        f"/TargetUser:{user}",
+        f"/TargetPassword:{password}",
+        f"/TargetEncryptConnection:False",
+        f"/TargetTrustServerCertificate:True",
+    ]
+
+    print(f"🚀 Executing: {' '.join(cmd)}")
+    result = subprocess.run(cmd)
+    if result.returncode != 0:
+        print("❌ Restore failed!")
+        sys.exit(result.returncode)
+
+    print(f"✅ Restore successful: {file_path} → {database}")
+
+
+# ──────────────────────────────── main ────────────────────────────────
+def main():
+    parser = argparse.ArgumentParser(
+        description="Restore a SQL Server database from a .bacpac file using sqlpackage nuget package.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-H", "--host",
+        default="localhost",
+        help="SQL Server host (default: localhost)"
+    )
+    parser.add_argument(
+        "-U", "--user",
+        default="sa",
+        help="SQL Server user (default: sa)"
+    )
+    parser.add_argument(
+        "-P", "--password",
+        required=True,
+        help="SQL Server password"
+    )
+    parser.add_argument(
+        "-D", "--database",
+        required=True,
+        help="Target database name to restore into"
+    )
+    parser.add_argument(
+        "-F", "--file",
+        required=True,
+        help="Path to .bacpac file to restore from"
+    ).completer = FilesCompleter(allowednames=[".bacpac"], directories=False)
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit"
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    # Check sqlpackage installation
+    check_sqlpackage_installed()
+
+    file_path = Path(args.file).expanduser().resolve()
+
+    restore_database(
+        host=args.host,
+        user=args.user,
+        password=args.password,
+        database=args.database,
+        file_path=file_path,
+    )
+
+
+if __name__ == "__main__":
+    main()

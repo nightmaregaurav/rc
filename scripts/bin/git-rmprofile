@@ -1,31 +1,87 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
 
-for arg in "$@"; do
-    if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
-        echo "Usage: git rmprofile <profiles>"
-        echo
-        echo "Removes the specified git profiles."
-        echo
-        echo "Examples:"
-        echo "  git rmprofile myprofile1 myprofile2"
-        exit 0
-    fi
-done
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
 
-profiles=("$@")
-if [[ -z profiles ]]; then
-    echo "[!] Missing argument: <profiles>" >&2
-    echo "Try 'git rmprofile --help' for more information." >&2
-    exit 1
-fi
+import os
+import sys
+import argparse
+import argcomplete
+from pathlib import Path
 
-for profile in "${profiles[@]}"; do
-    profile_file="$GIT_PROFILE_DIR/.${profile}"
-    if [[ ! -f "$profile_file" ]]; then
-        echo "[!] Profile '$profile' not found." >&2
-        continue;
-    fi
 
-    rm -f "$profile_file"
-    echo "[✓] Profile '$profile' removed."
-done
+# ──────────────────────────────── constants ────────────────────────────────
+
+GIT_PROFILE_DIR = Path(
+    os.environ.get("GIT_PROFILE_DIR", Path.home() / ".git-ssh-profiles")
+).expanduser()
+
+# ──────────────────────────────── helpers ────────────────────────────────
+
+def get_existing_profiles(profile_dir: Path) -> list[str]:
+    """Return all existing profile names."""
+    if not profile_dir.exists():
+        return []
+    return [
+        f.name[1:]
+        for f in profile_dir.iterdir()
+        if f.is_file() and f.name.startswith(".")
+    ]
+
+
+def remove_profile(profile_dir: Path, profile: str) -> None:
+    """Delete the specified profile file if it exists."""
+    profile_file = profile_dir / f".{profile}"
+    if not profile_file.exists():
+        print(f"[!] Profile '{profile}' not found.", file=sys.stderr)
+        return
+    try:
+        profile_file.unlink()
+        print(f"[✓] Profile '{profile}' removed.")
+    except Exception as e:
+        print(f"[!] Failed to remove '{profile}': {e}", file=sys.stderr)
+
+
+# ──────────────────────────────── main ────────────────────────────────
+
+def main():
+    script_name = Path(sys.argv[0]).name.replace("-", " ", 1)
+    existing_profiles = get_existing_profiles(GIT_PROFILE_DIR)
+
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Removes the specified git profiles.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "profiles",
+        nargs="+",
+        help="Names of profiles to remove.",
+        choices=existing_profiles,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    if not existing_profiles:
+        print(f"[!] No profiles found in {GIT_PROFILE_DIR}", file=sys.stderr)
+        sys.exit(1)
+
+    for profile in args.profiles:
+        remove_profile(GIT_PROFILE_DIR, profile)
+
+
+if __name__ == "__main__":
+    main()

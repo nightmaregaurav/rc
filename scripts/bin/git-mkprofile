@@ -1,47 +1,112 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
 
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-    echo "Usage: git mkprofile"
-    echo
-    echo "Creates a new git profile with SSH key and user information."
-    echo
-    echo "Examples:"
-    echo "  git mkprofile"
-    exit 0
-fi
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
 
-read -rp "[*] Profile name (avoid space): " profile
-if [[ -z "$profile" || ! "$profile" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-    echo "[!] Invalid profile name. Use only letters, digits, dashes or underscores." >&2
-    exit 1
-fi
+import os
+import sys
+import stat
+import subprocess
+import argparse
+import argcomplete
+from pathlib import Path
 
-read -rp "[*] Git user.name: " git_name
-[[ -z "$git_name" ]] && { echo "[!] User name required" >&2; exit 1; }
 
-read -rp "[*] Git user.email: " git_email
-[[ -z "$git_email" ]] && { echo "[!] User email required" >&2; exit 1; }
+# ──────────────────────────────── constants ────────────────────────────────
 
-read -rp "[*] SSH key path (default: ~/.ssh/id_ed25519_$profile): " ssh_key_raw
-[[ -z "$ssh_key_raw" ]] && { ssh_key_raw="$HOME/.ssh/id_ed25519_$profile"; }
+GIT_PROFILE_DIR = Path(
+    os.environ.get("GIT_PROFILE_DIR", Path.home() / ".git-ssh-profiles")
+).expanduser()
 
-ssh_key="${ssh_key_raw/#\~/$HOME}"
-profile_file="$GIT_PROFILE_DIR/.${profile}"
-mkdir -p "$(dirname "$ssh_key")"
+# ──────────────────────────────── helpers ────────────────────────────────
 
-if [[ ! -f "$ssh_key" ]]; then
-    echo "[*] SSH key not found, generating..."
-    ssh-keygen -t ed25519 -C "$git_email" -f "$ssh_key"
-    echo "[*] Public key:"
-    cat "${ssh_key}.pub"
-fi
+def read_input(prompt: str, required: bool = False, validator=None, default: str | None = None) -> str:
+    """Prompt the user for input with optional validation."""
+    while True:
+        value = input(prompt).strip()
+        if not value and default:
+            return default
+        if not value and required:
+            print("[!] Input required.", file=sys.stderr)
+            continue
+        if validator and not validator(value):
+            print("[!] Invalid input format.", file=sys.stderr)
+            continue
+        return value
 
-cat > "$profile_file" <<EOF
-#!/bin/bash
-export GIT_SSH_PROFILE__SSH_KEY_PATH="$ssh_key"
-export GIT_SSH_PROFILE__NAME="$git_name"
-export GIT_SSH_PROFILE__EMAIL="$git_email"
-EOF
 
-chmod 755 "$profile_file"
-echo "[✓] Profile '$profile' created."
+def validate_profile_name(name: str) -> bool:
+    """Ensure the profile name is alphanumeric, underscore, or dash."""
+    return name.replace("-", "").replace("_", "").isalnum()
+
+
+def ensure_ssh_key(ssh_key: Path, git_email: str) -> None:
+    """Generate an SSH key if it does not exist."""
+    if ssh_key.exists():
+        print("[*] SSH key already exists, skipping generation.")
+        print("[*] Public key:")
+        print(ssh_key.with_suffix(".pub").read_text().strip())
+        return
+
+    print("[*] SSH key not found, generating...")
+    ssh_key.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["ssh-keygen", "-t", "ed25519", "-C", git_email, "-f", str(ssh_key)], check=True)
+    print("[*] Public key:")
+    print(ssh_key.with_suffix(".pub").read_text().strip())
+
+
+def create_profile_file(profile_name: str, git_name: str, git_email: str, ssh_key: Path) -> None:
+    """Create the profile script file under GIT_PROFILE_DIR."""
+    GIT_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    profile_file = GIT_PROFILE_DIR / f".{profile_name}"
+
+    content = f"""#!/bin/bash
+export GIT_SSH_PROFILE__SSH_KEY_PATH="{ssh_key}"
+export GIT_SSH_PROFILE__NAME="{git_name}"
+export GIT_SSH_PROFILE__EMAIL="{git_email}"
+"""
+
+    profile_file.write_text(content)
+    profile_file.chmod(stat.S_IRWXU | stat.S_IRGRP | stat.S_IROTH)  # chmod 755
+    print(f"[✓] Profile '{profile_name}' created.")
+
+
+# ──────────────────────────────── main ────────────────────────────────
+
+def main():
+    script_name = Path(sys.argv[0]).name.replace("-", " ", 1)
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Creates a new git profile with SSH key and user information.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    parser.parse_args()
+
+    # Interactive prompts
+    profile_name = read_input("[*] Profile name (avoid space): ", required=True, validator=validate_profile_name)
+    git_name = read_input("[*] Git user.name: ", required=True)
+    git_email = read_input("[*] Git user.email: ", required=True)
+
+    ssh_key_default = Path.home() / ".ssh" / f"id_ed25519_{profile_name}"
+    ssh_key_raw = read_input(f"[*] SSH key path (default: {ssh_key_default}): ", default=str(ssh_key_default))
+    ssh_key = Path(ssh_key_raw).expanduser().resolve()
+
+    ensure_ssh_key(ssh_key, git_email)
+    create_profile_file(profile_name, git_name, git_email, ssh_key)
+
+
+if __name__ == "__main__":
+    main()

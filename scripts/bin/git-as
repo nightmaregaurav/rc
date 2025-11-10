@@ -1,43 +1,137 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
 
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-    echo "Usage: git as <profile> <git-command...>"
-    echo
-    echo "Executes a git command with the specified profile."
-    echo
-    echo "Examples:"
-    echo "  git as personal commit -m 'My commit message'"
-    exit 0
-fi
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
 
-profile="$1"
-shift
+import os
+import sys
+import subprocess
+import argparse
+import argcomplete
+from pathlib import Path
 
-if [[ -z "$profile" ]]; then
-    echo "[!] Usage: git as <profile> <git-command...>" >&2
-    exit 1
-fi
 
-script="$GIT_PROFILE_DIR/.${profile}"
-if [[ ! -f "$script" ]]; then
-    echo "[!] Profile '$profile' not found." >&2
-    exit 1
-fi
+# ──────────────────────────────── constants ────────────────────────────────
 
-# Reset environment variables
-export GIT_SSH_PROFILE__SSH_KEY_PATH=""
-export GIT_SSH_PROFILE__NAME=""
-export GIT_SSH_PROFILE__EMAIL=""
+GIT_PROFILE_DIR = Path(
+    os.environ.get("GIT_PROFILE_DIR", Path.home() / ".git-ssh-profiles")
+).expanduser()
 
-source "$script"
 
-git rev-parse --is-inside-work-tree &>/dev/null || {
-    git -c core.sshCommand="ssh -i \"$GIT_SSH_PROFILE__SSH_KEY_PATH\"" "$@"
-    exit 1
-}
+# ──────────────────────────────── helpers ────────────────────────────────
 
-git config --local user.name "$GIT_SSH_PROFILE__NAME"
-git config --local user.email "$GIT_SSH_PROFILE__EMAIL"
-git config --local core.sshCommand "ssh -i \"$GIT_SSH_PROFILE__SSH_KEY_PATH\""
+def get_existing_profiles(profile_dir: Path) -> list[str]:
+    """Return all existing profile names."""
+    if not profile_dir.exists():
+        return []
+    return [
+        f.name[1:]
+        for f in profile_dir.iterdir()
+        if f.is_file() and f.name.startswith(".")
+    ]
 
-git "$@"
+
+def load_profile(profile_name: str) -> dict[str, str]:
+    """Load environment variables from a .<profile> script."""
+    script_path = GIT_PROFILE_DIR / f".{profile_name}"
+    if not script_path.is_file():
+        print(f"[!] Profile '{profile_name}' not found in {GIT_PROFILE_DIR}", file=sys.stderr)
+        sys.exit(1)
+
+    env = {}
+    for line in script_path.read_text().splitlines():
+        line = line.strip()
+        if not line or not line.startswith("export "):
+            continue
+        key, _, value = line[len("export "):].partition("=")
+        env[key.strip()] = value.strip().strip('"')
+
+    required = [
+        "GIT_SSH_PROFILE__SSH_KEY_PATH",
+        "GIT_SSH_PROFILE__NAME",
+        "GIT_SSH_PROFILE__EMAIL",
+    ]
+    missing = [k for k in required if not env.get(k)]
+    if missing:
+        print(f"[!] Profile '{profile_name}' is missing fields: {', '.join(missing)}", file=sys.stderr)
+        sys.exit(1)
+
+    return env
+
+
+def inside_git_repo() -> bool:
+    """Check if the current directory is inside a git repository."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        capture_output=True,
+        text=True
+    )
+    return result.returncode == 0
+
+
+def run_git_command(args: list[str], env: dict[str, str]) -> None:
+    """Run git with the selected profile’s configuration."""
+    ssh_key = env["GIT_SSH_PROFILE__SSH_KEY_PATH"]
+    git_name = env["GIT_SSH_PROFILE__NAME"]
+    git_email = env["GIT_SSH_PROFILE__EMAIL"]
+
+    # Outside repo — only SSH customization
+    if not inside_git_repo():
+        subprocess.run(
+            ["git", "-c", f"core.sshCommand=ssh -i \"{ssh_key}\"", *args],
+            check=False
+        )
+        sys.exit(0)
+
+    # Inside repo — apply temporary local config
+    subprocess.run(["git", "config", "--local", "user.name", git_name], check=False)
+    subprocess.run(["git", "config", "--local", "user.email", git_email], check=False)
+    subprocess.run(["git", "config", "--local", "core.sshCommand", f"ssh -i \"{ssh_key}\""], check=False)
+
+    subprocess.run(["git", *args], check=False)
+
+
+# ──────────────────────────────── main ────────────────────────────────
+
+def main():
+    script_name = Path(sys.argv[0]).name.replace("-", " ", 1)
+    existing_profiles = get_existing_profiles(GIT_PROFILE_DIR)
+
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Executes a git command with the specified profile.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit",
+    )
+
+    parser.add_argument(
+        "profile",
+        help="Profile name to use (e.g., 'work', 'personal')",
+        choices=existing_profiles
+    )
+
+    parser.add_argument(
+        "git_args",
+        nargs=argparse.REMAINDER,
+        help="Git command and arguments to execute",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    env = load_profile(args.profile)
+    run_git_command(args.git_args, env)
+
+
+if __name__ == "__main__":
+    main()

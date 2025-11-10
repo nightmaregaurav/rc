@@ -1,25 +1,74 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
 
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-    echo "Usage: git lsprofiles"
-    echo
-    echo "Lists all available git profiles."
-    echo
-    echo "Examples:"
-    echo "  git lsprofiles"
-    exit 0
-fi
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
 
-if [[ ! -d "$GIT_PROFILE_DIR" ]]; then
-    echo "[!] No profiles found in $GIT_PROFILE_DIR" >&2
-    exit 1
-fi
+import os
+import sys
+import argparse
+import argcomplete
+from pathlib import Path
 
-profiles=$(find "$GIT_PROFILE_DIR" -type f -name '.*' -exec basename {} \; 2>/dev/null | sed 's/^\.//')
+# ──────────────────────────────── constants ────────────────────────────────
 
-if [[ -z "$profiles" ]]; then
-    echo "[!] No profiles found in $GIT_PROFILE_DIR" >&2
-else
-    echo "[*] Available profiles:"
-    echo "$profiles" | sed 's/^/  - /'
-fi
+GIT_PROFILE_DIR = Path(
+    os.environ.get("GIT_PROFILE_DIR", Path.home() / ".git-ssh-profiles")
+).expanduser()
+
+# ──────────────────────────────── helpers ────────────────────────────────
+
+def list_profiles(profile_dir: Path) -> list[str]:
+    """Return a list of profile filenames (without leading dot) from the given directory."""
+    if not profile_dir.exists() or not profile_dir.is_dir():
+        print(f"[!] No profiles found in {profile_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    profiles = [
+        f.name[1:]
+        for f in profile_dir.iterdir()
+        if f.is_file() and f.name.startswith(".")
+    ]
+
+    if not profiles:
+        print(f"[!] No profiles found in {profile_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    return sorted(profiles)
+
+
+def print_profiles(profiles: list[str]) -> None:
+    """Print profiles in a consistent, user-friendly format."""
+    print("[*] Available profiles:")
+    for name in profiles:
+        print(f"  - {name}")
+
+
+# ──────────────────────────────── main ────────────────────────────────
+def main():
+    script_name = Path(sys.argv[0]).name.replace("-", " ", 1)
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Lists all available git profiles.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit"
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    parser.parse_args()
+
+    profiles = list_profiles(GIT_PROFILE_DIR)
+    print_profiles(profiles)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-
-_git_lsprofile() {
-    COMPREPLY=( $(compgen -W "-h" -- "${COMP_WORDS[COMP_CWORD]}") )
-}

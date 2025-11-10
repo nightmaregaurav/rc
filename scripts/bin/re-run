@@ -77,7 +77,7 @@ def main():
     )
 
     parser.add_argument(
-        "--every",
+        "--every", "-e",
         required=True,
         metavar="<time>",
         help="Time interval between runs (e.g. 5s, 2m, 1h30s, 3hours10seconds)",

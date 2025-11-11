@@ -1,0 +1,117 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = "==3.13"
+# dependencies = [
+#   "sounddevice",
+#   "argcomplete",
+#   "scipy",
+# ]
+# ///
+
+import os
+import sys
+import time
+import argparse
+import sounddevice as sd
+from scipy.io.wavfile import write as wav_write
+import argcomplete
+
+
+def list_available_microphones():
+    """List all available input devices with valid input channels."""
+    devices = sd.query_devices()
+    available = []
+    for idx, dev in enumerate(devices):
+        if dev['max_input_channels'] > 0:
+            available.append((idx, dev['name']))
+    return available
+
+
+def record_from_all_microphones(destination: str, duration: float = 3.0, samplerate: int = 44100):
+    """Record a short clip from each available microphone and save it."""
+    available = list_available_microphones()
+
+    if not available:
+        print("No available microphones found.")
+        sys.exit(1)
+
+    base = os.path.expanduser(destination)
+    base_dir = os.path.dirname(base) or "."
+    base_name, ext = os.path.splitext(os.path.basename(base))
+    if not ext:
+        ext = ".wav"
+    os.makedirs(base_dir, exist_ok=True)
+
+    print(f"[INFO] Found {len(available)} microphone(s). Recording {duration:.1f}s from each...")
+
+    for idx, name in available:
+        print(f"[INFO] Recording from mic {idx}: {name}")
+        try:
+            sd.default.device = idx
+            recording = sd.rec(
+                int(duration * samplerate),
+                samplerate=samplerate,
+                channels=1,
+                dtype='int16'
+            )
+            sd.wait()  # Wait for recording to finish
+        except Exception as e:
+            print(f"[WARN] Failed to record from mic {idx}: {e}")
+            continue
+
+        output_path = os.path.join(base_dir, f"{base_name}_MIC{idx}{ext}")
+        try:
+            wav_write(output_path, samplerate, recording)
+            print(f"[OK] Saved: {output_path}")
+        except Exception as e:
+            print(f"[ERROR] Failed to save audio from mic {idx}: {e}")
+
+        # Brief pause between recordings
+        time.sleep(0.5)
+
+    print("[DONE] Audio snapshots completed.")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Record a short audio sample from all connected microphones using sounddevice.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    parser.add_argument(
+        "-d", "--destination",
+        required=True,
+        help="Base destination file path (e.g., '~/mic.wav'). "
+             "Audio will be saved as <filename>_MIC<index>.<ext>.",
+    )
+
+    parser.add_argument(
+        "-l", "--length",
+        type=float,
+        default=3.0,
+        help="Duration (seconds) of each recording (default: 3.0)",
+    )
+
+    parser.add_argument(
+        "-s", "--samplerate",
+        type=int,
+        default=44100,
+        help="Sample rate in Hz (default: 44100)",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    record_from_all_microphones(args.destination, args.length, args.samplerate)
+
+
+if __name__ == "__main__":
+    main()

@@ -37,6 +37,7 @@ The following scripts are included to simplify common tasks:
 - **`git lsprofile`** or **`git-lsprofile`** To list all git profiles.
 - **`git mkprofile`** or **`git-mkprofile`** To create a new git profile.
 - **`git rmprofile`** or **`git-rmprofile`** To remove a git profile.
+- **`hear-me`**: Listens in using all available microphones and saves the audio to a file.
 - **`localip`**: Prints the local IP address.
 - **`localip-fast`**: Prints the local IP address, a little faster than `localip`.
 - **`location-of`**: Extracts GPS location metadata from images or videos.

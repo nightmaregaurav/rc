@@ -60,7 +60,7 @@ def main():
         default="long",
         required=True,
         choices=["short", "long", "seconds"],
-        help="Output format (default: long)",
+        help="Output format.",
     )
 
     argcomplete.autocomplete(parser, always_complete_options=False)

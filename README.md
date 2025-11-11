@@ -69,8 +69,7 @@ The following scripts are included to simplify common tasks:
 After sourcing the activate script, all the environment variables, aliases, and functions will be available in your shell. Use the `--help` or `-h` flag with any function to see detailed usage instructions.
 
 ## Soft Requirement (only errors out while executing related commands)
-- **`android-platform-tools`**: Used by `adbw-brute-connect` and `adbw-brute-pair`
-- **`nmap`**: Used by `adbw-brute-connect` and `adbw-brute-pair`
+- **`android-platform-tools`**: Used by `adbw-brute-pair`
 - **`ffmpeg`**: Used by `amplify`, `split-video`, and `youtube-get`
 - There are some others, will add eventually... sorry...
 

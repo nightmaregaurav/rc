@@ -91,13 +91,8 @@ $action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument ("`"$jsPath`"
 
 # Add multiple triggers: logon, startup, and wake
 $trigger = @(
-    New-ScheduledTaskTrigger -AtLogOn,
-    New-ScheduledTaskTrigger -AtStartup,
-    New-ScheduledTaskTrigger -OnEvent @{
-        Log = 'System'
-        Source = 'Power-Troubleshooter'
-        EventId = 1
-    }
+    New-ScheduledTaskTrigger -AtLogOn
+    New-ScheduledTaskTrigger -AtStartup
 )
 
 # Principal and settings with restart-on-failure

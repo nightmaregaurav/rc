@@ -72,23 +72,40 @@ def install_task():
     ps_code = r'''
 $sshd = "C:\Program Files\OpenSSH\sshd.exe"
 $port = 1022
+$retryCount = 3
+$retryIntervalMinutes = 1
 $taskName = "StartSSHDatLogon"
 $jsPath = "$env:ProgramData\StartSSHDHidden.js"
 
 # Create JScript file to start sshd hidden
 $jsCode = @'
-var shell = new ActiveXObject("WScript.Shell");
-shell.Run("\"C:\\Program Files\\OpenSSH\\sshd.exe\" -p 1022", 0, false);
+try {
+    var shell = new ActiveXObject("WScript.Shell");
+    shell.Run("\"C:\\Program Files\\OpenSSH\\sshd.exe\" -p 1022", 0, false);
+} catch (e) {}
 '@
 Set-Content -Path $jsPath -Value $jsCode -Encoding ASCII
 
-# Create scheduled task
+# Create scheduled task action
 $action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument ("`"$jsPath`"")
-$trigger = New-ScheduledTaskTrigger -AtLogOn
+
+# Add multiple triggers: logon, startup, and wake
+$trigger = @(
+    New-ScheduledTaskTrigger -AtLogOn,
+    New-ScheduledTaskTrigger -AtStartup,
+    New-ScheduledTaskTrigger -OnEvent @{
+        Log = 'System'
+        Source = 'Power-Troubleshooter'
+        EventId = 1
+    }
+)
+
+# Principal and settings with restart-on-failure
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -RunLevel Highest
-$settings = New-ScheduledTaskSettingsSet -Hidden
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
-    -Principal $principal -Settings $settings -Description "Start sshd silently at logon"
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -RestartCount $retryCount -RestartInterval (New-TimeSpan -Minutes $retryIntervalMinutes) -MultipleInstances IgnoreNew -Hidden
+
+# Register the task
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description "Start sshd silently at logon/startup/resume"
 '''
     print("🔧 Creating scheduled task…")
     powershell_script(ps_code)

@@ -13,7 +13,6 @@ import argcomplete
 import psutil
 import time
 from datetime import timedelta
-import sys
 
 def get_uptime_seconds() -> float:
     """Return system uptime in seconds."""

@@ -1,0 +1,75 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+#     "psutil",
+# ]
+# ///
+
+import argparse
+import argcomplete
+import psutil
+import time
+from datetime import timedelta
+import sys
+
+def get_uptime_seconds() -> float:
+    """Return system uptime in seconds."""
+    boot_time = psutil.boot_time()
+    return time.time() - boot_time
+
+
+def format_uptime(seconds: float, output_format: str) -> str:
+    """
+    Format uptime in one of the following styles:
+    - short: 1d 2h 3m 4s
+    - long: 1 day, 2 hours, 3 minutes, 4 seconds
+    - seconds: total seconds only
+    """
+    td = timedelta(seconds=int(seconds))
+    days = td.days
+    hours, remainder = divmod(td.seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+
+    if output_format == "seconds":
+        return f"{int(seconds)} seconds"
+    elif output_format == "long":
+        parts = []
+        if days: parts.append(f"{days} day{'s' if days != 1 else ''}")
+        if hours: parts.append(f"{hours} hour{'s' if hours != 1 else ''}")
+        if minutes: parts.append(f"{minutes} minute{'s' if minutes != 1 else ''}")
+        if secs or not parts: parts.append(f"{secs} second{'s' if secs != 1 else ''}")
+        return ", ".join(parts)
+    else:  # short
+        return f"{days}d {hours}h {minutes}m {secs}s"
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Display system uptime in a specified format.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+    parser.add_argument(
+        "-f", "--format",
+        type=str,
+        default="long",
+        required=True,
+        choices=["short", "long", "seconds"],
+        help="Output format (default: long)",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    uptime_seconds = get_uptime_seconds()
+    formatted = format_uptime(uptime_seconds, args.format)
+    print(f"System Uptime: {formatted}")
+
+
+if __name__ == "__main__":
+    main()

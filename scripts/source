@@ -1,5 +1,8 @@
 PATH="$current_rc_script_dir/scripts/bin:$PATH"
 
+# Ensure scripts are executable
+chmod 755 "$current_rc_script_dir/scripts/bin/"*
+
 # Give ZSH the capability to complete commands using complete commands
 if [ -n "$ZSH_VERSION" ]; then
     autoload -Uz compinit && compinit

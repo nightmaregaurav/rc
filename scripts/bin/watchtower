@@ -77,7 +77,7 @@ def main():
     parser.add_argument("-f", "--file", required=True, help="File to watch.").completer = argcomplete.completers.FilesCompleter()
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output.")
     parser.add_argument("-i", "--interval", type=float, default=1.0, help="Polling interval in seconds.")
-    parser.add_argument("command", nargs=argparse.REMAINDER, help="Command to execute on change.")
+    parser.add_argument("command", nargs='+', help="Command to execute on change.")
 
     argcomplete.autocomplete(parser, always_complete_options=False)
     args = parser.parse_args()

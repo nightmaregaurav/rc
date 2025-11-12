@@ -4,18 +4,12 @@ This repository provides a collection of environment variable setups, aliases, a
 
 ## Installation
 
-To use this repository, clone it and source the activate script in your shell configuration file:
-
-### Option 1 (persistent): Add to `.bashrc` or `.zshrc`
+### Option 1 (persistent):
 ```bash
-curl https://github.com/nightmaregaurav/rc/raw/refs/heads/main/setup | bash
-```
-Then, add the following line to your `~/.bashrc` or `~/.zshrc` file:
-```bash
-source ~/<path>/<to>/<cloned>/<folder>/activate
+/bin/bash -c "$(curl -fsSL https://github.com/nightmaregaurav/rc/raw/refs/heads/main/setup)"
 ```
 
-### Option 2 (temporary): Clone and activate directly
+### Option 2 (temporary):
 ```bash
 cd ~ && git clone https://github.com/nightmaregaurav/rc.git && source ~/rc/activate
 ```
@@ -26,7 +20,7 @@ cd ~ && git clone https://github.com/nightmaregaurav/rc.git && source ~/rc/activ
 Environment variables are set up to aid with the following:
 
 - Adds most common executable directories to the `PATH`.
-- Configurations for Homebrew, Docker, git, Node, Java, DotNET, Android, and Python
+- Adds shell configurations for Homebrew, Node, Java, DotNET, Android etc.
 
 ### Scripts
 The following scripts are included to simplify common tasks:

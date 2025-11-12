@@ -1,5 +1,11 @@
 # this file is named 000_path to make sure it is sourced first
 # path setup
+# if PREFIX is set, then start start the root paths with that instead of /
+if [ -n "$PREFIX" ]; then
+    ROOT="${PREFIX%/}"
+else
+    ROOT=""
+fi
 PATH_LIST=(
     "$HOME/.flutter/bin"
     "$HOME/.config/composer/vendor/bin"
@@ -10,17 +16,17 @@ PATH_LIST=(
     "$HOME/.local/bin"
     "$HOME/local/bin"
     "$HOME/bin"
-    /opt/mssql-tools/bin
-    /opt/homebrew/bin
-    /opt/homebrew/sbin
-    /usr/local/bin
-    /usr/local/sbin
-    /usr/bin/core_perl
-    /usr/bin/vendor_perl
-    /usr/bin/site_perl
-    /usr/bin
-    /usr/sbin
-    /bin
-    /sbin
+    "$PREFIX/opt/mssql-tools/bin"
+    "$PREFIX/opt/homebrew/bin"
+    "$PREFIX/opt/homebrew/sbin"
+    "$PREFIX/usr/local/bin"
+    "$PREFIX/usr/local/sbin"
+    "$PREFIX/usr/bin/core_perl"
+    "$PREFIX/usr/bin/vendor_perl"
+    "$PREFIX/usr/bin/site_perl"
+    "$PREFIX/usr/bin"
+    "$PREFIX/usr/sbin"
+    "$PREFIX/bin"
+    "$PREFIX/sbin"
 )
 export PATH=$(IFS=:; echo "${PATH_LIST[*]}"):$PATH

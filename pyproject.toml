@@ -15,4 +15,6 @@ dependencies = [
     "requests",
     "mss",
     "yt-dlp",
+    "scipy",
+    "sounddevice"
 ]

@@ -8,6 +8,10 @@ To use this repository, clone it and source the activate script in your shell co
 
 ### Option 1 (persistent): Add to `.bashrc` or `.zshrc`
 ```bash
+curl https://github.com/nightmaregaurav/rc/raw/refs/heads/main/setup | bash
+```
+Then, add the following line to your `~/.bashrc` or `~/.zshrc` file:
+```bash
 source ~/<path>/<to>/<cloned>/<folder>/activate
 ```
 

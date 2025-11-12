@@ -30,40 +30,40 @@ echo
 # --- Command list ---
 commands=(
   adbw-brute-pair
+  amplify
   clip
   count
   cpu-usage
-  localip
-  localip-fast
-  publicip
-  publicip-fast
-  ls-openports
   free-port-after
-  mkcd
-  now
-  re-run
-  recurse-run
-  amplify
+  git-as
+  git-lsprofiles
+  git-mkprofile
+  git-rmprofile
   hear-me
   img2pdf
-  pdf2img
-  pdf2img-extract
-  youtube-get
-  serve
-  split-video
-  snap-camera
-  snap-screen
-  volume-control
+  localip
+  localip-fast
   location-of
+  ls-openports
+  mkcd
   mssql-backup
   mssql-restore
+  now
   organize-media
+  pdf2img
+  pdf2img-extract
+  publicip
+  publicip-fast
+  re-run
+  recurse-run
+  serve
+  snap-camera
+  snap-screen
+  split-video
   up-since
   user-session-ssh
-  git-as
-  git-rmprofile
-  git-mkprofile
-  git-lsprofiles
+  volume-control
+  youtube-get
 )
 
 # --- Ensure register-python-argcomplete exists ---

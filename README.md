@@ -38,6 +38,7 @@ The following scripts are included to simplify common tasks:
 - **`git mkprofile`** or **`git-mkprofile`** To create a new git profile.
 - **`git rmprofile`** or **`git-rmprofile`** To remove a git profile.
 - **`hear-me`**: Listens in using all available microphones and saves the audio to a file.
+- **`img2pdf`**: Converts images into a single PDF file.
 - **`localip`**: Prints the local IP address.
 - **`localip-fast`**: Prints the local IP address, a little faster than `localip`.
 - **`location-of`**: Extracts GPS location metadata from images or videos.
@@ -47,11 +48,10 @@ The following scripts are included to simplify common tasks:
 - **`mssql-restore`**: Wrapper of `sqlpackage` to easily restore SQL Server databases.
 - **`now`**: Shows the current date and time in a human-readable format.
 - **`organize-media`**: Organizes images and videos in a folder by their creation date.
-- **`img2pdf`**: Converts images into a single PDF file.
-- **`publicip`**: Prints the public IP address.
-- **`publicip-fast`**: Prints the public IP address, a little faster than `publicip`.
 - **`pdf2img`**: Converts a pdf pages into images.
 - **`pdf2img-extract`**: Extracts images from PDF file.
+- **`publicip`**: Prints the public IP address.
+- **`publicip-fast`**: Prints the public IP address, a little faster than `publicip`.
 - **`rc-setup`**: Clones this repository and sets it shell activation in the user's shell configuration file.
 - **`rc-setup-completions`**: Installs the completion files for the scripts in this repository.
 - **`rc-setup-dev`**: Clones this repository using SSH url and sets it shell activation in the user's shell configuration file.

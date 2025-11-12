@@ -42,7 +42,7 @@ source "$current_rc_script_dir/envs"
 benchmark "Source envs"
 
 source "$current_rc_script_dir/scripts/source"
-benchmark "Source scripts/source"
+benchmark "Source scripts"
 
 source "$current_rc_script_dir/aliases"
 benchmark "Source aliases"

@@ -54,9 +54,7 @@ The following scripts are included to simplify common tasks:
 - **`pdf2img-extract`**: Extracts images from PDF file.
 - **`publicip`**: Prints the public IP address.
 - **`publicip-fast`**: Prints the public IP address, a little faster than `publicip`.
-- **`rc-setup`**: Clones this repository and sets it shell activation in the user's shell configuration file.
 - **`rc-setup-completions`**: Installs the completion files for the scripts in this repository.
-- **`rc-setup-dev`**: Clones this repository using SSH url and sets it shell activation in the user's shell configuration file.
 - **`rc-setup-uv`**: Installs and configures the `uv` package to run python scripts in this repository.
 - **`rc-update`**: Updates this project to the latest version.
 - **`re-run`**: Keeps running a command on given time intervals.

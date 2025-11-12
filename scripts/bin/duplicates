@@ -1,0 +1,109 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
+
+import argparse
+import argcomplete
+import hashlib
+import sys
+from collections import defaultdict
+from pathlib import Path
+from typing import List, Dict
+from argcomplete.completers import DirectoriesCompleter
+
+
+def compute_hash(file_path: Path) -> str:
+    """
+    Computes the SHA-256 hash of a file.
+    """
+    hasher = hashlib.sha256()
+    with file_path.open("rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+def find_duplicates(path: Path) -> Dict[str, List[Path]]:
+    """
+    Finds duplicate files under the given path.
+    Returns a dict of hash -> list of files with that hash.
+    """
+    dups = defaultdict(list)
+    path = path.expanduser().resolve()
+    if path.is_dir():
+        for file_path in path.glob("*"):
+            if file_path.is_file():
+                dups[compute_hash(file_path)].append(file_path)
+
+    return {h: files for h, files in dups.items() if len(files) > 1}
+
+
+def list_duplicates(dups: Dict[str, List[Path]]):
+    for hash_val, files in dups.items():
+        print(f"\nHash: {hash_val}")
+        for f in sorted(files):
+            print(f"  {f}")
+
+
+def manage_duplicates(dups: Dict[str, List[Path]], force: bool):
+    for hash_val, files in dups.items():
+        keep = min(files)
+        to_remove = [f for f in files if f != keep]
+        for f in sorted(to_remove):
+            print(f"  Removing: {f}")
+            if not force:
+                confirm = input("Proceed? (y/N): ").lower().strip()
+                if confirm != "y":
+                    print(f"  Skipped: {f}")
+                    continue
+            try:
+                f.unlink()
+            except OSError as exc:
+                print(f"  Error removing {f}: {exc}", file=sys.stderr)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Find and manage duplicate files (skips folders).",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+    parser.add_argument("-l", "--ls", action="store_true", help="List duplicates")
+    parser.add_argument("-r", "--remove", action="store_true", help="Remove duplicates")
+    parser.add_argument("-f", "--force", action="store_true", help="Force removal without prompts")
+    parser.add_argument(
+        "path",
+        help="Path to scan",
+    ).completer = DirectoriesCompleter()
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    if not args.ls and not args.remove:
+        parser.error("At least one of -l/--ls or -r/--remove flag must be specified.")
+
+    path = Path(args.path)
+    dups = find_duplicates(path)
+
+    if not dups:
+        print("No duplicates found.")
+        sys.exit(0)
+
+    if args.ls:
+        list_duplicates(dups)
+
+    if args.remove:
+        manage_duplicates(dups, args.force)
+    elif not args.ls:
+        print(f"\n{len(dups)} duplicate groups found. Use -l to list, -r to remove.")
+
+
+if __name__ == "__main__":
+    main()

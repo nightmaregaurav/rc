@@ -32,6 +32,7 @@ The following scripts are included to simplify common tasks:
 - **`clip`**: Copies and pastes text to/from the clipboard.
 - **`count`**: Counts the total number of files and folders in the current directory.
 - **`cpu-usage`**: Displays CPU usage percentage.
+- **`duplicates`**: Manages duplicate files by listing, or deleting them.
 - **`free-port-after`**: Finds a free port after a specified port.
 - **`git as`** or **`git-as`** To run git commands as a profile.
 - **`git lsprofile`** or **`git-lsprofile`** To list all git profiles.

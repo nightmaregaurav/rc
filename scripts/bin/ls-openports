@@ -77,6 +77,7 @@ def collect_connections(kind: str = "inet"):
         raise RuntimeError(f"Failed to collect connections: {e}")
 
     for conn in raw:
+        pid = conn.pid or "-"
         proc_name = "-"
         if conn.pid:
             try:
@@ -89,27 +90,11 @@ def collect_connections(kind: str = "inet"):
         proto = proto_name(conn.type)
         status = getattr(conn, "status", "-")
 
-        key = (proc_name, l_ip, l_port, r_ip, r_port, proto, status)
+        key = (proc_name, str(pid), l_ip, l_port, r_ip, r_port, proto, status)
         if key not in connections:
             connections[key] = key
 
     return list(connections.values())
-
-
-def compute_column_widths(rows, min_width=8):
-    if not rows:
-        return [15, 15, 7, 15, 7, 6, 10]
-    cols = list(zip(*rows))
-    widths = []
-    for col in cols:
-        max_len = max((len(str(x)) for x in col), default=0)
-        widths.append(max(min_width, max_len))
-    widths[0] = max(widths[0], 15)
-    return widths
-
-
-def dash(n):
-    return "-" * n
 
 
 def print_connections(conns):
@@ -119,6 +104,7 @@ def print_connections(conns):
 
     headers = [
         "Application",
+        "PID",
         "Source Address",
         "Src Port",
         "Dest Address",
@@ -142,7 +128,7 @@ def main():
     prog = os.path.basename(sys.argv[0])
     parser = argparse.ArgumentParser(
         prog=prog,
-        description="Lists all active network connections with associated process names.",
+        description="Lists all active network connections with associated process names and PIDs.",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

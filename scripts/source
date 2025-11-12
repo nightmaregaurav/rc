@@ -1,50 +1,20 @@
+PATH="$current_rc_script_dir/scripts/bin:$PATH"
+
 # Give ZSH the capability to complete commands using complete commands
 if [ -n "$ZSH_VERSION" ]; then
     autoload -Uz compinit && compinit
     autoload -Uz bashcompinit && bashcompinit
 fi
 
-PATH="$current_rc_script_dir/scripts/bin:$PATH"
-
-# Register completions
-if command -v register-python-argcomplete >/dev/null 2>&1; then
-    eval "$(register-python-argcomplete adbw-brute-pair 2>/dev/null || true)"
-    eval "$(register-python-argcomplete clip 2>/dev/null || true)"
-    eval "$(register-python-argcomplete count 2>/dev/null || true)"
-    eval "$(register-python-argcomplete cpu-usage 2>/dev/null || true)"
-    eval "$(register-python-argcomplete localip 2>/dev/null || true)"
-    eval "$(register-python-argcomplete localip-fast 2>/dev/null || true)"
-    eval "$(register-python-argcomplete publicip 2>/dev/null || true)"
-    eval "$(register-python-argcomplete publicip-fast 2>/dev/null || true)"
-    eval "$(register-python-argcomplete ls-openports 2>/dev/null || true)"
-    eval "$(register-python-argcomplete free-port-after 2>/dev/null || true)"
-    eval "$(register-python-argcomplete mkcd 2>/dev/null || true)"
-    eval "$(register-python-argcomplete now 2>/dev/null || true)"
-    eval "$(register-python-argcomplete re-run 2>/dev/null || true)"
-    eval "$(register-python-argcomplete recurse-run 2>/dev/null || true)"
-    eval "$(register-python-argcomplete amplify 2>/dev/null || true)"
-    eval "$(register-python-argcomplete hear-me 2>/dev/null || true)"
-    eval "$(register-python-argcomplete img2pdf 2>/dev/null || true)"
-    eval "$(register-python-argcomplete pdf2img 2>/dev/null || true)"
-    eval "$(register-python-argcomplete pdf2img-extract 2>/dev/null || true)"
-    eval "$(register-python-argcomplete youtube-get 2>/dev/null || true)"
-    eval "$(register-python-argcomplete split-video 2>/dev/null || true)"
-    eval "$(register-python-argcomplete snap-camera 2>/dev/null || true)"
-    eval "$(register-python-argcomplete snap-screen 2>/dev/null || true)"
-    eval "$(register-python-argcomplete volume-control 2>/dev/null || true)"
-    eval "$(register-python-argcomplete serve 2>/dev/null || true)"
-    eval "$(register-python-argcomplete location-of 2>/dev/null || true)"
-    eval "$(register-python-argcomplete mssql-backup 2>/dev/null || true)"
-    eval "$(register-python-argcomplete mssql-restore 2>/dev/null || true)"
-    eval "$(register-python-argcomplete organize-media 2>/dev/null || true)"
-    eval "$(register-python-argcomplete up-since 2>/dev/null || true)"
-    eval "$(register-python-argcomplete user-session-ssh 2>/dev/null || true)"
-    eval "$(register-python-argcomplete git-as 2>/dev/null || true)"
-    eval "$(register-python-argcomplete git-rmprofile 2>/dev/null || true)"
-    eval "$(register-python-argcomplete git-mkprofile 2>/dev/null || true)"
-    eval "$(register-python-argcomplete git-lsprofiles 2>/dev/null || true)"
+# Make sure all completion functions are sourced
+# these files will be generated once register-rc-completions is run
+if [ -d "$current_rc_script_dir/scripts/completions" ]; then
+    for f in "$current_rc_script_dir"/scripts/completions/*-completion.sh; do
+        [ -r "$f" ] && source "$f"
+    done
 fi
 
+# Generic help completion function
 _generic_help() {
     local cur
     COMPREPLY=()

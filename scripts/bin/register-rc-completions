@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+
+# register-rc-completions
+#
+# Generate python-argcomplete completion scripts for all CLI tools.
+# This script removes all previous completions and overwrites them
+# into: $current_rc_script_dir/scripts/completions
+
+set -euo pipefail
+
+# --- Verify current_rc_script_dir ---
+if [ -z "${current_rc_script_dir:-}" ]; then
+    echo "ERROR: current_rc_script_dir is not set." >&2
+    exit 1
+fi
+
+# --- Output directory ---
+completions_dir="$current_rc_script_dir/scripts/completions"
+mkdir -p "$completions_dir"
+
+echo "🧹 Removing old completions..."
+rm -rf "${completions_dir:?}/"*
+echo "✅ Cleared: $completions_dir"
+echo
+
+# --- Command list ---
+commands=(
+  adbw-brute-pair
+  clip
+  count
+  cpu-usage
+  localip
+  localip-fast
+  publicip
+  publicip-fast
+  ls-openports
+  free-port-after
+  mkcd
+  now
+  re-run
+  recurse-run
+  amplify
+  hear-me
+  img2pdf
+  pdf2img
+  pdf2img-extract
+  youtube-get
+  serve
+  split-video
+  snap-camera
+  snap-screen
+  volume-control
+  location-of
+  mssql-backup
+  mssql-restore
+  organize-media
+  up-since
+  user-session-ssh
+  git-as
+  git-rmprofile
+  git-mkprofile
+  git-lsprofiles
+)
+
+# --- Ensure register-python-argcomplete exists ---
+if ! command -v register-python-argcomplete >/dev/null 2>&1; then
+    echo "ERROR: register-python-argcomplete not found in PATH." >&2
+    echo "       Install with: uv tool install argcomplete" >&2
+    exit 1
+fi
+
+echo "⚙️  Generating completions for ${#commands[@]} commands..."
+echo
+
+# --- Generate completions ---
+for cmd in "${commands[@]}"; do
+    out_file="$completions_dir/${cmd}-completion.sh"
+    tmp_file="$(mktemp "${out_file}.XXXX")"
+
+    if register-python-argcomplete "$cmd" >"$tmp_file" 2>/dev/null; then
+        if [[ -s "$tmp_file" ]]; then
+            mv "$tmp_file" "$out_file"
+            chmod 644 "$out_file"
+            echo "✅  $cmd"
+        else
+            rm -f "$tmp_file"
+            echo "⚠️  $cmd (empty output)"
+        fi
+    else
+        rm -f "$tmp_file"
+        echo "❌  $cmd (failed)"
+    fi
+done
+
+echo
+echo "🎯 All completions written to: $completions_dir"

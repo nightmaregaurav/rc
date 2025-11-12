@@ -1,26 +1,10 @@
-# Make all scripts in bin folder executable
-if [ -d "$current_rc_script_dir/scripts/bin" ]; then
-  for script in "$current_rc_script_dir/scripts/bin"/*; do
-    [ -f "$script" ] && chmod u+x "$script"
-  done
-fi
-
-PATH="$current_rc_script_dir/scripts/bin:$PATH"
-
-# Make sure all completion functions are sourced
-if [ -d "$current_rc_script_dir/scripts/completions" ]; then
-  for completion_file in "$current_rc_script_dir/scripts/completions"/*; do
-    if [[ -f "$completion_file" ]]; then
-      source "$completion_file"
-    fi
-  done
-fi
-
 # Give ZSH the capability to complete commands using complete commands
 if [ -n "$ZSH_VERSION" ]; then
     autoload -Uz compinit && compinit
     autoload -Uz bashcompinit && bashcompinit
 fi
+
+PATH="$current_rc_script_dir/scripts/bin:$PATH"
 
 # Register completions
 if command -v register-python-argcomplete >/dev/null 2>&1; then
@@ -60,5 +44,14 @@ if command -v register-python-argcomplete >/dev/null 2>&1; then
     eval "$(register-python-argcomplete git-mkprofile 2>/dev/null || true)"
     eval "$(register-python-argcomplete git-lsprofiles 2>/dev/null || true)"
 fi
+
+_generic_help() {
+    local cur
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+
+    # Suggest only -h and --help
+    COMPREPLY=( $(compgen -W "-h --help" -- "$cur") )
+}
 
 complete -o default -F _generic_help setup-uv

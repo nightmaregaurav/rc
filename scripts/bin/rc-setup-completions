@@ -49,6 +49,7 @@ commands=(
   mkcd
   mssql-backup
   mssql-restore
+  noexif
   now
   organize-media
   pdf2img

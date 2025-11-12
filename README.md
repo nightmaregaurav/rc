@@ -47,6 +47,7 @@ The following scripts are included to simplify common tasks:
 - **`mkcd`**: Creates a directory and changes into it.
 - **`mssql-backup`**: Wrapper of `sqlpackage` to easily backup SQL Server databases.
 - **`mssql-restore`**: Wrapper of `sqlpackage` to easily restore SQL Server databases.
+- **`noexif`**: Removes EXIF metadata from images.
 - **`now`**: Shows the current date and time in a human-readable format.
 - **`organize-media`**: Organizes images and videos in a folder by their creation date.
 - **`pdf2img`**: Converts a pdf pages into images.

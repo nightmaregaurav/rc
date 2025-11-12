@@ -1,0 +1,83 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+#     "pillow",
+# ]
+# ///
+
+import argparse
+import argcomplete
+import glob
+import sys
+from pathlib import Path
+from PIL import Image
+from argcomplete.completers import FilesCompleter
+
+
+def compute_output_path(img_path: Path, replace: bool) -> Path:
+    """
+    Returns the output path for the image after stripping EXIF.
+    """
+    if replace:
+        return img_path
+    else:
+        return img_path.with_name(f"{img_path.stem}_noexif{img_path.suffix}")
+
+
+def strip_exif(img_path: Path, output_path: Path):
+    """
+    Strips EXIF data from the image and saves it.
+    """
+    with Image.open(img_path) as img:
+        data = list(img.getdata())
+        img_noexif = Image.new(img.mode, img.size)
+        img_noexif.putdata(data)
+        img_noexif.info = {}
+
+    img_noexif.save(output_path, quality=95)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Strip EXIF from images.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+    parser.add_argument("-r", "--replace", action="store_true", help="Replace original files")
+    parser.add_argument("files", nargs="+", help="Image files or glob patterns").completer = FilesCompleter()
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    supported_exts = {".jpg", ".jpeg", ".png", ".tiff"}
+    processed = 0
+
+    for pattern in args.files:
+        for file_path_str in glob.glob(pattern):
+            img_path = Path(file_path_str)
+            if not img_path.is_file() or img_path.suffix.lower() not in supported_exts:
+                continue
+
+            output_path = compute_output_path(img_path, args.replace)
+
+            try:
+                strip_exif(img_path, output_path)
+                action = "replace" if args.replace else "create"
+                print(f"{action}: {output_path}")
+                processed += 1
+            except Exception as exc:
+                print(f"Error processing {img_path}: {exc}", file=sys.stderr)
+
+    if processed == 0:
+        print("No images processed.", file=sys.stderr)
+    else:
+        print(f"Processed {processed} images.")
+
+
+if __name__ == "__main__":
+    main()

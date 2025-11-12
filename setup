@@ -15,17 +15,6 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
   exit 0
 fi
 
-echo "Determining shell configuration file..."
-if [ -n "$ZSH_VERSION" ]; then
-    shell_rc="$HOME/.zshrc"
-elif [ -n "$BASH_VERSION" ]; then
-    shell_rc="$HOME/.bashrc"
-else
-    echo "Unsupported shell. Please add 'source \"$HOME/Repositories/rc/rc.sh\"' to your shell configuration file manually."
-    cd "$start_dir"
-    exit 1
-fi
-
 set -euo pipefail
 
 echo "Preparing to clone rc repository..."
@@ -45,16 +34,19 @@ else
 fi
 
 echo "Writing source line to shell rc files..."
-if [ -f "$shell_rc" ]; then
-    if ! grep -q "source \"$HOME/Repositories/rc/activate\"" "$shell_rc"; then
-        echo "source \"$HOME/Repositories/rc/activate\"" >> "$shell_rc"
-        echo "Updated $shell_rc"
-    else
-        echo "$shell_rc already contains the source line."
-    fi
-else
-  echo "source \"$HOME/Repositories/rc/activate\"" >> "$shell_rc"
-  echo "Created $shell_rc and added the source line."
-fi
+rc_files=("$HOME/.bashrc" "$HOME/.zshrc")
+for shell_rc in "${rc_files[@]}"; do
+  if [ -f "$shell_rc" ]; then
+      if ! grep -q "source \"$HOME/Repositories/rc/activate\"" "$shell_rc"; then
+          echo "source \"$HOME/Repositories/rc/activate\"" >> "$shell_rc"
+          echo "Updated $shell_rc"
+      else
+          echo "$shell_rc already contains the source line."
+      fi
+  else
+    echo "source \"$HOME/Repositories/rc/activate\"" >> "$shell_rc"
+    echo "Created $shell_rc and added the source line."
+  fi
+done
 
 cd "$start_dir"

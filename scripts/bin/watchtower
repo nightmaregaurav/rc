@@ -1,0 +1,108 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
+
+import argparse
+import argcomplete
+import sys
+import subprocess
+import time
+from pathlib import Path
+
+
+def parse_interval(interval: float) -> float:
+    """
+    Validate and normalize the polling interval.
+    Ensures it's a positive float value.
+    """
+    if interval <= 0:
+        print("Error: interval must be greater than 0.")
+        sys.exit(1)
+    return interval
+
+
+def watch(file_path: Path, interval: float, verbose: bool):
+    """
+    Watches the given file for modification time changes.
+    Yields the modification time whenever the file changes.
+    """
+    if not file_path.exists():
+        print(f"Error: '{file_path}' does not exist.")
+        sys.exit(1)
+
+    last_mtime = file_path.stat().st_mtime
+
+    if verbose:
+        print(f"Initial mtime: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(last_mtime))}")
+
+    while True:
+        try:
+            time.sleep(interval)
+            current_mtime = file_path.stat().st_mtime
+            if current_mtime > last_mtime:
+                last_mtime = current_mtime
+                yield current_mtime
+        except FileNotFoundError:
+            if verbose:
+                print(f"Warning: '{file_path}' not found temporarily.")
+        except KeyboardInterrupt:
+            print("\nWatch interrupted.", file=sys.stderr)
+            sys.exit(0)
+
+
+def execute(cmd_parts: list[str]) -> None:
+    """
+    Executes the provided command.
+    """
+    try:
+        subprocess.run(cmd_parts, check=False)
+    except Exception as exc:
+        print(f"Error executing command: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Watches a file and executes a command when it changes.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+    parser.add_argument("-f", "--file", required=True, help="File to watch.").completer = argcomplete.completers.FilesCompleter()
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output.")
+    parser.add_argument("-i", "--interval", type=float, default=1.0, help="Polling interval in seconds.")
+    parser.add_argument("command", nargs=argparse.REMAINDER, help="Command to execute on change.")
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    file_path = Path(args.file).expanduser().resolve()
+    interval = parse_interval(args.interval)
+    cmd_parts = args.command
+
+    if args.verbose:
+        print(f"Watching: {file_path}")
+        print(f"Command: {' '.join(cmd_parts)}")
+        print(f"Interval: {interval}s\n")
+
+    try:
+        for mtime in watch(file_path, interval, args.verbose):
+            if args.verbose:
+                print(f"Change detected at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime))}")
+            execute(cmd_parts)
+    except KeyboardInterrupt:
+        print("\nStopped watching.", file=sys.stderr)
+        sys.exit(0)
+    except Exception as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

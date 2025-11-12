@@ -63,6 +63,7 @@ commands=(
   up-since
   user-session-ssh
   volume-control
+  watchtower
   youtube-get
 )
 

@@ -28,23 +28,32 @@ fi
 
 set -euo pipefail
 
-echo "Cloning rc repository..."
+echo "Preparing to clone rc repository..."
 start_dir=$(pwd)
 cd "$HOME"
 mkdir -p Repositories/
 cd Repositories/
-git clone https://github.com/nightmaregaurav/rc.git
+
+if [ -d "rc" ]; then
+    echo "rc repository already exists. Pulling latest changes..."
+    cd rc
+    git pull
+    cd ..
+else
+    echo "Cloning rc repository..."
+    git clone https://github.com/nightmaregaurav/rc.git
+fi
 
 echo "Writing source line to shell rc files..."
 if [ -f "$shell_rc" ]; then
-    if ! grep -q "source \"$HOME/Repositories/rc/rc.sh\"" "$shell_rc"; then
-        echo "source \"$HOME/Repositories/rc/rc.sh\"" >> "$shell_rc"
+    if ! grep -q "source \"$HOME/Repositories/rc/activate\"" "$shell_rc"; then
+        echo "source \"$HOME/Repositories/rc/activate\"" >> "$shell_rc"
         echo "Updated $shell_rc"
     else
         echo "$shell_rc already contains the source line."
     fi
 else
-  echo "source \"$HOME/Repositories/rc/rc.sh\"" >> "$shell_rc"
+  echo "source \"$HOME/Repositories/rc/activate\"" >> "$shell_rc"
   echo "Created $shell_rc and added the source line."
 fi
 

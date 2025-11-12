@@ -49,4 +49,7 @@ for shell_rc in "${rc_files[@]}"; do
   fi
 done
 
+echo "Sourcing activate script directly to activate rc in the current shell..."
+source "$HOME/Repositories/rc/activate"
+
 cd "$start_dir"

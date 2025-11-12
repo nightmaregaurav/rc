@@ -3,10 +3,11 @@
 SCRIPT=$(basename "$0")
 
 HELP_MESSAGE="Usage: $SCRIPT
+
 Installs uv, An extremely fast Python package and project manager.
 
-Examples:
-  $SCRIPT"
+options:
+  -h, --help    Show help message and exit."
 
 # Help message
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
@@ -14,10 +15,9 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
   exit 0
 fi
 
-set -e  # Exit immediately if a command exits with a non-zero status
+set -euo pipefail
 
 echo "Detecting operating system..."
-
 OS="$(uname -s)"
 
 case "$OS" in

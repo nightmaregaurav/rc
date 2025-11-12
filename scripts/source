@@ -24,4 +24,8 @@ _generic_help() {
     COMPREPLY=( $(compgen -W "-h --help" -- "$cur") )
 }
 
-complete -o default -F _generic_help setup-uv
+complete -o default -F _generic_help rc-setup
+complete -o default -F _generic_help rc-setup-completions
+complete -o default -F _generic_help rc-setup-dev
+complete -o default -F _generic_help rc-setup-uv
+complete -o default -F _generic_help rc-update

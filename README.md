@@ -52,14 +52,17 @@ The following scripts are included to simplify common tasks:
 - **`publicip-fast`**: Prints the public IP address, a little faster than `publicip`.
 - **`pdf2img`**: Converts a pdf pages into images.
 - **`pdf2img-extract`**: Extracts images from PDF file.
+- **`rc-setup`**: Clones this repository and sets it shell activation in the user's shell configuration file.
+- **`rc-setup-completions`**: Installs the completion files for the scripts in this repository.
+- **`rc-setup-dev`**: Clones this repository using SSH url and sets it shell activation in the user's shell configuration file.
+- **`rc-setup-uv`**: Installs and configures the `uv` package to run python scripts in this repository.
+- **`rc-update`**: Updates this project to the latest version.
 - **`re-run`**: Keeps running a command on given time intervals.
 - **`recurse-run`**: Recursively runs a command in all subdirectories.
 - **`serve`**: Simple wrapper for http-server (node)
-- **`setup-uv`**: Installs and configures the `uv` package to run python scripts in this repository.
 - **`snap-camera`**: Captures photos using available cameras.
 - **`snap-screen`**: Captures screenshots for all available screens.
 - **`split-video`**: Splits a video file into multiple parts in chunks of the specified duration.
-- **`update-rc`**: Updates this project to the latest version.
 - **`up-since`**: Shows how long the system has been up since last reboot.
 - **`user-session-ssh`**: Tool to install/uninstall ssh server to run on logged in user's session for Windows.
 - **`volume-control`**: Controls the volume of the system.

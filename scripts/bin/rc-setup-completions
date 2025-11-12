@@ -1,21 +1,25 @@
 #!/usr/bin/env bash
 
-# register-rc-completions
-#
-# Generate python-argcomplete completion scripts for all CLI tools.
-# This script removes all previous completions and overwrites them
-# into: $current_rc_script_dir/scripts/completions
+SCRIPT=$(basename "$0")
+
+HELP_MESSAGE="Usage: $SCRIPT
+
+Generates python-argcomplete completion scripts for all CLI tools included in rc.
+
+options:
+  -h, --help    Show help message and exit."
+
+# Help message
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  echo "$HELP_MESSAGE"
+  exit 0
+fi
 
 set -euo pipefail
 
-# --- Verify current_rc_script_dir ---
-if [ -z "${current_rc_script_dir:-}" ]; then
-    echo "ERROR: current_rc_script_dir is not set." >&2
-    exit 1
-fi
-
-# --- Output directory ---
-completions_dir="$current_rc_script_dir/scripts/completions"
+echo "Determining output directory for completions..."
+script_dir="$(dirname "$0")"
+completions_dir="$script_dir/../completions"
 mkdir -p "$completions_dir"
 
 echo "🧹 Removing old completions..."

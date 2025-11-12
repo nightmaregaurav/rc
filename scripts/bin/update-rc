@@ -1,7 +1,0 @@
-#!/usr/bin/env bash
-
-start_dir=$(pwd)
-cd "$(dirname "$0")" || exit
-git pull
-source ../../activate
-cd "$start_dir"

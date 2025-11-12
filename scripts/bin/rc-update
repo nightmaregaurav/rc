@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+SCRIPT=$(basename "$0")
+
+HELP_MESSAGE="Usage: $SCRIPT
+
+Clones rc and sources it to the shell configuration file.
+
+options:
+  -h, --help    Show help message and exit."
+
+# Help message
+if [[ "$1" == "--help" || "$1" == "-h" ]]; then
+  echo "$HELP_MESSAGE"
+  exit 0
+fi
+
+set -euo pipefail
+
+echo "Updating rc..."
+start_dir=$(pwd)
+cd "$(dirname "$0")" || exit
+git pull
+
+echo "Sourcing rc again..."
+source ../../activate
+
+cd "$start_dir"

@@ -88,7 +88,7 @@ def main():
 
     parser.add_argument(
         "-d", "--destination",
-        required=True,
+        default="~/MIC.wav",
         help="Base destination file path (e.g., '~/mic.wav'). "
              "Audio will be saved as <filename>_MIC<index>.<ext>.",
     )

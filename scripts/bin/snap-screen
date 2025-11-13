@@ -54,7 +54,7 @@ def main():
 
     parser.add_argument(
         "-d", "--destination",
-        required=True,
+        default="~/SS.png",
         help="Base destination file path (e.g., '~/screen.png'). "
         "Screenshots will be saved as <filename>_MON<index>.<ext>.",
     )

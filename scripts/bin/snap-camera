@@ -109,7 +109,7 @@ def main():
 
     parser.add_argument(
         "-d", "--destination",
-        required=True,
+        default="CAP.jpg",
         help="Base destination file path (e.g., '~/snapshot.jpg'). "
         "Images will be saved as <filename>_CAM<index>.<ext>.",
     )

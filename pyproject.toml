@@ -16,5 +16,6 @@ dependencies = [
     "mss",
     "yt-dlp",
     "scipy",
-    "sounddevice"
+    "sounddevice",
+    "pynput"
 ]

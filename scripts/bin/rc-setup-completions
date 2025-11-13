@@ -62,6 +62,7 @@ commands=(
   snap-camera
   snap-screen
   split-video
+  typewriter
   up-since
   user-session-ssh
   volume-control

@@ -61,8 +61,9 @@ The following scripts are included to simplify common tasks:
 - **`snap-camera`**: Captures photos using available cameras.
 - **`snap-screen`**: Captures screenshots for all available screens.
 - **`split-video`**: Splits a video file into multiple parts in chunks of the specified duration.
+- **`typewriter`**: Simulates typing effect as if keyboard is being pressed.
 - **`up-since`**: Shows how long the system has been up since last reboot.
-- **`user-session-ssh`**: Tool to install/uninstall ssh server to run on logged in user's session for Windows.
+- **`user-session-ssh`**: Tool to install/uninstall ssh server to run on logged-in user's session for Windows.
 - **`volume-control`**: Controls the volume of the system.
 - **`watchtower`**: Monitors a file and executes a command when the file changes.
 - **`youtube-get`**: Downloads YouTube videos or audio.

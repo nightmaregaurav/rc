@@ -68,6 +68,9 @@ def create_profile_file(profile_name: str, git_name: str, git_email: str, ssh_ke
 export GIT_SSH_PROFILE__SSH_KEY_PATH="{ssh_key}"
 export GIT_SSH_PROFILE__NAME="{git_name}"
 export GIT_SSH_PROFILE__EMAIL="{git_email}"
+export GIT_SSH_PROFILE__GPG_SIGN=true
+export GIT_SSH_PROFILE__GPG_FORMAT=ssh
+export GIT_SSH_PROFILE__GPG_KEY="{ssh_key.with_suffix('.pub')}"
 """
 
     profile_file.write_text(content)

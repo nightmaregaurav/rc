@@ -54,6 +54,9 @@ def load_profile(profile_name: str) -> dict[str, str]:
         "GIT_SSH_PROFILE__SSH_KEY_PATH",
         "GIT_SSH_PROFILE__NAME",
         "GIT_SSH_PROFILE__EMAIL",
+        "GIT_SSH_PROFILE__GPG_SIGN",
+        "GIT_SSH_PROFILE__GPG_FORMAT",
+        "GIT_SSH_PROFILE__GPG_KEY",
     ]
     missing = [k for k in required if not env.get(k)]
     if missing:
@@ -78,6 +81,9 @@ def run_git_command(args: list[str], env: dict[str, str]) -> None:
     ssh_key = env["GIT_SSH_PROFILE__SSH_KEY_PATH"]
     git_name = env["GIT_SSH_PROFILE__NAME"]
     git_email = env["GIT_SSH_PROFILE__EMAIL"]
+    git_gpgsign = env["GIT_SSH_PROFILE__GPG_SIGN"]
+    git_gpgformat = env["GIT_SSH_PROFILE__GPG_FORMAT"]
+    git_gpgkey = env["GIT_SSH_PROFILE__GPG_KEY"]
 
     # Outside repo — only SSH customization
     if not inside_git_repo():
@@ -91,6 +97,9 @@ def run_git_command(args: list[str], env: dict[str, str]) -> None:
     subprocess.run(["git", "config", "--local", "user.name", git_name], check=False)
     subprocess.run(["git", "config", "--local", "user.email", git_email], check=False)
     subprocess.run(["git", "config", "--local", "core.sshCommand", f"ssh -i \"{ssh_key}\""], check=False)
+    subprocess.run(["git", "config", "--local", "commit.gpgsign", git_gpgsign], check=False)
+    subprocess.run(["git", "config", "--local", "gpg.format", git_gpgformat], check=False)
+    subprocess.run(["git", "config", "--local", "user.signingkey", git_gpgkey], check=False)
 
     subprocess.run(["git", *args], check=False)
 

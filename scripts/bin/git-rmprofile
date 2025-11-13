@@ -20,6 +20,7 @@ GIT_PROFILE_DIR = Path(
     os.environ.get("GIT_PROFILE_DIR", Path.home() / ".git-ssh-profiles")
 ).expanduser()
 
+
 # ──────────────────────────────── helpers ────────────────────────────────
 
 def get_existing_profiles(profile_dir: Path) -> list[str]:
@@ -33,17 +34,63 @@ def get_existing_profiles(profile_dir: Path) -> list[str]:
     ]
 
 
-def remove_profile(profile_dir: Path, profile: str) -> None:
-    """Delete the specified profile file if it exists."""
+def load_profile(profile_name: str) -> dict[str, str] | None:
+    """Load environment variables from a .<profile> script."""
+    script_path = GIT_PROFILE_DIR / f".{profile_name}"
+    if not script_path.is_file():
+        return None
+
+    env = {}
+    for line in script_path.read_text().splitlines():
+        line = line.strip()
+        if not line or not line.startswith("export "):
+            continue
+        key, _, value = line[len("export "):].partition("=")
+        env[key.strip()] = value.strip().strip('"')
+    return env
+
+
+def remove_file(path: Path) -> bool:
+    """Safely remove a file if it exists."""
+    if not path.exists():
+        return False
+    try:
+        path.unlink()
+        return True
+    except Exception as e:
+        print(f"[!] Failed to remove {path}: {e}", file=sys.stderr)
+        return False
+
+
+def remove_profile(profile_dir: Path, profile: str, remove_ssh: bool = False) -> None:
+    """Delete the specified profile file and optionally its SSH keys."""
     profile_file = profile_dir / f".{profile}"
     if not profile_file.exists():
         print(f"[!] Profile '{profile}' not found.", file=sys.stderr)
         return
-    try:
-        profile_file.unlink()
+
+    env = load_profile(profile)
+    ssh_key_path = env.get("GIT_SSH_PROFILE__SSH_KEY_PATH") if env else None
+    ssh_pub_path = env.get("GIT_SSH_PROFILE__GPG_KEY") if env else None
+
+    # remove profile file
+    if remove_file(profile_file):
         print(f"[✓] Profile '{profile}' removed.")
-    except Exception as e:
-        print(f"[!] Failed to remove '{profile}': {e}", file=sys.stderr)
+
+    # optionally remove ssh keys
+    if remove_ssh and ssh_key_path:
+        priv = Path(ssh_key_path).expanduser()
+        pub = Path(ssh_pub_path).expanduser() if ssh_pub_path else priv.with_suffix(priv.suffix + ".pub")
+
+        removed_any = False
+        if remove_file(priv):
+            print(f"[✓] Removed private key: {priv}")
+            removed_any = True
+        if pub.exists() and remove_file(pub):
+            print(f"[✓] Removed public key: {pub}")
+            removed_any = True
+        if not removed_any:
+            print(f"[!] No SSH key files found for profile '{profile}'.")
 
 
 # ──────────────────────────────── main ────────────────────────────────
@@ -54,7 +101,7 @@ def main():
 
     parser = argparse.ArgumentParser(
         prog=script_name,
-        description="Removes the specified git profiles.",
+        description="Removes the specified git profiles (and optionally their SSH keys).",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )
@@ -64,6 +111,12 @@ def main():
         nargs="+",
         help="Names of profiles to remove.",
         choices=existing_profiles,
+    )
+
+    parser.add_argument(
+        "-s", "--ssh",
+        action="store_true",
+        help="Also remove SSH private/public keys referenced in the profile(s).",
     )
 
     parser.add_argument(
@@ -80,7 +133,7 @@ def main():
         sys.exit(1)
 
     for profile in args.profiles:
-        remove_profile(GIT_PROFILE_DIR, profile)
+        remove_profile(GIT_PROFILE_DIR, profile, remove_ssh=args.ssh)
 
 
 if __name__ == "__main__":

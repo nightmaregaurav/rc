@@ -99,9 +99,15 @@ def start_typing(tokens: list[str], delay: float):
     """
     special_token_re = re.compile(r'^<(/?)([A-Za-z_]+)(/?)>$')
 
+    normalize_next_token = False
     for token in tokens:
-        if special_token_re.match(token):
+        is_special_token = special_token_re.match(token)
+        if is_special_token and not normalize_next_token:
             token = token.strip('<>')
+            is_normalizer_flag = token.strip('/') == '__'
+            if is_normalizer_flag:
+                normalize_next_token = True
+                continue
             is_delay_flag = token.strip('/') == '_'
             if is_delay_flag:
                 wait = delay if delay > 0 else 0.5
@@ -110,6 +116,8 @@ def start_typing(tokens: list[str], delay: float):
             else:
                 handle_special_token(token)
         else:
+            if normalize_next_token and is_special_token:
+                normalize_next_token = False
             for char in token:
                 print(f"Typing character: {char}")
                 keyboard.type(char)
@@ -132,11 +140,17 @@ def execute_autotype(input_text: str, delay: float, initial_delay: float):
 
 def list_available_keys():
     keys = get_valid_key_names()
-    print("Available keys:\n")
+    print("Available keys:")
     for i, k in enumerate(keys, 1):
         print(f"{i:3}. {k}")
     print(f"\nTotal: {len(keys)} keys.")
-    print(f"A special self-closing tag <_/> can be used to introduce a delay (default 0.5s) between keystrokes.")
+    special_tags = {
+        "<_> or <_/> or </_>": "Introduce a delay (default 0.5s) between keystrokes. Modifiable with --delay.",
+        "<__> or <__/> or </__>": "Normalize the next token (treat special tags as normal text).",
+    }
+    print("\nSpecial tags:")
+    for i, (tag, desc) in enumerate(special_tags.items(), 1):
+        print(f"{i:3}. {tag}: {desc}")
     sys.exit(0)
 
 

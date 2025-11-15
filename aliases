@@ -1,11 +1,12 @@
 # To use sudo on aliases
 alias sudo='sudo '
 
-# timeout alias for osx
-alias timeout='gtimeout'
-
-# awk alias for osx
-alias awk='gawk'
+if [[ "$(uname)" == "Darwin" ]]; then
+    # timeout alias for osx
+    alias timeout='gtimeout'
+    # awk alias for osx
+    alias awk='gawk'
+fi
 
 # private zsh
 alias privatezsh="zsh -f --login -c 'unset HISTFILE; exec zsh'"

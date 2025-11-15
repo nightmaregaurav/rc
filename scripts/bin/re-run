@@ -15,6 +15,7 @@ import subprocess
 import time
 import sys
 import signal
+import shlex
 from shutil import get_terminal_size, which
 
 
@@ -23,7 +24,8 @@ def run_in_invoking_shell(command: list[str]) -> subprocess.CompletedProcess:
 
     if shell_path and which(shell_path):
         # Run using the invoking shell
-        return subprocess.run(command, shell=True, executable=shell_path)
+        cmd_str = " ".join(shlex.quote(arg) for arg in command)
+        return subprocess.run(command, shell=True, executable=cmd_str)
     else:
         # Fall back to default (cmd on Windows, sh on Unix)
         return subprocess.run(command, shell=True)

@@ -13,19 +13,21 @@ import argcomplete
 import sys
 import subprocess
 import time
+import shlex
 from pathlib import Path
 from shutil import which
 
 
-def run_in_invoking_shell(command: list[str]):
+def run_in_invoking_shell(command: list[str]) -> subprocess.CompletedProcess:
     shell_path = os.environ.get("SHELL")
 
     if shell_path and which(shell_path):
         # Run using the invoking shell
-        subprocess.run(command, shell=True, executable=shell_path, check=False)
+        cmd_str = " ".join(shlex.quote(arg) for arg in command)
+        return subprocess.run(command, shell=True, executable=cmd_str)
     else:
         # Fall back to default (cmd on Windows, sh on Unix)
-        subprocess.run(command, shell=True, check=False)
+        return subprocess.run(command, shell=True)
 
 
 def parse_interval(interval: float) -> float:

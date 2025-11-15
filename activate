@@ -11,7 +11,6 @@ if [ -n "${RC_BENCHMARK}" ]; then
 else
     benchmark() { :; }  # no-op if benchmarking is disabled
 fi
-
 benchmark "Start"
 
 # Determine the directory of this sourced file
@@ -19,14 +18,11 @@ if [ -n "${BASH_SOURCE[0]}" ]; then
     export current_rc_script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 elif [ -n "${ZSH_VERSION}" ]; then
     export current_rc_script_dir="$(cd "$(dirname "${(%):-%x}")" && pwd)"
-    autoload -Uz compinit && compinit
-    autoload -Uz bashcompinit && bashcompinit
 elif [ -n "${.sh.file}" ]; then
     export current_rc_script_dir="$(cd "$(dirname "${.sh.file}")" && pwd)"
 else
     export current_rc_script_dir="$(pwd)"
 fi
-
 benchmark "Determine current_rc_script_dir"
 
 # Enable loading completion in zsh
@@ -34,8 +30,7 @@ if [ -n "${ZSH_VERSION}" ]; then
     autoload -Uz compinit && compinit
     autoload -Uz bashcompinit && bashcompinit
 fi
-
-benchmark "ZSH completion setup"
+benchmark "Enabling zsh completion"
 
 # Source environment variables, scripts, aliases
 source "$current_rc_script_dir/envs"
@@ -48,43 +43,21 @@ source "$current_rc_script_dir/aliases"
 benchmark "Source aliases"
 
 # Save public IP Address to a file
-rm -f "$HOME/.ip.public"
-touch "$HOME/.ip.public"
 (publicip > "$HOME/.ip.public" &) > /dev/null 2>&1
 benchmark "Save public IP"
 
 # Save local IP Address to a file
-rm -f "$HOME/.ip.local"
-touch "$HOME/.ip.local"
 (localip > "$HOME/.ip.local" &) > /dev/null 2>&1
 benchmark "Save local IP"
 
-# Hide EOL sign ('%')
-PROMPT_EOL_MARK=""
-benchmark "Set prompt EOL mark"
-
-# Configure `time` format
-TIMEFMT=$'\nreal\t%E\nuser\t%U\nsys\t%S\ncpu\t%P'
-benchmark "Set time format"
-
-# Expand the history size
-export HISTFILESIZE=10000
-export SAVEHIST=10000
-export HISTSIZE=2000
-benchmark "Expand history size"
-
 # Set history append mode
-if [[ -n $ZSH_VERSION ]]; then
+if [[ -n "${ZSH_VERSION}" ]]; then
   setopt INC_APPEND_HISTORY
 else
   shopt -s histappend
   PROMPT_COMMAND="history -a;$PROMPT_COMMAND"
 fi
 benchmark "Configure history append"
-
-# Set history file
-export HISTFILE="$HOME/.history"
-benchmark "Set history file"
 
 # Filter duplicates from PATH
 export PATH=$(echo "$PATH" | awk -v RS=':' '!seen[$0]++ { path = path (NR==1 ? "" : ":") $0 } END { print path }')

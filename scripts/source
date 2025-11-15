@@ -3,12 +3,6 @@ PATH="$current_rc_script_dir/scripts/bin:$PATH"
 # Ensure scripts are executable
 chmod 755 "$current_rc_script_dir/scripts/bin/"*
 
-# Give ZSH the capability to complete commands using complete commands
-if [ -n "$ZSH_VERSION" ]; then
-    autoload -Uz compinit && compinit
-    autoload -Uz bashcompinit && bashcompinit
-fi
-
 # Make sure all completion functions are sourced
 # these files will be generated once register-rc-completions is run
 if [ -d "$current_rc_script_dir/scripts/completions" ]; then

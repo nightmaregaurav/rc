@@ -1,0 +1,25 @@
+# this file is named 001_shell to make sure it is sourced second
+# current shell setup
+if [ -n "${BASH_SOURCE[0]}" ]; then
+    export CURRENT_SHELL=$(which bash)
+elif [ -n "${ZSH_VERSION}" ]; then
+    export CURRENT_SHELL=$(which zsh)
+elif [ -n "${.sh.file}" ]; then
+    export CURRENT_SHELL=$(which sh)
+else
+    export CURRENT_SHELL="$(ps -p $$ -o comm= 2>/dev/null || echo "")"
+fi
+
+# Hide EOL sign ('%')
+PROMPT_EOL_MARK=""
+
+# Configure `time` format
+TIMEFMT=$'\nreal\t%E\nuser\t%U\nsys\t%S\ncpu\t%P'
+
+# Expand the history size
+export HISTFILESIZE=10000
+export SAVEHIST=10000
+export HISTSIZE=2000
+
+# Set history file
+export HISTFILE="$HOME/.history"

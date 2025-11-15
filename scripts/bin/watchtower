@@ -7,12 +7,25 @@
 # ]
 # ///
 
+import os
 import argparse
 import argcomplete
 import sys
 import subprocess
 import time
 from pathlib import Path
+from shutil import which
+
+
+def run_in_invoking_shell(command: list[str]):
+    shell_path = os.environ.get("SHELL")
+
+    if shell_path and which(shell_path):
+        # Run using the invoking shell
+        subprocess.run(command, shell=True, executable=shell_path, check=False)
+    else:
+        # Fall back to default (cmd on Windows, sh on Unix)
+        subprocess.run(command, shell=True, check=False)
 
 
 def parse_interval(interval: float) -> float:
@@ -60,7 +73,7 @@ def execute(cmd_parts: list[str]) -> None:
     Executes the provided command.
     """
     try:
-        subprocess.run(cmd_parts, check=False)
+        run_in_invoking_shell(cmd_parts)
     except Exception as exc:
         print(f"Error executing command: {exc}", file=sys.stderr)
         sys.exit(1)

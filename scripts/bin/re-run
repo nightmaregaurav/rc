@@ -7,6 +7,7 @@
 # ]
 # ///
 
+import os
 import argparse
 import argcomplete
 import re
@@ -14,7 +15,18 @@ import subprocess
 import time
 import sys
 import signal
-from shutil import get_terminal_size
+from shutil import get_terminal_size, which
+
+
+def run_in_invoking_shell(command: str) -> subprocess.CompletedProcess:
+    shell_path = os.environ.get("SHELL")
+
+    if shell_path and which(shell_path):
+        # Run using the invoking shell
+        return subprocess.run(command, shell=True, executable=shell_path)
+    else:
+        # Fall back to default (cmd on Windows, sh on Unix)
+        return subprocess.run(command, shell=True)
 
 
 def parse_time_expression(expr: str) -> float:
@@ -43,7 +55,7 @@ def print_separator(char="_"):
     print(char * cols)
 
 
-def handle_exit(signum, frame):
+def handle_exit(_, __):
     print("\nExit signal received. Stopping the loop...")
     sys.exit(0)
 
@@ -61,7 +73,7 @@ def repeat_command(interval_seconds: float, command: str):
         print_separator("_")
         now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         print(f"[Run #{iteration}] [{now}] Executing: {command}")
-        result = subprocess.run(command, shell=True)
+        result = run_in_invoking_shell(command)
         now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
         print(f"[Run #{iteration}] [{now}] Exit code: {result.returncode}")
         iteration += 1

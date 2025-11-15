@@ -11,9 +11,20 @@ import os
 import sys
 import signal
 import subprocess
-from shutil import get_terminal_size
+from shutil import get_terminal_size, which
 import argparse
 import argcomplete
+
+
+def run_in_invoking_shell(command: str):
+    shell_path = os.environ.get("SHELL")
+
+    if shell_path and which(shell_path):
+        # Run using the invoking shell
+        subprocess.run(command, shell=True, executable=shell_path)
+    else:
+        # Fall back to default (cmd on Windows, sh on Unix)
+        subprocess.run(command, shell=True)
 
 
 def print_separator(char="_"):
@@ -21,7 +32,7 @@ def print_separator(char="_"):
     print(char * cols)
 
 
-def handle_exit(signum, frame, master_root_dir):
+def handle_exit(_, __, master_root_dir):
     print(f"\nExit signal received!\nGoing back to original directory: {master_root_dir}")
     os.chdir(master_root_dir)
     sys.exit(1)
@@ -38,7 +49,7 @@ def run_recursive_commands(initial_command: str):
     # Run initial command if provided
     if initial_command:
         print(f"Executing initial command: [{initial_command}]")
-        subprocess.run(initial_command, shell=True)
+        run_in_invoking_shell(initial_command)
 
     # Main recursive loop
     while True:
@@ -58,7 +69,7 @@ def run_recursive_commands(initial_command: str):
             os.chdir(dir_name)
             print_separator("_")
             print(f">>> [{dir_name}]")
-            subprocess.run(cmd, shell=True)
+            run_in_invoking_shell(cmd)
             os.chdir(root_dir)
 
         print()

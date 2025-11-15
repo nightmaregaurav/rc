@@ -1,9 +1,29 @@
 # Determine if benchmarking is enabled
 if [ -n "${RC_BENCHMARK}" ]; then
-    __bench_start_time=$(date +%s%3N)
+    current_time_ms() {
+        if command -v date >/dev/null 2>&1; then
+            # Use date command if available
+            if date --version >/dev/null 2>&1; then
+                # GNU date (Linux) - use milliseconds
+                echo $(date +%s%3N)
+            else
+                # macOS date or other Unix-like systems without %3N
+                echo $(($(date +%s) * 1000 + $(date +%N | cut -b1-3)))
+            fi
+        else
+            echo "Error: 'date' command is not available"
+            return 1
+        fi
+    }
+    __bench_start_time=0
     benchmark() {
         local step_name="$1"
-        local now=$(date +%s%3N)
+        if [ "$step_name" = "Start" ]; then
+            __bench_start_time=$(current_time_ms)
+            echo "[BENCHMARK] ${step_name}: Benchmarking started"
+            return
+        fi
+        local now=$(current_time_ms)
         local elapsed=$((now - __bench_start_time))
         echo "[BENCHMARK] ${step_name}: ${elapsed} ms"
         __bench_start_time=$now
@@ -34,13 +54,11 @@ benchmark "Enabling zsh completion"
 
 # Source environment variables, scripts, aliases
 source "$current_rc_script_dir/envs"
-benchmark "Source envs"
 
 source "$current_rc_script_dir/scripts/source"
-benchmark "Source scripts"
 
 source "$current_rc_script_dir/aliases"
-benchmark "Source aliases"
+benchmark "Sourced aliases"
 
 # Save public IP Address to a file
 (publicip > "$HOME/.ip.public" &) > /dev/null 2>&1

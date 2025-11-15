@@ -8,6 +8,7 @@ chmod 755 "$current_rc_script_dir/scripts/bin/"*
 if [ -d "$current_rc_script_dir/scripts/completions" ]; then
     for f in "$current_rc_script_dir"/scripts/completions/*-completion.sh; do
         [ -r "$f" ] && source "$f"
+        [ -r "$f" ] && benchmark "Sourced completions/$(basename "$f")"
     done
 fi
 
@@ -24,3 +25,4 @@ _generic_help() {
 complete -o default -F _generic_help rc-setup-completions
 complete -o default -F _generic_help rc-setup-uv
 complete -o default -F _generic_help rc-update
+benchmark "Setup rc command completions"

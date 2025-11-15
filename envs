@@ -4,15 +4,20 @@ for file in "$current_rc_script_dir/envs.d/"*; do
         continue
     fi
 
+    should_source=false
     if [[ $file == *.zsh ]]; then
-        [[ -n $ZSH_VERSION ]] && source "$file"
+        [[ $CURRENT_SHELL == */zsh ]] && should_source=true
     elif [[ $file == *.bash ]]; then
-        [[ -n $BASH_VERSION ]] && source "$file"
+        [[ $CURRENT_SHELL == */bash ]] && should_source=true
     elif [[ $file == *.ash ]]; then
-        [[ -n $ASH_VERSION ]] && source "$file"
+        [[ $CURRENT_SHELL == */ash ]] && should_source=true
     elif [[ $file == *.fish ]]; then
-        [[ -n $FISH_VERSION ]] && source "$file"
+        [[ $CURRENT_SHELL == */fish ]] && should_source=true
     else
+        should_source=true
+    fi
+    if $should_source; then
         source "$file"
+        benchmark "Sourced envs.d/$(basename "$file")"
     fi
 done

@@ -18,7 +18,7 @@ import signal
 from shutil import get_terminal_size, which
 
 
-def run_in_invoking_shell(command: str) -> subprocess.CompletedProcess:
+def run_in_invoking_shell(command: list[str]) -> subprocess.CompletedProcess:
     shell_path = os.environ.get("SHELL")
 
     if shell_path and which(shell_path):
@@ -60,7 +60,7 @@ def handle_exit(_, __):
     sys.exit(0)
 
 
-def repeat_command(interval_seconds: float, command: str):
+def repeat_command(interval_seconds: float, command: list[str]):
     """Runs the command repeatedly at the given interval."""
     print(f"Re-running every {interval_seconds} second(s). Press Ctrl+C to stop.")
     print_separator("=")
@@ -120,7 +120,7 @@ def main():
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    command = " ".join(args.command)
+    command = args.command
     repeat_command(interval_seconds, command)
 
 

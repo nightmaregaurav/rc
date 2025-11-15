@@ -16,15 +16,15 @@ import argparse
 import argcomplete
 
 
-def run_in_invoking_shell(command: str):
+def run_in_invoking_shell(commands: list[str]):
     shell_path = os.environ.get("SHELL")
 
     if shell_path and which(shell_path):
         # Run using the invoking shell
-        subprocess.run(command, shell=True, executable=shell_path)
+        subprocess.run(commands, shell=True, executable=shell_path)
     else:
         # Fall back to default (cmd on Windows, sh on Unix)
-        subprocess.run(command, shell=True)
+        subprocess.run(commands, shell=True)
 
 
 def print_separator(char="_"):
@@ -38,7 +38,7 @@ def handle_exit(_, __, master_root_dir):
     sys.exit(1)
 
 
-def run_recursive_commands(initial_command: str):
+def run_recursive_commands(initial_command: list[str]):
     master_root_dir = os.getcwd()
     root_dir = master_root_dir
 
@@ -55,7 +55,7 @@ def run_recursive_commands(initial_command: str):
     while True:
         print(f"Starting recursion from: {root_dir}")
         try:
-            cmd = input("Enter command to run in all subdirectories >>> ").strip()
+            cmd = input("Enter command to run in all subdirectories >>> ").strip().split()
         except EOFError:
             print("\nNo input received. Exiting...")
             break

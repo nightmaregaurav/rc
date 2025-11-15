@@ -20,15 +20,16 @@ from shutil import get_terminal_size, which
 
 
 def run_in_invoking_shell(command: list[str]) -> subprocess.CompletedProcess:
-    shell_path = os.environ.get("SHELL")
+    # Convert list -> properly escaped string
+    cmd_str = " ".join(shlex.quote(arg) for arg in command)
 
+    shell_path = os.environ.get("SHELL")
     if shell_path and which(shell_path):
-        # Run using the invoking shell
-        cmd_str = " ".join(shlex.quote(arg) for arg in command)
-        return subprocess.run(command, shell=True, executable=cmd_str)
+        # Pass the shell binary as executable, command as string
+        return subprocess.run([shell_path, "-i", "-c", cmd_str])
     else:
-        # Fall back to default (cmd on Windows, sh on Unix)
-        return subprocess.run(command, shell=True)
+        # Windows fallback, shell=True is required, command must be string
+        return subprocess.run(cmd_str, shell=True)
 
 
 def parse_time_expression(expr: str) -> float:

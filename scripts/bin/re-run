@@ -15,7 +15,6 @@ import subprocess
 import time
 import sys
 import signal
-import shlex
 from shutil import get_terminal_size, which
 
 
@@ -24,7 +23,7 @@ def run_in_invoking_shell(commands: list[str]) -> subprocess.CompletedProcess:
     shell_path = os.environ.get("CURRENT_SHELL")
     if shell_path and which(shell_path):
         # Convert list -> properly escaped string
-        cmd_str = " ".join(shlex.quote(arg) for arg in commands)
+        cmd_str = " ".join(commands)
         # Pass the shell binary as executable, command as string
         return subprocess.run([shell_path, "-i", "-c", cmd_str])
     else:

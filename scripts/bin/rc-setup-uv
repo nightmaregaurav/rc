@@ -33,6 +33,7 @@ case "$OS" in
 
     Linux)
         # if $TERMUX_VERSION env var is set it's Amdroid(termux)
+        set +u
         if [[ -n "$TERMUX_VERSION" ]]; then
             echo "Detected Android(termux)."
             echo "Installing uv with pkg..."
@@ -42,6 +43,7 @@ case "$OS" in
             echo "Installing uv with curl..."
             curl -LsSf https://astral.sh/uv/install.sh | sh
         fi
+        set -u
         ;;
 
     MINGW*|MSYS*|CYGWIN*|Windows_NT)

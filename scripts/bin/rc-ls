@@ -1,0 +1,73 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
+
+import sys
+import argparse
+import argcomplete
+from pathlib import Path
+
+
+def extract_script_list():
+    readme_path = Path(__file__).parent.parent.with_name("README.md")
+
+    if not readme_path.is_file():
+        print(f"Error: {readme_path} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    content = readme_path.read_text(encoding="utf-8")
+    lines = content.splitlines()
+
+    start_extracting = False
+    tool_count = 0
+    for line in lines:
+        stripped = line.strip()
+
+        # Start when we hit "### Scripts"
+        if stripped == "### Scripts":
+            start_extracting = True
+            continue
+        if not start_extracting:
+            continue
+
+        # Stop at any level-2 heading (## ...)
+        if start_extracting and stripped.startswith("## "):
+            break
+
+        # If we're in the section and the line looks like a script entry, print it
+        if start_extracting and line.lstrip().startswith("- `"):
+            tool_count += 1
+            numbering = f"{tool_count:03d}."
+            line = line.replace("- `", f"{numbering} ")
+            print(line.replace("*", "").replace("`", "").strip())
+
+    print(f"\nTotal tools: {tool_count}")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Lists tools provided by RC and their short descriptions.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h",
+        "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    parser.parse_args()
+
+    extract_script_list()
+
+
+if __name__ == "__main__":
+    main()

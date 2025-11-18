@@ -55,6 +55,7 @@ commands=(
   pdf2img-extract
   publicip
   publicip-fast
+  rc-ls
   re-run
   recurse-run
   serve

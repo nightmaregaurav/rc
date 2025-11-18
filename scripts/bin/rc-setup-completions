@@ -46,7 +46,6 @@ commands=(
   localip-fast
   location-of
   ls-openports
-  mkcd
   mssql-backup
   mssql-restore
   noexif

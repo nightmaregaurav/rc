@@ -42,7 +42,6 @@ The following scripts are included to simplify common tasks:
 - **`localip-fast`**: Prints the local IP address, a little faster than `localip`.
 - **`location-of`**: Extracts GPS location metadata from images or videos.
 - **`ls-openports`**: Lists open ports on the local machine.
-- **`mkcd`**: Creates a directory and changes into it.
 - **`mssql-backup`**: Wrapper of `sqlpackage` to easily backup SQL Server databases.
 - **`mssql-restore`**: Wrapper of `sqlpackage` to easily restore SQL Server databases.
 - **`noexif`**: Removes EXIF metadata from images.

@@ -55,6 +55,7 @@ commands=(
   pdf2img-extract
   publicip
   publicip-fast
+  qr-code-gen
   rc-ls
   re-run
   recurse-run

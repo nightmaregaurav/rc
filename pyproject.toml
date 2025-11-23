@@ -17,5 +17,6 @@ dependencies = [
     "yt-dlp",
     "scipy",
     "sounddevice",
-    "pynput"
+    "pynput",
+    "qrcode",
 ]

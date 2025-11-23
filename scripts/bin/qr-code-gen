@@ -1,0 +1,221 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "argcomplete",
+#   "qrcode",
+#   "pillow",
+# ]
+# ///
+
+import argparse
+import sys
+import argcomplete
+import qrcode
+from xml.etree import ElementTree
+from qrcode.image.svg import SvgImage
+from qrcode.constants import (
+    ERROR_CORRECT_L,
+    ERROR_CORRECT_M,
+    ERROR_CORRECT_Q,
+    ERROR_CORRECT_H,
+)
+from PIL import Image, ImageDraw
+from io import BytesIO
+
+
+def generate_svg_qr(data, error_correction, box_size, border):
+    ec = {
+        "L": ERROR_CORRECT_L,
+        "M": ERROR_CORRECT_M,
+        "Q": ERROR_CORRECT_Q,
+        "H": ERROR_CORRECT_H,
+    }
+
+    qr = qrcode.QRCode(
+        version=None,
+        error_correction=ec[error_correction],
+        box_size=box_size,
+        border=border,
+        image_factory=SvgImage,
+    )
+
+    qr.add_data(data)
+    qr.make(fit=True)
+
+    return qr.make_image()
+
+
+def rasterize_qr_svg(svg_bytes: bytes, target_format: str, resolution: int, dpi: int):
+    """
+    Pure-Python SVG rasterizer specialized for QR-code SVGs (rect-only).
+    """
+
+    root = ElementTree.fromstring(svg_bytes)
+
+    # width/height from SVG root
+    svg_width = int(float(root.attrib.get("width", "0").replace("px", "").replace("mm", "")))
+    svg_height = int(float(root.attrib.get("height", "0").replace("px", "").replace("mm", "")))
+
+    if svg_width == 0 or svg_height == 0:
+        raise ValueError("SVG missing width/height attributes")
+
+    # scale based on target resolution
+    if resolution:
+        scale_x = resolution / svg_width
+        scale_y = resolution / svg_height
+    else:
+        scale_x = scale_y = 1
+
+    new_width = int(svg_width * scale_x)
+    new_height = int(svg_height * scale_y)
+
+    image = Image.new("RGB", (new_width, new_height), "white")
+    draw = ImageDraw.Draw(image)
+
+    # parse all rectangles (QR codes only use these)
+    for elem in root.iter():
+        if elem.tag.endswith("rect"):
+            x = float(elem.attrib.get("x", "0").replace("px", "").replace("mm", ""))
+            y = float(elem.attrib.get("y", "0").replace("px", "").replace("mm", ""))
+            w = float(elem.attrib.get("width", "0").replace("px", "").replace("mm", ""))
+            h = float(elem.attrib.get("height", "0").replace("px", "").replace("mm", ""))
+            fill = elem.attrib.get("fill", "#000")
+
+            # scaled
+            x2 = x * scale_x
+            y2 = y * scale_y
+            w2 = w * scale_x
+            h2 = h * scale_y
+
+            draw.rectangle([x2, y2, x2 + w2, y2 + h2], fill=fill)
+
+    # output buffer
+    out = BytesIO()
+    image.save(out, format=target_format.upper(), dpi=(dpi, dpi))
+    out.seek(0)
+    return out.getvalue()
+
+
+def generate_qr(
+        data,
+        error_correction,
+        box_size,
+        border,
+        img_format,
+        resolution,
+        dpi,
+        output_file,
+):
+    svg_img = generate_svg_qr(data, error_correction, box_size, border)
+
+    raw = svg_img.to_string()
+    svg_bytes = raw if isinstance(raw, bytes) else raw.encode("utf-8")
+
+    if img_format.lower() == "svg":
+        svg_filename = f"{output_file}.svg"
+        with open(svg_filename, "wb") as f:
+            f.write(svg_bytes)
+        print(f"QR code saved: {svg_filename}")
+        return
+
+    raster_bytes = rasterize_qr_svg(svg_bytes, img_format, resolution, dpi)
+    raster_filename = f"{output_file}.{img_format.lower()}"
+
+    with open(raster_filename, "wb") as f:
+        f.write(raster_bytes)
+
+    print(f"QR code saved: {raster_filename}")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Generate a QR code with some customization options.",
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("-d", "--data", help="Raw text data for the QR")
+    group.add_argument("-f", "--file", help="Read data from a file")
+
+    parser.add_argument(
+        "-e", "--error",
+        default="M",
+        choices=["L", "M", "Q", "H"],
+        help="Error correction level (default: M)",
+    )
+    parser.add_argument(
+        "-b", "--box-size",
+        type=int,
+        default=10,
+        help="Size of each QR dot box (default: 10)",
+    )
+    parser.add_argument(
+        "-B", "--border",
+        type=int,
+        default=4,
+        help="Border width in boxes (default: 4)",
+    )
+    parser.add_argument(
+        "-F", "--format",
+        default="svg",
+        choices=["svg", "png", "jpeg", "jpg", "bmp", "gif", "tiff"],
+        help="Output format (default: svg)",
+    )
+    parser.add_argument(
+        "-r", "--resolution",
+        type=int,
+        default=None,
+        help="Final raster resolution (default: 300 for raster formats)",
+    )
+    parser.add_argument(
+        "-D", "--dpi",
+        type=int,
+        default=300,
+        help="DPI to use for raster formats (default: 300)",
+    )
+    parser.add_argument(
+        "-o", "--output",
+        default="qrcode_output",
+        help="Base output filename (default: qrcode_output)",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    if args.file:
+        try:
+            with open(args.file, "r", encoding="utf-8") as f:
+                args.data = f.read()
+        except Exception as e:
+            sys.exit(f"Error: Unable to read file '{args.file}' ({e})")
+
+    if args.format.lower() != "svg" and args.resolution is None:
+        args.resolution = 300
+    if args.format.lower() != "svg" and args.dpi is None:
+        args.dpi = 300
+
+    try:
+        generate_qr(
+            data=args.data,
+            error_correction=args.error,
+            box_size=args.box_size,
+            border=args.border,
+            img_format=args.format,
+            resolution=args.resolution,
+            dpi=args.dpi,
+            output_file=args.output,
+        )
+    except Exception as e:
+        sys.exit(f"Error: {e}")
+
+
+if __name__ == "__main__":
+    main()

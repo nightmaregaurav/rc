@@ -51,6 +51,7 @@ The following scripts are included to simplify common tasks:
 - `pdf2img-extract`: Extracts images from PDF file.
 - `publicip`: Prints the public IP address.
 - `publicip-fast`: Prints the public IP address, a little faster than (`publicip`).
+- `qr-code-gen`: Generates qr codes from text or files.
 - `rc-ls`: Lists all the available tools provided by RC IE. This repository.
 - `rc-setup-completions`: Installs the completion files for the scripts in this repository.
 - `rc-setup-uv`: Installs and configures the (`uv`) package to run python scripts in this repository.

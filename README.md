@@ -67,6 +67,7 @@ The following scripts are included to simplify common tasks:
 - `user-session-ssh`: Tool to install/uninstall ssh server to run on logged-in user's session for Windows.
 - `volume-control`: Controls the volume of the system.
 - `watchtower`: Monitors a file and executes a command when the file changes.
+- `writetyper`: Reverse of `typewriter`, prints keyboard input to the terminal that can later be passed to `typewriter`.
 - `youtube-get`: Downloads YouTube videos or audio.
 
 ## Usage

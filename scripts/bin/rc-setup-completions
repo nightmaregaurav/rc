@@ -68,6 +68,7 @@ commands=(
   user-session-ssh
   volume-control
   watchtower
+  writetyper
   youtube-get
 )
 

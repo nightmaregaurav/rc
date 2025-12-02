@@ -1,0 +1,163 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+#     "pynput",
+# ]
+# ///
+
+import argparse
+import argcomplete
+import time
+from pynput.mouse import Listener, Button
+
+# ---------------------------
+#  STATE
+# ---------------------------
+
+last_position = None
+active_clicks = {}
+t0 = None  # normalized timestamp origin
+
+
+# ---------------------------
+#  HELPERS
+# ---------------------------
+
+def now_ms():
+    """
+    Returns time in milliseconds since the first event.
+    """
+    global t0
+    t = time.monotonic_ns()
+    if t0 is None:
+        t0 = t
+        return 0
+    return (t - t0) // 1_000_000
+
+
+def format_button(button: Button):
+    return button.name.upper()
+
+
+# ---------------------------
+#  EVENT HANDLERS
+# ---------------------------
+
+def handle_move(x, y):
+    """
+    Prints <Pos> events when cursor moves.
+    """
+    global last_position
+    pos = (x, y)
+    if pos != last_position:
+        ts = now_ms()
+        print(f'<Pos t="{ts}" x="{x}" y="{y}"/>', end="", flush=True)
+        last_position = pos
+
+
+def handle_click(x, y, button, pressed):
+    """
+    Prints <Click> press, release, and autoclose events.
+    """
+    name = format_button(button)
+    ts = now_ms()
+    pos = f'x="{x}" y="{y}"'
+
+    if pressed:
+        active_clicks[name] = (x, y, ts)
+        print(f'<Click t="{ts}" button="{name}" {pos}>', end="", flush=True)
+    else:
+        start = active_clicks.pop(name, None)
+
+        if start is None:
+            print(f'</Click t="{ts}" button="{name}" {pos}>', end="", flush=True)
+            return
+
+        sx, sy, ts_start = start
+
+        if (sx, sy) == (x, y):
+            # autoclose (convert <Click> into <Click/>)
+            print("\b/>", end="", flush=True)
+        else:
+            print(f'</Click t="{ts}" button="{name}" {pos}>', end="", flush=True)
+
+
+def handle_scroll(x, y, dx, dy):
+    """
+    Prints <ScrollHorizontal> and <ScrollVertical> events.
+    """
+    ts = now_ms()
+
+    # Always print updated position before scroll
+    handle_move(x, y)
+
+    if dy != 0:
+        direction = "UP" if dy > 0 else "DOWN"
+        print(
+            f'<ScrollVertical t="{ts}" direction="{direction}" x="{x}" y="{y}"/>',
+            end="",
+            flush=True
+        )
+
+    if dx != 0:
+        direction = "RIGHT" if dx > 0 else "LEFT"
+        print(
+            f'<ScrollHorizontal t="{ts}" direction="{direction}" x="{x}" y="{y}"/>',
+            end="",
+            flush=True
+        )
+
+
+# ---------------------------
+#  PYNPUT CALLBACK WRAPPERS
+# ---------------------------
+
+def on_move(x, y):
+    handle_move(x, y)
+
+
+def on_click(x, y, button, pressed):
+    handle_click(x, y, button, pressed)
+
+
+def on_scroll(x, y, dx, dy):
+    handle_scroll(x, y, dx, dy)
+
+
+def start_listening():
+    """
+    Start listening to mouse events.
+    """
+    with Listener(
+            on_move=on_move,
+            on_click=on_click,
+            on_scroll=on_scroll
+    ) as listener:
+        listener.join()
+
+
+# ---------------------------
+#  MAIN LOGIC
+# ---------------------------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Captures mouse movements, clicks, and scrolls in a macro-friendly XML-like format.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    parser.parse_args()
+
+    print("Mouse recorder started. Move, click, or scroll. Press Ctrl+C to exit.")
+    start_listening()
+
+
+if __name__ == "__main__":
+    main()

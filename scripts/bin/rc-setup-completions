@@ -53,6 +53,7 @@ commands=(
   organize-media
   pdf2img
   pdf2img-extract
+  pointer-printer
   publicip
   publicip-fast
   qr-code-gen

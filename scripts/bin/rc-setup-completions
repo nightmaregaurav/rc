@@ -53,6 +53,7 @@ commands=(
   organize-media
   pdf2img
   pdf2img-extract
+  pointer-player
   pointer-printer
   publicip
   publicip-fast

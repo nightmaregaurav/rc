@@ -33,7 +33,7 @@ The following scripts are included to simplify common tasks:
 - `duplicates`: Manages duplicate files by listing, or deleting them.
 - `free-port-after`: Finds a free port after a specified port.
 - `git-as` or (`git as`): To run git commands as a profile.
-- `git-lsprofile` or (`git lsprofile`): To list all git profiles.
+- `git-lsprofiles` or (`git lsprofiles`): To list all git profiles.
 - `git-mkprofile` or (`git mkprofile`): To create a new git profile.
 - `git-rmprofile` or (`git rmprofile`): To remove a git profile.
 - `hear-me`: Listens in using all available microphones and saves the audio to a file.

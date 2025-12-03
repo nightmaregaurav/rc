@@ -1,31 +1,76 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
 
-SCRIPT=$(basename "$0")
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+#     "GitPython",
+# ]
+# ///
 
-HELP_MESSAGE="Usage: $SCRIPT
+import argparse
+import argcomplete
+from pathlib import Path
+from git import Repo, GitCommandError
 
-Clones rc and sources it to the shell configuration file.
 
-options:
-  -h, --help    Show help message and exit."
+def git_pull(repo_path: Path):
+    if not (repo_path / ".git").exists():
+        print("Not a Git repository. Skipping update.")
+        return
 
-# Help message
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-  echo "$HELP_MESSAGE"
-  exit 0
-fi
+    try:
+        repo = Repo(str(repo_path))
+    except Exception:
+        print("Failed to load Git repository. Skipping update.")
+        return
 
-set -euo pipefail
+    if repo.bare:
+        print("Repository is bare. Skipping update.")
+        return
 
-echo "Updating rc..."
-start_dir=$(pwd)
-cd "$(dirname "$0")" || exit
-git pull
+    try:
+        origin = repo.remotes.origin
+    except AttributeError:
+        print("No 'origin' remote found. Skipping update.")
+        return
 
-# stop the set -euo pipefail temporarily to avoid exiting on source errors
-set +euo pipefail
+    try:
+        print("Pulling latest changes...")
+        origin.pull()
+        print("Pull complete.")
+    except GitCommandError as ex:
+        print(f"Git pull failed: {ex}")
 
-echo "Sourcing rc again..."
-source ../../activate
 
-cd "$start_dir"
+def compute_activate_path(script_path: Path) -> Path:
+    return (script_path.parent / ".." / ".." / "activate").resolve()
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Update rc repository.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    parser.parse_args()
+
+    print("Updating rc...")
+
+    script_path = Path(__file__).resolve()
+    repo_path = script_path.parent.parent.parent
+    git_pull(repo_path)
+
+    activate_path = compute_activate_path(script_path)
+    print()
+    print("rc updated.")
+    print("To load the latest version, either:")
+    print("  1. Exit the shell and reopen it")
+    print("  2. Or run manually:")
+    print(f"       source \"{activate_path}\"")
+
+
+if __name__ == "__main__":
+    main()

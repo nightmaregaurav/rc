@@ -19,4 +19,5 @@ dependencies = [
     "sounddevice",
     "pynput",
     "qrcode",
+    "GitPython"
 ]

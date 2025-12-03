@@ -1,108 +1,135 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S uv run --script
 
-SCRIPT=$(basename "$0")
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
 
-HELP_MESSAGE="Usage: $SCRIPT
+import argparse
+import argcomplete
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
 
-Generates python-argcomplete completion scripts for all CLI tools included in rc.
 
-options:
-  -h, --help    Show help message and exit."
+# ---------------------------------
+#  UTILITIES
+# ---------------------------------
 
-# Help message
-if [[ "$1" == "--help" || "$1" == "-h" ]]; then
-  echo "$HELP_MESSAGE"
-  exit 0
-fi
+def get_commands():
+    readme_path = Path(__file__).parent.parent.with_name("README.md")
 
-set -euo pipefail
+    if not readme_path.is_file():
+        print(f"Error: {readme_path} not found.", file=sys.stderr)
+        sys.exit(1)
 
-echo "Determining output directory for completions..."
-script_dir="$(dirname "$0")"
-completions_dir="$script_dir/../completions"
-mkdir -p "$completions_dir"
+    content = readme_path.read_text(encoding="utf-8")
+    lines = content.splitlines()
 
-echo "🧹 Removing old completions..."
-rm -rf "${completions_dir:?}/"*
-echo "✅ Cleared: $completions_dir"
-echo
+    start_extracting = False
+    scripts = []
+    for line in lines:
+        stripped = line.strip()
 
-# --- Command list ---
-commands=(
-  adbw-brute-pair
-  amplify
-  clip
-  count
-  cpu-usage
-  duplicates
-  free-port-after
-  git-as
-  git-lsprofiles
-  git-mkprofile
-  git-rmprofile
-  hear-me
-  img2pdf
-  localip
-  localip-fast
-  location-of
-  ls-openports
-  mssql-backup
-  mssql-restore
-  noexif
-  now
-  organize-media
-  pdf2img
-  pdf2img-extract
-  pointer-player
-  pointer-printer
-  publicip
-  publicip-fast
-  qr-code-gen
-  rc-ls
-  re-run
-  recurse-run
-  serve
-  snap-camera
-  snap-screen
-  split-video
-  typewriter
-  up-since
-  user-session-ssh
-  volume-control
-  watchtower
-  writetyper
-  youtube-get
-)
+        # Start when we hit "### Scripts"
+        if stripped == "### Scripts":
+            start_extracting = True
+            continue
+        if not start_extracting:
+            continue
 
-# --- Ensure register-python-argcomplete exists ---
-if ! command -v register-python-argcomplete >/dev/null 2>&1; then
-    echo "ERROR: register-python-argcomplete not found in PATH." >&2
-    echo "       Install with: uv tool install argcomplete" >&2
-    exit 1
-fi
+        # Stop at any level-2 heading (## ...)
+        if start_extracting and stripped.startswith("## "):
+            break
 
-echo "⚙️  Generating completions for ${#commands[@]} commands..."
-echo
+        # If we're in the section and the line looks like a script entry, print it
+        if start_extracting and line.lstrip().startswith("- `"):
+            first_word = line.split()[1].replace("`", "").replace(":", "")
+            scripts.append(first_word)
+    return scripts
 
-# --- Generate completions ---
-for cmd in "${commands[@]}"; do
-    out_file="$completions_dir/${cmd}-completion.sh"
-    tmp_file="$(mktemp "${out_file}.XXXX")"
 
-    if register-python-argcomplete "$cmd" >"$tmp_file" 2>/dev/null; then
-        if [[ -s "$tmp_file" ]]; then
-            mv "$tmp_file" "$out_file"
-            chmod 644 "$out_file"
-            echo "✅  $cmd"
-        else
-            rm -f "$tmp_file"
-            echo "⚠️  $cmd (empty output)"
-        fi
-    else
-        rm -f "$tmp_file"
-        echo "❌  $cmd (failed)"
-    fi
-done
+def ensure_argcomplete_installed():
+    """Check if `register-python-argcomplete` exists."""
+    if shutil.which("register-python-argcomplete") is None:
+        print("ERROR: register-python-argcomplete not found in PATH.", file=sys.stderr)
+        print("       Install it using:", file=sys.stderr)
+        print("           uv tool install argcomplete", file=sys.stderr)
+        sys.exit(1)
 
-echo
-echo "🎯 All completions written to: $completions_dir"
+
+def generate_completions(commands: list[str], output_dir: Path):
+    """Generate bash completion scripts for each command."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Cleanup existing files
+    print("🧹 Removing old completions...")
+    for f in output_dir.iterdir():
+        if f.is_file():
+            f.unlink()
+    print(f"✅ Cleared: {output_dir}\n")
+
+    print(f"⚙️  Generating completions for {len(commands)} commands...\n")
+
+    for cmd in commands:
+        out_file = output_dir / f"{cmd}-completion.sh"
+
+        # Create temp file in same directory
+        fd, tmp_path = tempfile.mkstemp(prefix=f"{cmd}.", dir=str(output_dir))
+        os.close(fd)
+
+        try:
+            completed = subprocess.run(
+                ["register-python-argcomplete", cmd],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                check=False,
+            )
+
+            if completed.returncode == 0 and completed.stdout.strip():
+                out_file.write_text(completed.stdout)
+                print(f"✅  {cmd}")
+            else:
+                print(f"⚠️  {cmd} (empty output)")
+        except Exception:
+            print(f"❌  {cmd} (failed)")
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+    print(f"\n🎯 All completions written to: {output_dir}")
+
+
+# ---------------------------------
+#  MAIN LOGIC
+# ---------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Generate python-argcomplete completion scripts for rc CLI tools.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    parser.parse_args()
+
+    ensure_argcomplete_installed()
+
+    script_dir = Path(__file__).resolve().parent
+    completions_dir = script_dir / ".." / "completions"
+
+    commands = get_commands()
+    generate_completions(commands, completions_dir)
+
+
+if __name__ == "__main__":
+    main()

@@ -56,7 +56,6 @@ The following scripts are included to simplify common tasks:
 - `qr-code-gen`: Generates qr codes from text or files.
 - `rc-ls`: Lists all the available tools provided by RC IE. This repository.
 - `rc-setup-completions`: Installs the completion files for the scripts in this repository.
-- `rc-setup-uv`: Installs and configures the (`uv`) package to run python scripts in this repository.
 - `rc-update`: Updates this project to the latest version.
 - `re-run`: Keeps running a command on given time intervals.
 - `recurse-run`: Recursively runs a command in all subdirectories.

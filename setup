@@ -4,7 +4,7 @@ SCRIPT=$(basename "$0")
 
 HELP_MESSAGE="Usage: $SCRIPT
 
-Clones rc and sources it to the shell configuration file.
+Clones rc, setup required environment and sources it to the shell configuration file.
 
 options:
   -h, --help    Show help message and exit."
@@ -54,3 +54,55 @@ echo "Sourcing activate script directly to activate rc in the current shell..."
 source "$HOME/Repositories/rc/activate"
 
 cd "$start_dir"
+
+set -euo pipefail
+echo "Setting up uv..."
+echo "Detecting operating system..."
+OS="$(uname -s)"
+case "$OS" in
+    Darwin)
+        echo "Detected macOS."
+        if ! command -v brew >/dev/null 2>&1; then
+            echo "Homebrew not found. Please install Homebrew first: https://brew.sh/"
+            exit 1
+        fi
+        echo "Installing uv with Homebrew..."
+        brew install uv
+        ;;
+
+    Linux)
+        # if $TERMUX_VERSION env var is set it's Amdroid(termux)
+        set +u
+        if [[ -n "$TERMUX_VERSION" ]]; then
+            echo "Detected Android(termux)."
+            echo "Installing uv with pkg..."
+            pkg install uv
+        else
+            echo "Detected Linux."
+            echo "Installing uv with curl..."
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+        fi
+        set -u
+        ;;
+
+    MINGW*|MSYS*|CYGWIN*|Windows_NT)
+        echo "Detected Windows."
+        if ! command -v winget >/dev/null 2>&1; then
+            echo "winget not found. Please make sure you're running this in a Windows environment with winget available."
+            exit 1
+        fi
+        echo "Installing uv with winget..."
+        winget install --id=astral-sh.uv -e --source winget
+        ;;
+
+    *)
+        echo "Unsupported OS: $OS"
+        exit 1
+        ;;
+esac
+echo "Installing Python versions 3.13 and 3.14 using uv..."
+uv python install 3.14
+uv python install 3.13
+echo "Installing argcomplete package using uv..."
+uv tool install argcomplete
+echo "Setup completed successfully."

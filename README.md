@@ -49,7 +49,7 @@ The following scripts are included to simplify common tasks:
 - `organize-media`: Organizes images and videos in a folder by their creation date.
 - `pdf2img`: Converts a pdf pages into images.
 - `pdf2img-extract`: Extracts images from PDF file.
-- `pointer-player`: Moves the mouse pointer and performs actions based on a pre-recorded steps using `pointer-recorder`.
+- `pointer-player`: Moves the mouse pointer and performs actions based on a pre-recorded steps using `pointer-printer`.
 - `pointer-printer`: Prints positions and actions of mouse pointer.
 - `publicip`: Prints the public IP address.
 - `publicip-fast`: Prints the public IP address, a little faster than (`publicip`).

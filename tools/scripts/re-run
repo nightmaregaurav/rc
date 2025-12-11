@@ -9,6 +9,8 @@
 
 import os
 import argparse
+from pathlib import Path
+
 import argcomplete
 import re
 import subprocess
@@ -19,7 +21,6 @@ from shutil import get_terminal_size, which
 
 
 def run_in_invoking_shell(commands: list[str]) -> subprocess.CompletedProcess:
-
     shell_path = os.environ.get("CURRENT_SHELL")
     if shell_path and which(shell_path):
         # Convert list -> properly escaped string
@@ -29,6 +30,10 @@ def run_in_invoking_shell(commands: list[str]) -> subprocess.CompletedProcess:
     else:
         # Windows fallback, shell=True is required, command must be string
         return subprocess.run(commands, shell=True)
+
+
+def wrap_text(text, character):
+    return character + text + character
 
 
 def parse_time_expression(expr: str) -> float:
@@ -49,38 +54,8 @@ def parse_time_expression(expr: str) -> float:
             total_seconds += int(s)
     if total_seconds == 0:
         raise ValueError(f"No valid time components found in '{expr}'")
-    return total_seconds
-
-
-def print_separator(char="_"):
-    cols = get_terminal_size((80, 20)).columns
-    print(char * cols)
-
-
-def handle_exit(_, __):
-    print("\nExit signal received. Stopping the loop...")
-    sys.exit(0)
-
-
-def repeat_command(interval_seconds: float, command: list[str]):
-    """Runs the command repeatedly at the given interval."""
-    print(f"Re-running every {interval_seconds} second(s). Press Ctrl+C to stop.")
-    print_separator("=")
-
-    signal.signal(signal.SIGINT, handle_exit)
-    signal.signal(signal.SIGTERM, handle_exit)
-
-    iteration = 1
-    while True:
-        print_separator("_")
-        now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        print(f"[Run #{iteration}] [{now}] Executing: {command}")
-        result = run_in_invoking_shell(command)
-        now=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        print(f"[Run #{iteration}] [{now}] Exit code: {result.returncode}")
-        iteration += 1
-        print_separator("*")
-        time.sleep(interval_seconds)
+    ms = total_seconds * 1000
+    return ms
 
 
 def main():
@@ -116,15 +91,22 @@ def main():
         print("Error: No command provided to re-run.", file=sys.stderr)
         sys.exit(1)
 
+    command = " ".join(args.command)
+
     try:
-        interval_seconds = parse_time_expression(args.every)
+        interval_ms = parse_time_expression(args.every)
     except ValueError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
-    command = args.command
-    repeat_command(interval_seconds, command)
+    helper_script_path = Path(__file__).resolve().parent.parent / "helpers" / "re-run"
 
+    commands_to_run = [
+        wrap_text(str(helper_script_path), '"'),
+        str(interval_ms),
+        command
+    ]
+    run_in_invoking_shell(commands_to_run)
 
 if __name__ == "__main__":
     main()

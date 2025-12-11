@@ -1,0 +1,32 @@
+#!/usr/bin/env sh
+
+if [ $# -lt 2 ]; then
+  echo "Usage: $0 <interval_ms> <command>"
+  exit 1
+fi
+
+interval_ms="$1"
+shift
+command_to_run="$*"
+
+# Convert milliseconds to seconds as integer and remainder
+interval_sec=$((interval_ms / 1000))
+interval_ms_rem=$((interval_ms % 1000))
+printf '%*s\n' "$(tput cols)" '' | tr ' ' '_'
+while true; do
+  eval "$command_to_run"
+  printf '%*s\n' "$(tput cols)" '' | tr ' ' '_'
+
+  # Sleep integer seconds
+  if [ "$interval_sec" -gt 0 ]; then
+    sleep "$interval_sec"
+  fi
+
+  # Sleep remaining milliseconds if sleep supports fractional
+  if [ "$interval_ms_rem" -gt 0 ]; then
+    # Use printf to generate fractional seconds
+    sleep_time=$(printf "0.%03d" "$interval_ms_rem")
+    sleep "$sleep_time" 2>/dev/null || true
+    # If sleep doesn't support fractional, this will be ignored
+  fi
+done

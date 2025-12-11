@@ -1,0 +1,61 @@
+#!/usr/bin/env sh
+
+# Check if the correct number of arguments are passed
+if [ $# -lt 1 ]; then
+  echo "Usage: $0 <root_dir> [initial_command]"
+  exit 1
+fi
+
+root_dir="$1"  # First argument is the root directory
+shift
+initial_command="$*"  # Remaining string form the initial command
+
+# Validate that root_dir is a valid directory
+if [ ! -d "$root_dir" ]; then
+  echo "Error: $root_dir is not a valid directory."
+  exit 1
+fi
+
+# Execute the initial command if provided
+if [ -n "$initial_command" ]; then
+  echo "Executing initial command: [$initial_command]"
+  eval "$initial_command"
+fi
+
+# Start recursion loop
+while true; do
+  echo "Starting recursion from: $root_dir"
+  printf "Enter command to run in all subdirectories >>> "
+  # Read the command to execute in each subdirectory
+  read -r cmd
+
+  # If no command is entered, exit the loop
+  if [ -z "$cmd" ]; then
+    echo "No command entered. Exiting..."
+    break
+  fi
+
+  # If the command is 'exit', exit the loop
+  if [ "$cmd" = "exit" ]; then
+    echo "Exiting recursion..."
+    break
+  fi
+
+  # Find all subdirectories and execute the command in each
+  find "$root_dir" -mindepth 1 -maxdepth 1 -type d -not -path '*/\.*' | while IFS= read -r dir; do
+    # Change to the subdirectory
+    cd "$dir" || continue
+    # Print a separator line
+    printf '%*s\n' "$(tput cols)" '' | tr ' ' '_'
+    echo ">>> [$dir]"
+    # Execute the command in the subdirectory
+    eval "$cmd"
+    # Return to the root directory
+    cd "$root_dir" || exit
+  done
+
+  echo ""
+  # Print completion separator
+  printf '%*s\n' "$(tput cols)" '' | tr ' ' '*'
+  echo "Recursion complete!"
+done

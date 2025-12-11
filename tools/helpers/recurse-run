@@ -22,9 +22,11 @@ if [ -n "$initial_command" ]; then
   eval "$initial_command"
 fi
 
+cd "$root_dir" || exit
+echo "Starting recursion from: $root_dir"
+
 # Start recursion loop
 while true; do
-  echo "Starting recursion from: $root_dir"
   printf "Enter command to run in all subdirectories >>> "
   # Read the command to execute in each subdirectory
   read -r cmd

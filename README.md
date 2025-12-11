@@ -83,4 +83,7 @@ After sourcing the activate script, all the environment variables, aliases, and 
 Feel free to fork this repository and submit pull requests to add new features or improve existing ones.
 
 ## License
-This project is licensed under the MIT License.
+This project is licensed under the GNU General Public License v2.0 (GPLv2).
+
+## License Change Notice (Retroactive)
+As of 2025 Dec 11, this project has been relicensed from the MIT License to the GNU General Public License v2.0 (GPLv2). This change is fully retroactive and applies to all previous versions, commits, and releases throughout the project's history.

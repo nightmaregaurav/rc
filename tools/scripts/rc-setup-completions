@@ -22,35 +22,11 @@ from pathlib import Path
 # ---------------------------------
 
 def get_commands():
-    readme_path = Path(__file__).parent.parent.with_name("README.md")
-
-    if not readme_path.is_file():
-        print(f"Error: {readme_path} not found.", file=sys.stderr)
-        sys.exit(1)
-
-    content = readme_path.read_text(encoding="utf-8")
-    lines = content.splitlines()
-
-    start_extracting = False
+    self_path = Path(__file__)
     tools = []
-    for line in lines:
-        stripped = line.strip()
-
-        # Start when we hit "### Tools"
-        if stripped == "### Tools":
-            start_extracting = True
-            continue
-        if not start_extracting:
-            continue
-
-        # Stop at any level-2 heading (## ...)
-        if start_extracting and stripped.startswith("## "):
-            break
-
-        # If we're in the section and the line looks like a script entry, print it
-        if start_extracting and line.lstrip().startswith("- `"):
-            first_word = line.split()[1].replace("`", "").replace(":", "")
-            tools.append(first_word)
+    for item in self_path.parent.iterdir():
+        if item.is_file() and os.access(item, os.X_OK):
+            tools.append(item.name)
     return tools
 
 

@@ -10,14 +10,11 @@
 import os
 import argparse
 from pathlib import Path
-
 import argcomplete
 import re
 import subprocess
-import time
 import sys
-import signal
-from shutil import get_terminal_size, which
+from shutil import which
 
 
 def run_in_invoking_shell(commands: list[str]) -> subprocess.CompletedProcess:

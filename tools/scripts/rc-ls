@@ -28,8 +28,8 @@ def extract_script_list():
     for line in lines:
         stripped = line.strip()
 
-        # Start when we hit "### Scripts"
-        if stripped == "### Scripts":
+        # Start when we hit "### Tools"
+        if stripped == "### Tools":
             start_extracting = True
             continue
         if not start_extracting:

@@ -22,8 +22,8 @@ Environment variables are set up to aid with the following:
 - Adds most common executable directories to the `PATH`.
 - Adds shell configurations for Homebrew, Node, Java, DotNET, Android etc.
 
-### Scripts
-The following scripts are included to simplify common tasks:
+### Tools
+The following tools are included to simplify common tasks:
 
 - `adbw-brute-pair`: Pairs with an Android device over wireless ADB.
 - `amplify`: Boosts volume in the provided video/audio file.
@@ -55,7 +55,7 @@ The following scripts are included to simplify common tasks:
 - `publicip-fast`: Prints the public IP address, a little faster than (`publicip`).
 - `qr-code-gen`: Generates qr codes from text or files.
 - `rc-ls`: Lists all the available tools provided by RC IE. This repository.
-- `rc-setup-completions`: Installs the completion files for the scripts in this repository.
+- `rc-setup-completions`: Installs the completion files for the tools in this repository.
 - `rc-update`: Updates this project to the latest version.
 - `re-run`: Keeps running a command on given time intervals.
 - `recurse-run`: Recursively runs a command in all subdirectories.

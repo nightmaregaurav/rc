@@ -1,0 +1,15 @@
+PATH="$current_rc_script_dir/tools/scripts:$PATH"
+
+# Ensure tools are executable
+chmod 755 "$current_rc_script_dir/tools/scripts/"*
+
+# Make sure all completion functions are sourced
+# these files will be generated once register-rc-completions is run
+if [ -d "$current_rc_script_dir/tools/completions" ]; then
+    for f in "$current_rc_script_dir"/tools/completions/*-completion.sh; do
+        [ -r "$f" ] && source "$f"
+        [ -r "$f" ] && benchmark "Sourced completions/$(basename "$f")"
+    done
+fi
+
+benchmark "Setup rc command completions"

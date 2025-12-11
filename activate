@@ -52,10 +52,10 @@ if [ -n "${ZSH_VERSION}" ]; then
 fi
 benchmark "Enabling zsh completion"
 
-# Source environment variables, scripts, aliases
+# Source environment variables, tools, aliases
 source "$current_rc_script_dir/envs"
 
-source "$current_rc_script_dir/scripts/source"
+source "$current_rc_script_dir/tools/source"
 
 source "$current_rc_script_dir/aliases"
 benchmark "Sourced aliases"

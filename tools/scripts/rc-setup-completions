@@ -32,12 +32,12 @@ def get_commands():
     lines = content.splitlines()
 
     start_extracting = False
-    scripts = []
+    tools = []
     for line in lines:
         stripped = line.strip()
 
-        # Start when we hit "### Scripts"
-        if stripped == "### Scripts":
+        # Start when we hit "### Tools"
+        if stripped == "### Tools":
             start_extracting = True
             continue
         if not start_extracting:
@@ -50,8 +50,8 @@ def get_commands():
         # If we're in the section and the line looks like a script entry, print it
         if start_extracting and line.lstrip().startswith("- `"):
             first_word = line.split()[1].replace("`", "").replace(":", "")
-            scripts.append(first_word)
-    return scripts
+            tools.append(first_word)
+    return tools
 
 
 def ensure_argcomplete_installed():

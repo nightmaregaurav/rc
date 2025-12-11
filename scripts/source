@@ -12,17 +12,4 @@ if [ -d "$current_rc_script_dir/scripts/completions" ]; then
     done
 fi
 
-# Generic help completion function
-_generic_help() {
-    local cur
-    COMPREPLY=()
-    cur="${COMP_WORDS[COMP_CWORD]}"
-
-    # Suggest only -h and --help
-    COMPREPLY=( $(compgen -W "-h --help" -- "$cur") )
-}
-
-complete -o default -F _generic_help rc-setup-completions
-complete -o default -F _generic_help rc-setup-uv
-complete -o default -F _generic_help rc-update
 benchmark "Setup rc command completions"

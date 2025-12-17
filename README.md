@@ -49,10 +49,10 @@ The following tools are included to simplify common tasks:
 - `organize-media`: Organizes images and videos in a folder by their creation date.
 - `pdf2img`: Converts a pdf pages into images.
 - `pdf2img-extract`: Extracts images from PDF file.
-- `pointer-player`: Moves the mouse pointer and performs actions based on a pre-recorded steps using `pointer-printer`.
-- `pointer-printer`: Prints positions and actions of mouse pointer.
 - `publicip`: Prints the public IP address.
 - `publicip-fast`: Prints the public IP address, a little faster than (`publicip`).
+- `puppet`: Replays recorded keyboard and mouse action macros using `puppet-trainer`.
+- `puppet-trainer`: Records keyboard and mouse actions as macros.
 - `qr-code-gen`: Generates qr codes from text or files.
 - `rc-ls`: Lists all the available tools provided by RC IE. This repository.
 - `rc-setup-completions`: Installs the completion files for the tools in this repository.
@@ -63,12 +63,10 @@ The following tools are included to simplify common tasks:
 - `snap-camera`: Captures photos using available cameras.
 - `snap-screen`: Captures screenshots for all available screens.
 - `split-video`: Splits a video file into multiple parts in chunks of the specified duration.
-- `typewriter`: Simulates typing effect as if keyboard is being pressed.
 - `up-since`: Shows how long the system has been up since last reboot.
 - `user-session-ssh`: Tool to install/uninstall ssh server to run on logged-in user's session for Windows.
 - `volume-control`: Controls the volume of the system.
 - `watchtower`: Monitors a file and executes a command when the file changes.
-- `writetyper`: Reverse of `typewriter`, prints keyboard input to the terminal that can later be passed to `typewriter`.
 - `youtube-get`: Downloads YouTube videos or audio.
 
 ## Usage

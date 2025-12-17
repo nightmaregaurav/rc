@@ -1,0 +1,253 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+#     "pynput",
+# ]
+# ///
+
+import argparse
+from tokenize import group
+
+import argcomplete
+import sys
+import time
+from pynput.keyboard import Controller as Keyboard, Key
+from pynput.mouse import Controller as Mouse, Button
+import xml.etree.ElementTree as ElementTree
+from dataclasses import dataclass
+
+
+# ---------------------------
+#  DATA CLASSES DECLARATION
+# ---------------------------
+
+@dataclass
+class TextToken:
+    text: str
+
+@dataclass
+class EventToken:
+    tag: str
+    attrs: dict[str, str]
+    is_open: bool
+    is_close: bool
+
+keyboard = Keyboard()
+mouse = Mouse()
+
+
+# ---------------------------
+#  HELPERS
+# ---------------------------
+
+def get_valid_key_names():
+    base_keys = [key.name.upper() for key in Key]
+    return sorted(set(base_keys))
+
+
+def get_key_from_name(name: str) -> Key | None:
+    valid_keys = get_valid_key_names()
+    if name.upper() not in valid_keys:
+        print(f"Warning: Key '{name}' is not a valid pynput Key.")
+        return None
+    try:
+        return getattr(Key, name.lower())
+    except AttributeError:
+        print(f"Warning: Key '{name}' not found in pynput Key.")
+        return None
+
+
+def list_available_keys():
+    keys = get_valid_key_names()
+    print("Available keys:")
+    for i, k in enumerate(keys, 1):
+        print(f"{i:3}. {k}")
+    print(f"\nTotal: {len(keys)} keys.")
+    special_tags = {
+        "<_/>": "Introduce a delay (default 500ms). Delay is modifiable with 'delay' attribute.",
+    }
+    print("\nSpecial tags:")
+    for i, (tag, desc) in enumerate(special_tags.items(), 1):
+        print(f"{i:3}. {tag}: {desc}")
+    sys.exit(0)
+
+
+# ---------------------------
+#  TOKENIZER
+# ---------------------------
+
+def tokenize(command: str) -> list[TextToken | EventToken]:
+    wrapped = f"<root>{command}</root>"
+    root = ElementTree.fromstring(wrapped)
+    tokens: list[TextToken | EventToken] = []
+
+    def traverse(elem):
+        if elem.tag != 'root':
+            tokens.append(
+                EventToken(
+                    tag=elem.tag,
+                    attrs=elem.attrib,
+                    is_open=True,
+                    is_close=False,
+                )
+            )
+
+        if elem.text:
+            tokens.append(TextToken(elem.text))
+
+        for child in elem:
+            traverse(child)
+
+        if elem.tag != 'root':
+            tokens.append(
+                EventToken(
+                    tag=elem.tag,
+                    attrs={},
+                    is_open=False,
+                    is_close=True,
+                )
+            )
+
+        if elem.tail:
+            tokens.append(TextToken(elem.tail))
+
+    traverse(root)
+
+    return tokens
+
+
+# ---------------------------
+#  EVENT HANDLERS
+# ---------------------------
+
+def handle_event(event: EventToken):
+    is_mouse_event = event.tag == 'MouseEvent'
+    if is_mouse_event:
+        handle_mouse_event(event)
+    else:
+        handle_key_event(event)
+
+
+def handle_mouse_event(event: EventToken):
+    if event.is_close:
+        return  # nothing to do on close for mouse events
+
+    action = event.attrs.get('action')
+    x = float(event.attrs.get('x', '0'))
+    y = float(event.attrs.get('y', '0'))
+    if action == 'move':
+        print(f"Moving mouse to ({x}, {y})")
+        mouse.position = (x, y)
+    elif action == 'click':
+        button_name = event.attrs.get('button', 'left')
+        button = getattr(Button, button_name.lower(), Button.left)
+        button_event = event.attrs.get('event', 'pressed_and_released')
+        if button_event == 'pressed':
+            print(f"Pressing mouse button: {button_name} at ({x}, {y})")
+            mouse.position = (x, y)
+            mouse.press(button)
+        elif button_event == 'released':
+            print(f"Releasing mouse button: {button_name} at ({x}, {y})")
+            mouse.position = (x, y)
+            mouse.release(button)
+        else:
+            print(f"Clicking mouse button: {button_name} at ({x}, {y})")
+            mouse.position = (x, y)
+            mouse.click(button)
+    elif action == 'scroll':
+        dx = int(event.attrs.get('dx', '0'))
+        dy = int(event.attrs.get('dy', '0'))
+        print(f"Scrolling mouse at ({x}, {y}) by ({dx}, {dy})")
+        mouse.position = (x, y)
+        mouse.scroll(dx, dy)
+    else:
+        print(f"Warning: Unknown mouse action '{action}'.")
+
+
+def handle_key_event(event: EventToken):
+    key = get_key_from_name(event.tag)
+
+    if not isinstance(key, Key):
+        return
+
+    if event.is_open:
+        print(f"Pressing key: {key.name}")
+        keyboard.press(key)
+    elif event.is_close:
+        print(f"Releasing key: {key.name}")
+        keyboard.release(key)
+    else:
+        print(f"Warning: Invalid key event for tag '{event.tag}'.")
+
+
+def start_playing(tokens: list[TextToken| EventToken]):
+    for token in tokens:
+        if isinstance(token, EventToken):
+            is_delay_flag = token.tag == '_'
+            if is_delay_flag and token.is_open:
+                preferred_delay_ms = int(token.attrs.get('delay', '500'))
+                print(f"Waiting for {preferred_delay_ms}ms")
+                time.sleep(preferred_delay_ms / 1000)
+            elif is_delay_flag and token.is_close:
+                pass  # there is nothing to do on closing delay tag
+            else:
+                handle_event(token)
+        else:
+            for char in token.text:
+                print(f"Typing character: {char}")
+                keyboard.type(char)
+
+
+# ---------------------------
+#  MAIN LOGIC
+# ---------------------------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Simulates keyboard typing with HTML-like tags for special keys",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+    parser.add_argument("-l", "--list", action="store_true", help="List all available key names and exit.")
+
+    command_group = parser.add_mutually_exclusive_group(required=True)
+
+    command_group.add_argument(
+        "-f", "--file",
+        type=str,
+        help="Input file to read the command from instead of command line directly.",
+    ).completer = argcomplete.completers.FilesCompleter(allowednames=["*.xml"])
+
+    command_group.add_argument(
+        "command",
+        type=str,
+        nargs="?",
+        help="Typewriter command string with valid syntax inside quotes. Example: 'Hello<SHIFT>World</SHIFT><ENTER/>'.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    if args.list:
+        list_available_keys()
+        sys.exit(0)
+
+    if args.file:
+        with open(args.file, 'r', encoding='utf-8') as f:
+            args.command = f.read()
+
+    try:
+        tokens = tokenize(args.command)
+        start_playing(tokens)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

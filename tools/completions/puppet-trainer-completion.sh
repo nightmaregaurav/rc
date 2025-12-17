@@ -1,4 +1,4 @@
-#compdef pointer-player
+#compdef puppet-trainer
 # Run something, muting output or redirecting it to the debug stream
 # depending on the value of _ARC_DEBUG.
 # If ARGCOMPLETE_USE_TEMPFILES is set, use tempfiles for IPC.
@@ -66,7 +66,7 @@ _python_argcomplete() {
     fi
 }
 if [[ -z "${ZSH_VERSION-}" ]]; then
-    complete -o nospace -o default -o bashdefault -F _python_argcomplete pointer-player
+    complete -o nospace -o default -o bashdefault -F _python_argcomplete puppet-trainer
 else
     # When called by the Zsh completion system, this will end with
     # "loadautofunc" when initially autoloaded and "shfunc" later on, otherwise,
@@ -76,6 +76,6 @@ else
     if [[ $zsh_eval_context == *func ]]; then
         _python_argcomplete "$@"
     else
-        compdef _python_argcomplete pointer-player
+        compdef _python_argcomplete puppet-trainer
     fi
 fi

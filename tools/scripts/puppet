@@ -207,7 +207,7 @@ def start_playing(tokens: list[TextToken| EventToken]):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Simulates keyboard typing with HTML-like tags for special keys",
+        description="Simulates keyboard and mouse events with XML-like tags.",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

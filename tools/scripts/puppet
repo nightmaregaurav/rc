@@ -9,13 +9,13 @@
 # ///
 
 import argparse
-from tokenize import group
-
+import threading
+from io import TextIOWrapper
 import argcomplete
 import sys
 import time
-from pynput.keyboard import Controller as Keyboard, Key
-from pynput.mouse import Controller as Mouse, Button
+from pynput.keyboard import Controller as Keyboard, Listener as KeyListener, Key, KeyCode
+from pynput.mouse import Controller as Mouse, Listener as MouseListener, Button
 import xml.etree.ElementTree as ElementTree
 from dataclasses import dataclass
 
@@ -40,8 +40,36 @@ mouse = Mouse()
 
 
 # ---------------------------
+#  STATE
+# ---------------------------
+
+last_position = None
+last_pressed_key = None
+start_ns = None  # start monotonic nanoseconds
+print_file: TextIOWrapper | None = None
+
+# ---------------------------
 #  HELPERS
 # ---------------------------
+
+def print_event(text: str):
+    if print_file is not None:
+        print_file.write(text)
+        print_file.flush()
+    else:
+        print(text, end="", flush=True)
+
+
+def get_delay():
+    global start_ns
+    now_ns = time.monotonic_ns()
+    if start_ns is None:
+        start_ns = now_ns
+        return 0
+    diff_ns = now_ns - start_ns
+    start_ns = now_ns
+    return diff_ns // 1_000_000  # convert to milliseconds
+
 
 def get_valid_key_names():
     base_keys = [key.name.upper() for key in Key]
@@ -120,7 +148,7 @@ def tokenize(command: str) -> list[TextToken | EventToken]:
 
 
 # ---------------------------
-#  EVENT HANDLERS
+#  PLAY EVENT HANDLERS
 # ---------------------------
 
 def handle_event(event: EventToken):
@@ -202,6 +230,107 @@ def start_playing(tokens: list[TextToken| EventToken]):
 
 
 # ---------------------------
+#  RECORD EVENT HANDLERS
+# ---------------------------
+
+def handle_move(x, y):
+    global last_position
+    pos = (x, y)
+    if pos != last_position:
+        delay = get_delay()
+        if delay > 0:
+            print_event(f'<_ delay="{delay}"/>')
+        print_event(f'<MouseEvent action="move" x="{x}" y="{y}"/>')
+        last_position = pos
+
+
+def handle_click(x, y, button, pressed):
+    name = button.name.upper()
+    pos = f'x="{x}" y="{y}"'
+
+    if pressed:
+        event = "pressed"
+    else:
+        event = "released"
+
+    delay = get_delay()
+    if delay > 0:
+        print_event(f'<_ delay="{delay}"/>')
+    print_event(f'<MouseEvent action="click" button="{name}" event="{event}" {pos}/>')
+
+
+def handle_scroll(x, y, dx, dy):
+    # Always print updated position before scroll
+    handle_move(x, y)
+
+    delay = get_delay()
+    if delay > 0:
+        print_event(f'<_ delay="{delay}"/>')
+    print_event(f'<MouseEvent action="scroll" dx="{dx}" dy="{dy}" x="{x}" y="{y}"/>')
+
+
+def handle_key_press(key: Key | KeyCode):
+    global last_pressed_key
+
+    delay = get_delay()
+    if delay > 0:
+        print_event(f'<_ delay="{delay}"/>')
+
+    key_name = key.name.upper() if isinstance(key, Key) else key.char.upper()
+    if key_name in get_valid_key_names():
+        print_event(f"<{key_name}>")
+    else:
+        print_event(key_name)
+    last_pressed_key = key
+
+
+def handle_key_release(key: Key | KeyCode):
+    global last_pressed_key
+
+    key_name = key.name.upper() if isinstance(key, Key) else key.char.upper()
+    if key_name in get_valid_key_names():
+        delay = get_delay()
+        if delay > 0:
+            print_event(f'<_ delay="{delay}"/>')
+        print_event(f"</{key_name}>")
+    last_pressed_key = None
+
+
+def on_move(x, y):
+    handle_move(x, y)
+
+
+def on_click(x, y, button, pressed):
+    handle_click(x, y, button, pressed)
+
+
+def on_scroll(x, y, dx, dy):
+    handle_scroll(x, y, dx, dy)
+
+def on_press(key: Key | KeyCode):
+    handle_key_press(key)
+
+
+def on_release(key: Key | KeyCode):
+    handle_key_release(key)
+
+
+def start_listening():
+    # Start keyboard listener in a separate thread
+    key_listener = KeyListener(on_press=on_press, on_release=on_release)
+    key_thread = threading.Thread(target=key_listener.start)
+    key_thread.start()
+
+    # Start mouse listener in a separate thread
+    mouse_listener = MouseListener(on_move=on_move, on_click=on_click, on_scroll=on_scroll)
+    mouse_thread = threading.Thread(target=mouse_listener.start)
+    mouse_thread.start()
+
+    # Join threads to ensure the program waits for them to finish
+    key_listener.join()
+    mouse_listener.join()
+
+# ---------------------------
 #  MAIN LOGIC
 # ---------------------------
 
@@ -213,40 +342,53 @@ def main():
     )
 
     parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
-    parser.add_argument("-l", "--list", action="store_true", help="List all available key names and exit.")
+    parser.add_argument("-l", "--list", action="store_true", help="List all available key names.")
 
-    command_group = parser.add_mutually_exclusive_group(required=True)
+    mode_group = parser.add_mutually_exclusive_group(required=True)
+
+    mode_group.add_argument("-p", "--play", action="store_true", help="Play mode.")
+    mode_group.add_argument("-r", "--record", action="store_true", help="Record mode.")
+
+    command_group = parser.add_mutually_exclusive_group(required=False)
 
     command_group.add_argument(
         "-f", "--file",
         type=str,
-        help="Input file to read the command from instead of command line directly.",
+        help="Macro file.",
     ).completer = argcomplete.completers.FilesCompleter(allowednames=["*.xml"])
 
     command_group.add_argument(
         "command",
         type=str,
         nargs="?",
-        help="Typewriter command string with valid syntax inside quotes. Example: 'Hello<SHIFT>World</SHIFT><ENTER/>'.",
+        help="Puppet command string with valid syntax inside quotes.\nExample: 'Hello<SHIFT>World</SHIFT><ENTER/>'.",
     )
 
     argcomplete.autocomplete(parser, always_complete_options=False)
     args = parser.parse_args()
 
+    # Check if command source is provided for play mode
+    if args.play and not (args.file or args.command):
+        parser.error('-p/--play requires either -f/--file or command string.')
+
     if args.list:
         list_available_keys()
         sys.exit(0)
 
-    if args.file:
+    if args.file and args.play:
         with open(args.file, 'r', encoding='utf-8') as f:
             args.command = f.read()
+    elif args.file:
+        global print_file
+        print_file = open(args.file, "w")
 
-    try:
+    if args.play:
         tokens = tokenize(args.command)
+        print("Press Ctrl+C to stop.")
         start_playing(tokens)
-    except Exception as e:
-        print(f"Error: {e}")
-        sys.exit(1)
+    else:
+        print("Press Ctrl+C to stop.")
+        start_listening()
 
 
 if __name__ == "__main__":

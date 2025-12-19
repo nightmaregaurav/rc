@@ -51,8 +51,7 @@ The following tools are included to simplify common tasks:
 - `pdf2img-extract`: Extracts images from PDF file.
 - `publicip`: Prints the public IP address.
 - `publicip-fast`: Prints the public IP address, a little faster than (`publicip`).
-- `puppet`: Replays recorded keyboard and mouse action macros using `puppet-trainer`.
-- `puppet-trainer`: Records keyboard and mouse actions as macros.
+- `puppet`: Records and replays keyboard and mouse action macro.
 - `qr-code-gen`: Generates qr codes from text or files.
 - `rc-ls`: Lists all the available tools provided by RC IE. This repository.
 - `rc-setup-completions`: Installs the completion files for the tools in this repository.

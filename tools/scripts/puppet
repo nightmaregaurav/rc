@@ -48,6 +48,7 @@ last_pressed_key = None
 start_ns = None  # start monotonic nanoseconds
 print_file: TextIOWrapper | None = None
 
+
 # ---------------------------
 #  HELPERS
 # ---------------------------
@@ -329,6 +330,7 @@ def start_listening():
     # Join threads to ensure the program waits for them to finish
     key_listener.join()
     mouse_listener.join()
+
 
 # ---------------------------
 #  MAIN LOGIC

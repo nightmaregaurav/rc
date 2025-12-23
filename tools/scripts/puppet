@@ -44,7 +44,8 @@ mouse = Mouse()
 # ---------------------------
 
 last_position = None
-last_pressed_key = None
+last_pressed_key = None | Key | KeyCode
+last_pressed_special_key = None | Key | KeyCode
 start_ns = None  # start monotonic nanoseconds
 print_file: TextIOWrapper | None = None
 
@@ -272,6 +273,7 @@ def handle_scroll(x, y, dx, dy):
 
 def handle_key_press(key: Key | KeyCode):
     global last_pressed_key
+    global last_pressed_special_key
 
     delay = get_delay()
     if delay > 0:
@@ -279,6 +281,7 @@ def handle_key_press(key: Key | KeyCode):
 
     key_name = key.name.upper() if isinstance(key, Key) else key.char.upper()
     if key_name in get_valid_key_names():
+        last_pressed_special_key = key
         print_event(f"<{key_name}>")
     else:
         print_event(key_name)
@@ -287,6 +290,7 @@ def handle_key_press(key: Key | KeyCode):
 
 def handle_key_release(key: Key | KeyCode):
     global last_pressed_key
+    global last_pressed_special_key
 
     key_name = key.name.upper() if isinstance(key, Key) else key.char.upper()
     if key_name in get_valid_key_names():
@@ -294,6 +298,7 @@ def handle_key_release(key: Key | KeyCode):
         if delay > 0:
             print_event(f'<_ delay="{delay}"/>')
         print_event(f"</{key_name}>")
+        last_pressed_special_key = None
     last_pressed_key = None
 
 
@@ -328,8 +333,18 @@ def start_listening():
     mouse_thread.start()
 
     # Join threads to ensure the program waits for them to finish
-    key_listener.join()
-    mouse_listener.join()
+    try:
+        key_listener.join()
+        mouse_listener.join()
+    except KeyboardInterrupt:
+        # close last opened tags if any
+        global last_pressed_special_key
+        if last_pressed_special_key is not None:
+            # noinspection PyTypeChecker
+            handle_key_release(last_pressed_special_key)
+        print("\nRecording stopped by user.")
+        raise
+
 
 
 # ---------------------------

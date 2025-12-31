@@ -399,8 +399,8 @@ def main():
         global print_file
         print_file = open(args.file, "w")
 
-    args.command = args.command.replace('\n', '').replace('\r', '')
     if args.play:
+        args.command = args.command.replace('\n', '').replace('\r', '')
         tokens = tokenize(args.command)
         print("Press Ctrl+C to stop.")
         start_playing(tokens)

@@ -19,5 +19,7 @@ dependencies = [
     "sounddevice",
     "pynput",
     "qrcode",
-    "GitPython"
+    "GitPython",
+    "fastapi",
+    "uvicorn"
 ]

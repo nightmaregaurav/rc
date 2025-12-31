@@ -28,6 +28,7 @@ The following tools are included to simplify common tasks:
 - `adbw-brute-pair`: Pairs with an Android device over wireless ADB.
 - `amplify`: Boosts volume in the provided video/audio file.
 - `clip`: Copies and pastes text to/from the clipboard.
+- `compress-image`: Compress images with lossless-first strategy and lossy fallback.
 - `count`: Counts the total number of files and folders in the current directory.
 - `cpu-usage`: Displays CPU usage percentage.
 - `duplicates`: Manages duplicate files by listing, or deleting them.

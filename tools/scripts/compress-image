@@ -1,0 +1,159 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+#     "pillow",
+# ]
+# ///
+
+import argparse
+import argcomplete
+import glob
+import sys
+from io import BytesIO
+from pathlib import Path
+
+from PIL import Image, PngImagePlugin
+from argcomplete.completers import FilesCompleter
+
+
+SUPPORTED_EXTS = {".jpg", ".jpeg", ".png"}
+
+
+def size_kb(data: bytes) -> float:
+    return len(data) / 1024.0
+
+
+def compute_output_path(img_path: Path, replace: bool, suffix: str) -> Path:
+    if replace:
+        return img_path
+    return img_path.with_name(f"{img_path.stem}_{suffix}{img_path.suffix}")
+
+
+# ---------- LOSSLESS ----------
+
+def lossless_jpeg(img: Image.Image) -> bytes:
+    buf = BytesIO()
+    img.save(buf, format="JPEG", optimize=True, quality=95, subsampling="keep")
+    return buf.getvalue()
+
+
+def lossless_png(img: Image.Image) -> bytes:
+    buf = BytesIO()
+    meta = PngImagePlugin.PngInfo()
+    img.save(buf, format="PNG", optimize=True, pnginfo=meta)
+    return buf.getvalue()
+
+
+# ---------- LOSSY ----------
+
+def encode_lossy(img: Image.Image, fmt: str, quality: int) -> bytes:
+    buf = BytesIO()
+    img.save(buf, format=fmt, quality=quality, optimize=True)
+    return buf.getvalue()
+
+
+def search_quality(img: Image.Image, fmt: str, target_kb: float) -> bytes | None:
+    lo, hi = 10, 95
+    best = None
+
+    while lo <= hi:
+        mid = (lo + hi) // 2
+        data = encode_lossy(img, fmt, mid)
+
+        if size_kb(data) <= target_kb:
+            best = data
+            lo = mid + 1
+        else:
+            hi = mid - 1
+
+    return best
+
+
+# ---------- PIPELINE ----------
+
+def compress_image(img_path: Path, output_path: Path, target_kb: float):
+    with Image.open(img_path) as img:
+        ext = img_path.suffix.lower()
+
+        # LOSSLESS FIRST
+        if ext in {".jpg", ".jpeg"}:
+            print(f"[lossless] JPEG optimize: {img_path.name}")
+            data = lossless_jpeg(img)
+
+        elif ext == ".png":
+            print(f"[lossless] PNG optimize: {img_path.name}")
+            data = lossless_png(img)
+
+        else:
+            raise ValueError("Unsupported format")
+
+        if size_kb(data) <= target_kb:
+            output_path.write_bytes(data)
+            print(f"✓ saved (lossless): {output_path}")
+            return
+
+        # LOSSY WARNING
+        print("⚠️ target not reachable losslessly, enabling lossy compression")
+
+        if ext == ".png":
+            print("⚠️ converting PNG → WebP (lossy)")
+            img = img.convert("RGBA")
+            fmt = "WEBP"
+        else:
+            img = img.convert("RGB")
+            fmt = "JPEG"
+
+        lossy = search_quality(img, fmt, target_kb)
+        if lossy is None:
+            raise RuntimeError("Unable to reach target size even with lossy compression")
+
+        output_path.write_bytes(lossy)
+        print(f"✓ saved (lossy): {output_path}")
+
+
+# ---------- CLI ----------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Compress images with lossless-first strategy and lossy fallback.",
+        add_help=False,
+    )
+
+    parser.add_argument("-h", "--help", action="help")
+    parser.add_argument("-r", "--replace", action="store_true", help="Replace original files")
+    parser.add_argument(
+        "-s", "--size-kb", required=True, type=float, help="Maximum allowed size in KB"
+    )
+    parser.add_argument("files", nargs="+", help="Image files or globs").completer = FilesCompleter()
+
+    argcomplete.autocomplete(parser)
+    args = parser.parse_args()
+
+    processed = 0
+
+    for pattern in args.files:
+        for path_str in glob.glob(pattern):
+            img_path = Path(path_str)
+            if not img_path.is_file() or img_path.suffix.lower() not in SUPPORTED_EXTS:
+                continue
+
+            suffix = "compressed"
+            out = compute_output_path(img_path, args.replace, suffix)
+
+            try:
+                compress_image(img_path, out, args.size_kb)
+                processed += 1
+            except Exception as exc:
+                print(f"✗ error: {img_path}: {exc}", file=sys.stderr)
+
+    if processed == 0:
+        print("No images processed.", file=sys.stderr)
+    else:
+        print(f"Processed {processed} images.")
+
+
+if __name__ == "__main__":
+    main()

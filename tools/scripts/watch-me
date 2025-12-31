@@ -25,7 +25,7 @@ import sounddevice as sd
 import pyautogui
 
 from fastapi import FastAPI
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, HTMLResponse
 import uvicorn
 
 
@@ -34,7 +34,6 @@ import uvicorn
 # ============================================================
 
 app = FastAPI()
-
 stop_event = threading.Event()
 
 video_streams: dict[str, "FrameBroadcaster"] = {}
@@ -50,13 +49,13 @@ class FrameBroadcaster:
         self.clients: set[queue.Queue[bytes]] = set()
         self.lock = threading.Lock()
 
-    def register(self) -> queue.Queue[bytes]:
+    def register(self):
         q = queue.Queue(maxsize=2)
         with self.lock:
             self.clients.add(q)
         return q
 
-    def unregister(self, q: queue.Queue[bytes]):
+    def unregister(self, q):
         with self.lock:
             self.clients.discard(q)
 
@@ -72,13 +71,13 @@ class AudioBroadcaster:
         self.clients: set[queue.Queue[bytes]] = set()
         self.lock = threading.Lock()
 
-    def register(self) -> queue.Queue[bytes]:
+    def register(self):
         q = queue.Queue(maxsize=10)
         with self.lock:
             self.clients.add(q)
         return q
 
-    def unregister(self, q: queue.Queue[bytes]):
+    def unregister(self, q):
         with self.lock:
             self.clients.discard(q)
 
@@ -96,24 +95,16 @@ class AudioBroadcaster:
 def draw_cursor(frame: np.ndarray, monitor: dict) -> np.ndarray:
     x, y = pyautogui.position()
 
-    mx = monitor["left"]
-    my = monitor["top"]
-    mw = monitor["width"]
-    mh = monitor["height"]
+    mx, my = monitor["left"], monitor["top"]
+    mw, mh = monitor["width"], monitor["height"]
 
     if not (mx <= x < mx + mw and my <= y < my + mh):
         return frame
 
-    cx = int(x - mx)
-    cy = int(y - my)
+    cx, cy = int(x - mx), int(y - my)
 
-    color = (0, 0, 255)
-    size = 10
-    thickness = 2
-
-    cv2.line(frame, (cx - size, cy), (cx + size, cy), color, thickness)
-    cv2.line(frame, (cx, cy - size), (cx, cy + size), color, thickness)
-
+    cv2.line(frame, (cx - 10, cy), (cx + 10, cy), (0, 0, 255), 2)
+    cv2.line(frame, (cx, cy - 10), (cx, cy + 10), (0, 0, 255), 2)
     return frame
 
 
@@ -121,57 +112,47 @@ def draw_cursor(frame: np.ndarray, monitor: dict) -> np.ndarray:
 # Capture loops
 # ============================================================
 
-def screen_capture_loop(monitor: dict, broadcaster: FrameBroadcaster):
+def screen_capture_loop(monitor, broadcaster):
     with mss.mss() as sct:
         while not stop_event.is_set():
             img = np.array(sct.grab(monitor))
             frame = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
-
             frame = draw_cursor(frame, monitor)
 
             _, jpg = cv2.imencode(".jpg", frame)
-            payload = (
-                    b"--frame\r\n"
-                    b"Content-Type: image/jpeg\r\n\r\n"
-                    + jpg.tobytes()
-                    + b"\r\n"
+            broadcaster.broadcast(
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n"
+                + jpg.tobytes()
+                + b"\r\n"
             )
-            broadcaster.broadcast(payload)
 
 
-def camera_capture_loop(camera_index: int, broadcaster: FrameBroadcaster):
-    cap = cv2.VideoCapture(camera_index)
+def camera_capture_loop(index, broadcaster):
+    cap = cv2.VideoCapture(index)
     if not cap.isOpened():
         return
-
     try:
         while not stop_event.is_set():
             ok, frame = cap.read()
             if not ok:
                 break
-
             _, jpg = cv2.imencode(".jpg", frame)
-            payload = (
-                    b"--frame\r\n"
-                    b"Content-Type: image/jpeg\r\n\r\n"
-                    + jpg.tobytes()
-                    + b"\r\n"
+            broadcaster.broadcast(
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n"
+                + jpg.tobytes()
+                + b"\r\n"
             )
-            broadcaster.broadcast(payload)
     finally:
         cap.release()
 
 
-def audio_capture_loop(device_index: int | None, broadcaster: AudioBroadcaster):
-    def callback(indata, frames, time_info, status):
+def audio_capture_loop(device_index, broadcaster):
+    def callback(indata, *_):
         broadcaster.broadcast(indata.tobytes())
 
-    with sd.InputStream(
-            device=device_index,
-            samplerate=44100,
-            channels=1,
-            callback=callback,
-    ):
+    with sd.InputStream(device=device_index, samplerate=44100, channels=1, callback=callback):
         while not stop_event.is_set():
             time.sleep(0.1)
 
@@ -180,7 +161,7 @@ def audio_capture_loop(device_index: int | None, broadcaster: AudioBroadcaster):
 # Client generators
 # ============================================================
 
-def mjpeg_client(broadcaster: FrameBroadcaster):
+def mjpeg_client(broadcaster):
     q = broadcaster.register()
     try:
         while not stop_event.is_set():
@@ -189,7 +170,7 @@ def mjpeg_client(broadcaster: FrameBroadcaster):
         broadcaster.unregister(q)
 
 
-def audio_client(broadcaster: AudioBroadcaster):
+def audio_client(broadcaster):
     q = broadcaster.register()
     try:
         while not stop_event.is_set():
@@ -204,52 +185,75 @@ def audio_client(broadcaster: AudioBroadcaster):
 
 @app.get("/video/{stream_id}")
 def video_feed(stream_id: str):
-    broadcaster = video_streams.get(stream_id)
-    if not broadcaster:
-        return {"error": "video stream not found"}
-
     return StreamingResponse(
-        mjpeg_client(broadcaster),
+        mjpeg_client(video_streams[stream_id]),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
 
 @app.get("/audio/{stream_id}")
 def audio_feed(stream_id: str):
-    broadcaster = audio_streams.get(stream_id)
-    if not broadcaster:
-        return {"error": "audio stream not found"}
-
     return StreamingResponse(
-        audio_client(broadcaster),
+        audio_client(audio_streams[stream_id]),
         media_type="application/octet-stream",
     )
+
+
+# ============================================================
+# Viewer pages (audio merged here)
+# ============================================================
+
+@app.get("/view/camera/{cam_id}", response_class=HTMLResponse)
+def view_camera(cam_id: int):
+    return f"""
+<!DOCTYPE html>
+<html>
+<body>
+<h2>Camera {cam_id} (Mic)</h2>
+<img src="/video/camera-{cam_id}" style="width:100%">
+<audio src="/audio/mic" autoplay controls></audio>
+</body>
+</html>
+"""
+
+
+@app.get("/view/screen/{screen_id}", response_class=HTMLResponse)
+def view_screen(screen_id: int):
+    return f"""
+<!DOCTYPE html>
+<html>
+<body>
+<h2>Screen {screen_id} (Speaker)</h2>
+<img src="/video/screen-{screen_id}" style="width:100%">
+<audio src="/audio/speaker" autoplay controls></audio>
+</body>
+</html>
+"""
 
 
 # ============================================================
 # Discovery helpers
 # ============================================================
 
-def discover_cameras(max_devices: int = 10) -> list[int]:
-    cameras = []
-    for i in range(max_devices):
+def discover_cameras():
+    cams = []
+    for i in range(10):
         cap = cv2.VideoCapture(i)
         if cap.isOpened():
-            cameras.append(i)
+            cams.append(i)
             cap.release()
-    return cameras
+    return cams
 
 
-def discover_screens() -> list[dict]:
+def discover_screens():
     with mss.mss() as sct:
         return sct.monitors[1:]
 
 
-def find_loopback_device() -> int | None:
-    for idx, dev in enumerate(sd.query_devices()):
-        name = dev["name"].lower()
-        if "loopback" in name or "monitor" in name:
-            return idx
+def find_loopback_device():
+    for i, d in enumerate(sd.query_devices()):
+        if "loopback" in d["name"].lower() or "monitor" in d["name"].lower():
+            return i
     return None
 
 
@@ -258,79 +262,41 @@ def find_loopback_device() -> int | None:
 # ============================================================
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Watch-me: stream screens, cameras, mic, speaker, with cursor",
-    )
-
+    parser = argparse.ArgumentParser()
     parser.add_argument("-s", "--screen", action="store_true")
     parser.add_argument("-c", "--camera", action="store_true")
     parser.add_argument("-m", "--mic", action="store_true")
     parser.add_argument("-p", "--speaker", action="store_true")
-
     args = parser.parse_args()
 
     if not any(vars(args).values()):
         args.screen = True
 
-    # Screens
     if args.screen:
-        for i, monitor in enumerate(discover_screens()):
-            stream_id = f"screen-{i}"
-            broadcaster = FrameBroadcaster()
-            video_streams[stream_id] = broadcaster
+        for i, m in enumerate(discover_screens()):
+            b = FrameBroadcaster()
+            video_streams[f"screen-{i}"] = b
+            threading.Thread(target=screen_capture_loop, args=(m, b), daemon=True).start()
+            print(f"Screen {i}: http://localhost:8000/view/screen/{i}")
 
-            threading.Thread(
-                target=screen_capture_loop,
-                args=(monitor, broadcaster),
-                daemon=True,
-            ).start()
-
-            print(f"Screen {i}:  http://localhost:8000/video/{stream_id}")
-
-    # Cameras
     if args.camera:
         for cam in discover_cameras():
-            stream_id = f"camera-{cam}"
-            broadcaster = FrameBroadcaster()
-            video_streams[stream_id] = broadcaster
+            b = FrameBroadcaster()
+            video_streams[f"camera-{cam}"] = b
+            threading.Thread(target=camera_capture_loop, args=(cam, b), daemon=True).start()
+            print(f"Camera {cam}: http://localhost:8000/view/camera/{cam}")
 
-            threading.Thread(
-                target=camera_capture_loop,
-                args=(cam, broadcaster),
-                daemon=True,
-            ).start()
-
-            print(f"Camera {cam}: http://localhost:8000/video/{stream_id}")
-
-    # Mic
     if args.mic:
-        broadcaster = AudioBroadcaster()
-        audio_streams["mic"] = broadcaster
+        b = AudioBroadcaster()
+        audio_streams["mic"] = b
+        threading.Thread(target=audio_capture_loop, args=(None, b), daemon=True).start()
 
-        threading.Thread(
-            target=audio_capture_loop,
-            args=(None, broadcaster),
-            daemon=True,
-        ).start()
-
-        print("Mic audio:   http://localhost:8000/audio/mic")
-
-    # Speaker
     if args.speaker:
-        loopback = find_loopback_device()
-        if loopback is not None:
-            broadcaster = AudioBroadcaster()
-            audio_streams["speaker"] = broadcaster
-
-            threading.Thread(
-                target=audio_capture_loop,
-                args=(loopback, broadcaster),
-                daemon=True,
-            ).start()
-
-            print("Speaker audio: http://localhost:8000/audio/speaker")
-        else:
-            print("Warning: no loopback device found for speaker capture")
+        loop = find_loopback_device()
+        if loop is not None:
+            b = AudioBroadcaster()
+            audio_streams["speaker"] = b
+            threading.Thread(target=audio_capture_loop, args=(loop, b), daemon=True).start()
 
     print("\nServer running at http://localhost:8000\n")
 

@@ -237,7 +237,7 @@ def find_loopback_device():
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Monitors screens, cameras, speaker, and mic of the device and streams it.",
+        description="Monitors screens, cameras, speaker, and mic of the device and streams them.",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )

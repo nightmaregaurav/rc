@@ -66,6 +66,7 @@ The following tools are included to simplify common tasks:
 - `up-since`: Shows how long the system has been up since last reboot.
 - `user-session-ssh`: Tool to install/uninstall ssh server to run on logged-in user's session for Windows.
 - `volume-control`: Controls the volume of the system.
+- `watch-me`: Monitors screens, cameras, speaker, and mic of the device and streams them.
 - `watchtower`: Monitors a file and executes a command when the file changes.
 - `youtube-get`: Downloads YouTube videos or audio.
 

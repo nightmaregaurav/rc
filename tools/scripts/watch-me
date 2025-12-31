@@ -9,6 +9,7 @@
 #   "mss",
 #   "numpy",
 #   "sounddevice",
+#   "pyautogui",
 # ]
 # ///
 
@@ -21,6 +22,7 @@ import cv2
 import numpy as np
 import mss
 import sounddevice as sd
+import pyautogui
 
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
@@ -40,7 +42,7 @@ audio_streams: dict[str, "AudioBroadcaster"] = {}
 
 
 # ============================================================
-# Broadcasters (fan-out)
+# Broadcasters
 # ============================================================
 
 class FrameBroadcaster:
@@ -88,7 +90,35 @@ class AudioBroadcaster:
 
 
 # ============================================================
-# Capture loops (single producer per source)
+# Cursor overlay
+# ============================================================
+
+def draw_cursor(frame: np.ndarray, monitor: dict) -> np.ndarray:
+    x, y = pyautogui.position()
+
+    mx = monitor["left"]
+    my = monitor["top"]
+    mw = monitor["width"]
+    mh = monitor["height"]
+
+    if not (mx <= x < mx + mw and my <= y < my + mh):
+        return frame
+
+    cx = int(x - mx)
+    cy = int(y - my)
+
+    color = (0, 0, 255)
+    size = 10
+    thickness = 2
+
+    cv2.line(frame, (cx - size, cy), (cx + size, cy), color, thickness)
+    cv2.line(frame, (cx, cy - size), (cx, cy + size), color, thickness)
+
+    return frame
+
+
+# ============================================================
+# Capture loops
 # ============================================================
 
 def screen_capture_loop(monitor: dict, broadcaster: FrameBroadcaster):
@@ -96,8 +126,10 @@ def screen_capture_loop(monitor: dict, broadcaster: FrameBroadcaster):
         while not stop_event.is_set():
             img = np.array(sct.grab(monitor))
             frame = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
-            _, jpg = cv2.imencode(".jpg", frame)
 
+            frame = draw_cursor(frame, monitor)
+
+            _, jpg = cv2.imencode(".jpg", frame)
             payload = (
                     b"--frame\r\n"
                     b"Content-Type: image/jpeg\r\n\r\n"
@@ -145,7 +177,7 @@ def audio_capture_loop(device_index: int | None, broadcaster: AudioBroadcaster):
 
 
 # ============================================================
-# Client generators (one per request)
+# Client generators
 # ============================================================
 
 def mjpeg_client(broadcaster: FrameBroadcaster):
@@ -227,7 +259,7 @@ def find_loopback_device() -> int | None:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Watch-me: stream screens, cameras, mic, and speaker over HTTP",
+        description="Watch-me: stream screens, cameras, mic, speaker, with cursor",
     )
 
     parser.add_argument("-s", "--screen", action="store_true")

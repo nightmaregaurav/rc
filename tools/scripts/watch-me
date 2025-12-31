@@ -1,0 +1,212 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "fastapi",
+#   "uvicorn",
+#   "opencv-python",
+#   "mss",
+#   "numpy",
+#   "sounddevice",
+# ]
+# ///
+
+import argparse
+import time
+import threading
+
+import cv2
+import numpy as np
+import mss
+import sounddevice as sd
+
+from fastapi import FastAPI
+from fastapi.responses import StreamingResponse
+import uvicorn
+
+
+app = FastAPI()
+
+video_streams: dict[str, callable] = {}
+audio_streams: dict[str, callable] = {}
+
+
+# ----------------------------
+# Video generators
+# ----------------------------
+
+def camera_stream(camera_index: int):
+    cap = cv2.VideoCapture(camera_index)
+    if not cap.isOpened():
+        return
+
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            break
+
+        _, jpg = cv2.imencode(".jpg", frame)
+        yield (
+            b"--frame\r\n"
+            b"Content-Type: image/jpeg\r\n\r\n"
+            + jpg.tobytes()
+            + b"\r\n"
+        )
+
+    cap.release()
+
+
+def screen_stream(monitor: dict):
+    with mss.mss() as sct:
+        while True:
+            img = np.array(sct.grab(monitor))
+            frame = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+
+            _, jpg = cv2.imencode(".jpg", frame)
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n"
+                + jpg.tobytes()
+                + b"\r\n"
+            )
+
+
+# ----------------------------
+# Audio generators
+# ----------------------------
+
+def audio_stream(device_index: int | None, samplerate: int = 44100):
+    buffer: list[np.ndarray] = []
+
+    def callback(indata, frames, time_info, status):
+        buffer.append(indata.copy())
+
+    with sd.InputStream(
+        device=device_index,
+        samplerate=samplerate,
+        channels=1,
+        callback=callback,
+    ):
+        while True:
+            if buffer:
+                chunk = buffer.pop(0)
+                yield chunk.tobytes()
+            else:
+                time.sleep(0.01)
+
+
+# ----------------------------
+# API routes
+# ----------------------------
+
+@app.get("/video/{stream_id}")
+def video_feed(stream_id: str):
+    gen = video_streams.get(stream_id)
+    if not gen:
+        return {"error": "video stream not found"}
+
+    return StreamingResponse(
+        gen,
+        media_type="multipart/x-mixed-replace; boundary=frame",
+    )
+
+
+@app.get("/audio/{stream_id}")
+def audio_feed(stream_id: str):
+    gen = audio_streams.get(stream_id)
+    if not gen:
+        return {"error": "audio stream not found"}
+
+    return StreamingResponse(
+        gen,
+        media_type="application/octet-stream",
+    )
+
+
+# ----------------------------
+# Discovery helpers
+# ----------------------------
+
+def discover_cameras(max_devices: int = 10) -> list[int]:
+    cameras = []
+    for i in range(max_devices):
+        cap = cv2.VideoCapture(i)
+        if cap.isOpened():
+            cameras.append(i)
+            cap.release()
+    return cameras
+
+
+def discover_screens() -> list[dict]:
+    with mss.mss() as sct:
+        return sct.monitors[1:]  # skip virtual full monitor
+
+
+def find_loopback_device() -> int | None:
+    for idx, dev in enumerate(sd.query_devices()):
+        name = dev["name"].lower()
+        if "loopback" in name or "monitor" in name:
+            return idx
+    return None
+
+
+# ----------------------------
+# Main
+# ----------------------------
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Watch-me: stream screens, cameras, mic, and speaker over HTTP",
+    )
+
+    parser.add_argument("-s", "--screen", action="store_true", help="Stream all screens")
+    parser.add_argument("-c", "--camera", action="store_true", help="Stream all cameras")
+    parser.add_argument("-m", "--mic", action="store_true", help="Stream active microphone")
+    parser.add_argument("-p", "--speaker", action="store_true", help="Stream active speaker (loopback)")
+
+    args = parser.parse_args()
+
+    # default: screen only
+    if not any(vars(args).values()):
+        args.screen = True
+
+    # Screens
+    if args.screen:
+        screens = discover_screens()
+        for i, monitor in enumerate(screens):
+            stream_id = f"screen-{i}"
+            video_streams[stream_id] = screen_stream(monitor)
+            print(f"Screen {i}:  http://localhost:8000/video/{stream_id}")
+
+    # Cameras
+    if args.camera:
+        cams = discover_cameras()
+        for cam in cams:
+            stream_id = f"camera-{cam}"
+            video_streams[stream_id] = camera_stream(cam)
+            print(f"Camera {cam}: http://localhost:8000/video/{stream_id}")
+
+    # Mic
+    if args.mic:
+        stream_id = "mic"
+        audio_streams[stream_id] = audio_stream(None)
+        print(f"Mic audio:   http://localhost:8000/audio/{stream_id}")
+
+    # Speaker
+    if args.speaker:
+        loopback = find_loopback_device()
+        if loopback is not None:
+            stream_id = "speaker"
+            audio_streams[stream_id] = audio_stream(loopback)
+            print(f"Speaker audio: http://localhost:8000/audio/{stream_id}")
+        else:
+            print("Warning: no loopback device found for speaker capture")
+
+    print("\nServer running at http://localhost:8000\n")
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+if __name__ == "__main__":
+    main()

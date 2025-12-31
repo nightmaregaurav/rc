@@ -14,6 +14,8 @@
 
 import argparse
 import time
+import threading
+import queue
 
 import cv2
 import numpy as np
@@ -25,107 +27,176 @@ from fastapi.responses import StreamingResponse
 import uvicorn
 
 
+# ============================================================
+# Global state
+# ============================================================
+
 app = FastAPI()
 
-video_streams: dict[str, callable] = {}
-audio_streams: dict[str, callable] = {}
+stop_event = threading.Event()
+
+video_streams: dict[str, "FrameBroadcaster"] = {}
+audio_streams: dict[str, "AudioBroadcaster"] = {}
 
 
-# ----------------------------
-# Video generators
-# ----------------------------
+# ============================================================
+# Broadcasters (fan-out)
+# ============================================================
 
-def camera_stream(camera_index: int):
+class FrameBroadcaster:
+    def __init__(self):
+        self.clients: set[queue.Queue[bytes]] = set()
+        self.lock = threading.Lock()
+
+    def register(self) -> queue.Queue[bytes]:
+        q = queue.Queue(maxsize=2)
+        with self.lock:
+            self.clients.add(q)
+        return q
+
+    def unregister(self, q: queue.Queue[bytes]):
+        with self.lock:
+            self.clients.discard(q)
+
+    def broadcast(self, frame: bytes):
+        with self.lock:
+            for q in list(self.clients):
+                if not q.full():
+                    q.put_nowait(frame)
+
+
+class AudioBroadcaster:
+    def __init__(self):
+        self.clients: set[queue.Queue[bytes]] = set()
+        self.lock = threading.Lock()
+
+    def register(self) -> queue.Queue[bytes]:
+        q = queue.Queue(maxsize=10)
+        with self.lock:
+            self.clients.add(q)
+        return q
+
+    def unregister(self, q: queue.Queue[bytes]):
+        with self.lock:
+            self.clients.discard(q)
+
+    def broadcast(self, chunk: bytes):
+        with self.lock:
+            for q in list(self.clients):
+                if not q.full():
+                    q.put_nowait(chunk)
+
+
+# ============================================================
+# Capture loops (single producer per source)
+# ============================================================
+
+def screen_capture_loop(monitor: dict, broadcaster: FrameBroadcaster):
+    with mss.mss() as sct:
+        while not stop_event.is_set():
+            img = np.array(sct.grab(monitor))
+            frame = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+            _, jpg = cv2.imencode(".jpg", frame)
+
+            payload = (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n"
+                    + jpg.tobytes()
+                    + b"\r\n"
+            )
+            broadcaster.broadcast(payload)
+
+
+def camera_capture_loop(camera_index: int, broadcaster: FrameBroadcaster):
     cap = cv2.VideoCapture(camera_index)
     if not cap.isOpened():
         return
 
-    while True:
-        ok, frame = cap.read()
-        if not ok:
-            break
-
-        _, jpg = cv2.imencode(".jpg", frame)
-        yield (
-            b"--frame\r\n"
-            b"Content-Type: image/jpeg\r\n\r\n"
-            + jpg.tobytes()
-            + b"\r\n"
-        )
-
-    cap.release()
-
-
-def screen_stream(monitor: dict):
-    with mss.mss() as sct:
-        while True:
-            img = np.array(sct.grab(monitor))
-            frame = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
+    try:
+        while not stop_event.is_set():
+            ok, frame = cap.read()
+            if not ok:
+                break
 
             _, jpg = cv2.imencode(".jpg", frame)
-            yield (
-                b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n"
-                + jpg.tobytes()
-                + b"\r\n"
+            payload = (
+                    b"--frame\r\n"
+                    b"Content-Type: image/jpeg\r\n\r\n"
+                    + jpg.tobytes()
+                    + b"\r\n"
             )
+            broadcaster.broadcast(payload)
+    finally:
+        cap.release()
 
 
-# ----------------------------
-# Audio generators
-# ----------------------------
-
-def audio_stream(device_index: int | None, samplerate: int = 44100):
-    buffer: list[np.ndarray] = []
-
+def audio_capture_loop(device_index: int | None, broadcaster: AudioBroadcaster):
     def callback(indata, frames, time_info, status):
-        buffer.append(indata.copy())
+        broadcaster.broadcast(indata.tobytes())
 
     with sd.InputStream(
-        device=device_index,
-        samplerate=samplerate,
-        channels=1,
-        callback=callback,
+            device=device_index,
+            samplerate=44100,
+            channels=1,
+            callback=callback,
     ):
-        while True:
-            if buffer:
-                chunk = buffer.pop(0)
-                yield chunk.tobytes()
-            else:
-                time.sleep(0.01)
+        while not stop_event.is_set():
+            time.sleep(0.1)
 
 
-# ----------------------------
+# ============================================================
+# Client generators (one per request)
+# ============================================================
+
+def mjpeg_client(broadcaster: FrameBroadcaster):
+    q = broadcaster.register()
+    try:
+        while not stop_event.is_set():
+            yield q.get()
+    finally:
+        broadcaster.unregister(q)
+
+
+def audio_client(broadcaster: AudioBroadcaster):
+    q = broadcaster.register()
+    try:
+        while not stop_event.is_set():
+            yield q.get()
+    finally:
+        broadcaster.unregister(q)
+
+
+# ============================================================
 # API routes
-# ----------------------------
+# ============================================================
 
 @app.get("/video/{stream_id}")
 def video_feed(stream_id: str):
-    gen = video_streams.get(stream_id)
-    if not gen:
+    broadcaster = video_streams.get(stream_id)
+    if not broadcaster:
         return {"error": "video stream not found"}
 
     return StreamingResponse(
-        gen,
+        mjpeg_client(broadcaster),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
 
 @app.get("/audio/{stream_id}")
 def audio_feed(stream_id: str):
-    gen = audio_streams.get(stream_id)
-    if not gen:
+    broadcaster = audio_streams.get(stream_id)
+    if not broadcaster:
         return {"error": "audio stream not found"}
 
     return StreamingResponse(
-        gen,
+        audio_client(broadcaster),
         media_type="application/octet-stream",
     )
 
 
-# ----------------------------
+# ============================================================
 # Discovery helpers
-# ----------------------------
+# ============================================================
 
 def discover_cameras(max_devices: int = 10) -> list[int]:
     cameras = []
@@ -139,7 +210,7 @@ def discover_cameras(max_devices: int = 10) -> list[int]:
 
 def discover_screens() -> list[dict]:
     with mss.mss() as sct:
-        return sct.monitors[1:]  # skip virtual full monitor
+        return sct.monitors[1:]
 
 
 def find_loopback_device() -> int | None:
@@ -150,61 +221,91 @@ def find_loopback_device() -> int | None:
     return None
 
 
-# ----------------------------
+# ============================================================
 # Main
-# ----------------------------
+# ============================================================
 
 def main():
     parser = argparse.ArgumentParser(
         description="Watch-me: stream screens, cameras, mic, and speaker over HTTP",
     )
 
-    parser.add_argument("-s", "--screen", action="store_true", help="Stream all screens")
-    parser.add_argument("-c", "--camera", action="store_true", help="Stream all cameras")
-    parser.add_argument("-m", "--mic", action="store_true", help="Stream active microphone")
-    parser.add_argument("-p", "--speaker", action="store_true", help="Stream active speaker (loopback)")
+    parser.add_argument("-s", "--screen", action="store_true")
+    parser.add_argument("-c", "--camera", action="store_true")
+    parser.add_argument("-m", "--mic", action="store_true")
+    parser.add_argument("-p", "--speaker", action="store_true")
 
     args = parser.parse_args()
 
-    # default: screen only
     if not any(vars(args).values()):
         args.screen = True
 
     # Screens
     if args.screen:
-        screens = discover_screens()
-        for i, monitor in enumerate(screens):
+        for i, monitor in enumerate(discover_screens()):
             stream_id = f"screen-{i}"
-            video_streams[stream_id] = screen_stream(monitor)
+            broadcaster = FrameBroadcaster()
+            video_streams[stream_id] = broadcaster
+
+            threading.Thread(
+                target=screen_capture_loop,
+                args=(monitor, broadcaster),
+                daemon=True,
+            ).start()
+
             print(f"Screen {i}:  http://localhost:8000/video/{stream_id}")
 
     # Cameras
     if args.camera:
-        cams = discover_cameras()
-        for cam in cams:
+        for cam in discover_cameras():
             stream_id = f"camera-{cam}"
-            video_streams[stream_id] = camera_stream(cam)
+            broadcaster = FrameBroadcaster()
+            video_streams[stream_id] = broadcaster
+
+            threading.Thread(
+                target=camera_capture_loop,
+                args=(cam, broadcaster),
+                daemon=True,
+            ).start()
+
             print(f"Camera {cam}: http://localhost:8000/video/{stream_id}")
 
     # Mic
     if args.mic:
-        stream_id = "mic"
-        audio_streams[stream_id] = audio_stream(None)
-        print(f"Mic audio:   http://localhost:8000/audio/{stream_id}")
+        broadcaster = AudioBroadcaster()
+        audio_streams["mic"] = broadcaster
+
+        threading.Thread(
+            target=audio_capture_loop,
+            args=(None, broadcaster),
+            daemon=True,
+        ).start()
+
+        print("Mic audio:   http://localhost:8000/audio/mic")
 
     # Speaker
     if args.speaker:
         loopback = find_loopback_device()
         if loopback is not None:
-            stream_id = "speaker"
-            audio_streams[stream_id] = audio_stream(loopback)
-            print(f"Speaker audio: http://localhost:8000/audio/{stream_id}")
+            broadcaster = AudioBroadcaster()
+            audio_streams["speaker"] = broadcaster
+
+            threading.Thread(
+                target=audio_capture_loop,
+                args=(loopback, broadcaster),
+                daemon=True,
+            ).start()
+
+            print("Speaker audio: http://localhost:8000/audio/speaker")
         else:
             print("Warning: no loopback device found for speaker capture")
 
     print("\nServer running at http://localhost:8000\n")
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    try:
+        uvicorn.run(app, host="0.0.0.0", port=8000)
+    finally:
+        stop_event.set()
 
 
 if __name__ == "__main__":

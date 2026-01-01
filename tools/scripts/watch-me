@@ -265,6 +265,8 @@ def main():
     )
 
     parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+    parser.add_argument("--list-sound-devices", action="store_true", help="List available sound devices and exit.")
+
     parser.add_argument("-d", "--display", action="store_true", help="Enable display capture")
     parser.add_argument("-c", "--camera", action="store_true", help="Enable camera capture")
     parser.add_argument("-m", "--mic", action="store_true", help="Enable microphone capture")
@@ -281,6 +283,12 @@ def main():
 
     argcomplete.autocomplete(parser, always_complete_options=False)
     args = parser.parse_args()
+
+    if args.list_sound_devices:
+        print("Available sound devices:")
+        for device in get_microphones():
+            print(f"  {device['index']}: {device['name']} (sample rate: {device['default_samplerate']})")
+        return
 
     if args.flags:
         for item in args.flags:

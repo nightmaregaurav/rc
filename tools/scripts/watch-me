@@ -11,224 +11,246 @@
 #     "numpy",
 #     "sounddevice",
 #     "pyautogui",
+#     "aiortc",
+#     "av",
 # ]
 # ///
 
 import argparse
+import asyncio
 import argcomplete
-import time
-import threading
 import queue
-import struct
-import cv2
-import numpy as np
-import mss
-import sounddevice as sd
-import pyautogui
-from fastapi import FastAPI
-from fastapi.responses import StreamingResponse, HTMLResponse
+import threading
+import time
 import uvicorn
+import cv2
+import mss
+from fractions import Fraction
+from typing import Dict
+import numpy as np
+import pyautogui
+import sounddevice as sd
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from aiortc import (
+    RTCPeerConnection,
+    RTCSessionDescription,
+    VideoStreamTrack,
+    AudioStreamTrack,
+)
+from av import VideoFrame, AudioFrame
 
 
 # ============================================================
-# Global state
+# Configuration
 # ============================================================
 
-stop_event = threading.Event()
-streams: dict[str, "Broadcaster"] = {}
-stream_links: dict[str, str] = {}
-
-
-# ===========================================================
-# WAV header generator
-# ============================================================
-
-def wav_header(
-        sample_rate: int,
-        channels: int,
-        bits_per_sample: int,
-) -> bytes:
-    byte_rate = sample_rate * channels * bits_per_sample // 8
-    block_align = channels * bits_per_sample // 8
-
-    return struct.pack(
-        "<4sI4s4sIHHIIHH4sI",
-        b"RIFF",
-        0xFFFFFFFF,          # unknown size (streaming)
-        b"WAVE",
-        b"fmt ",
-        16,
-        1,                   # PCM
-        channels,
-        sample_rate,
-        byte_rate,
-        block_align,
-        bits_per_sample,
-        b"data",
-        0xFFFFFFFF,          # unknown size
-    )
+CONFIG = {
+    "DISPLAY_FPS": 15,
+    "CAMERA_FPS": 30,
+    "MAX_CAMERA_DEVICES_TO_TRY": 10,
+    "AUDIO_SAMPLE_RATE": 44100,
+    "AUDIO_CHANNELS": 1,
+    "AUDIO_BLOCK_SIZE": 960,
+    "AUDIO_BUFFER_SIZE": 5,
+}
 
 
 # ============================================================
-# Broadcaster
+# Global States
 # ============================================================
 
-class Broadcaster:
-    def __init__(self):
-        self.clients: set[queue.Queue[bytes]] = set()
-        self.lock = threading.Lock()
-
-    def register(self):
-        q = queue.Queue(maxsize=10)
-        with self.lock:
-            self.clients.add(q)
-        return q
-
-    def unregister(self, q):
-        with self.lock:
-            self.clients.discard(q)
-
-    def broadcast(self, chunk: bytes):
-        with self.lock:
-            for q in list(self.clients):
-                if not q.full():
-                    q.put_nowait(chunk)
+cancellation_token = threading.Event()
+video_tracks: Dict[str, VideoStreamTrack] = {}
+audio_tracks: Dict[str, AudioStreamTrack] = {}
 
 
 # ============================================================
-# Cursor overlay
+# Helpers
 # ============================================================
 
-def draw_cursor(frame: np.ndarray, monitor: dict) -> np.ndarray:
+def get_displays():
+    with mss.mss() as mss_instance:
+        return mss_instance.monitors[1:]
+
+
+def get_cameras():
+    cameras = []
+    for index in range(CONFIG["MAX_CAMERA_DEVICES_TO_TRY"]):
+        cap = cv2.VideoCapture(index)
+        if cap.isOpened():
+            cameras.append(index)
+            cap.release()
+    return cameras
+
+
+def get_microphones():
+    microphones = []
+    for device in sd.query_devices():
+        if device["max_input_channels"] > 0:
+            microphones.append(device)
+    return microphones
+
+
+def get_loopback_device():
+    for device in sd.query_devices():
+        if "loopback" in device["name"].lower() or "monitor" in device["name"].lower():
+            return device
+    return None
+
+
+def draw_mouse_pointer(frame: np.ndarray, monitor: dict):
     x, y = pyautogui.position()
-
     mx, my = monitor["left"], monitor["top"]
-    mw, mh = monitor["width"], monitor["height"]
-
-    if not (mx <= x < mx + mw and my <= y < my + mh):
-        return frame
-
-    cx, cy = int(x - mx), int(y - my)
-
-    cv2.line(frame, (cx - 10, cy), (cx + 10, cy), (0, 0, 255), 2)
-    cv2.line(frame, (cx, cy - 10), (cx, cy + 10), (0, 0, 255), 2)
+    if mx <= x < mx + monitor["width"]:
+        cv2.drawMarker(
+            frame,
+            (int(x - mx), int(y - my)),
+            (0, 0, 255),
+            cv2.MARKER_CROSS,
+            20,
+            2,
+        )
     return frame
 
 
+def format_defaults(cfg: dict) -> str:
+    return ", ".join(f"{k}={v}" for k, v in cfg.items())
+
+
+def config_completer(prefix, _, **__):
+    if "=" in prefix:
+        key, _, value_prefix = prefix.partition("=")
+
+        if key not in CONFIG:
+            return []
+
+        default = str(CONFIG[key])
+        if default.startswith(value_prefix):
+            return [f"{key}={default}"]
+
+        return []
+
+    return [f"{key}=" for key in CONFIG if key.startswith(prefix)]
+
+
 # ============================================================
-# Capture loops
+# Tracks
 # ============================================================
 
-def display_capture_loop(monitor, broadcaster):
-    with mss.mss() as sct:
-        while not stop_event.is_set():
-            img = np.array(sct.grab(monitor))
-            frame = cv2.cvtColor(img, cv2.COLOR_BGRA2BGR)
-            frame = draw_cursor(frame, monitor)
+class DisplayVideoTrack(VideoStreamTrack):
+    def __init__(self, device):
+        super().__init__()
+        self.mss = mss.mss()
+        self.device = device
+        self.buffer = None
+        threading.Thread(target=self._run, daemon=True).start()
 
-            _, jpg = cv2.imencode(".jpg", frame)
-            broadcaster.broadcast(
-                b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n"
-                + jpg.tobytes()
-                + b"\r\n"
+    def _run(self):
+        while not cancellation_token.is_set():
+            frame = draw_mouse_pointer(
+                cv2.cvtColor(
+                    np.array(
+                        self.mss.grab(
+                            self.device
+                        )
+                    ),
+                    cv2.COLOR_BGRA2BGR
+                ),
+                self.device
             )
+            self.buffer = frame
+            time.sleep(1 / CONFIG["DISPLAY_FPS"])
+
+    async def recv(self):
+        pts, time_base = await self.next_timestamp()
+        video_frame = VideoFrame.from_ndarray(
+            self.buffer if self.buffer is not None else np.zeros((720, 1280, 3), np.uint8),
+            format="bgr24"
+        )
+        video_frame.pts = pts
+        video_frame.time_base = time_base
+        return video_frame
 
 
-def camera_capture_loop(index, broadcaster):
-    cap = cv2.VideoCapture(index)
-    if not cap.isOpened():
-        return
-    try:
-        while not stop_event.is_set():
-            ok, frame = cap.read()
-            if not ok:
-                break
-            _, jpg = cv2.imencode(".jpg", frame)
-            broadcaster.broadcast(
-                b"--frame\r\n"
-                b"Content-Type: image/jpeg\r\n\r\n"
-                + jpg.tobytes()
-                + b"\r\n"
-            )
-    finally:
-        cap.release()
+class CameraVideoTrack(VideoStreamTrack):
+    def __init__(self, device_index: int):
+        super().__init__()
+        self.cap = cv2.VideoCapture(device_index)
+        self.buffer = None
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def _run(self):
+        while not cancellation_token.is_set():
+            ok, frame = self.cap.read()
+            if ok:
+                self.buffer = frame
+            time.sleep(1 / CONFIG["CAMERA_FPS"])
+
+    async def recv(self):
+        pts, time_base = await self.next_timestamp()
+        video_frame = VideoFrame.from_ndarray(
+            self.buffer if self.buffer is not None else np.zeros((480, 640, 3), np.uint8),
+            format="bgr24"
+        )
+        video_frame.pts = pts
+        video_frame.time_base = time_base
+        return video_frame
 
 
-def audio_capture_loop(device_index: int | None, broadcaster: Broadcaster):
-    def callback(indata, frames, time_info, status):
-        # Convert float32 [-1,1] to int16 PCM
-        pcm16 = np.clip(indata, -1.0, 1.0)
-        pcm16 = (pcm16 * 32767).astype(np.int16)
-        broadcaster.broadcast(pcm16.tobytes())
+class AudioTrack(AudioStreamTrack):
+    def __init__(self, device=None):
+        super().__init__()
+        self.buffer = queue.Queue(maxsize=CONFIG["AUDIO_BUFFER_SIZE"])
+        self.samples_sent = 0
 
-    with sd.InputStream(
-            device=device_index,
-            samplerate=44100,
-            channels=1,
+        def callback(indata, _, __, ___):
+            if cancellation_token.is_set():
+                raise sd.CallbackStop()
+
+            pcm = np.clip(indata, -1.0, 1.0)
+            pcm = (pcm * 32767).astype(np.int16)
+            pcm = pcm.T
+
+            try:
+                self.buffer.put_nowait(pcm)
+            except queue.Full:
+                self.buffer.get_nowait()
+                self.buffer.put_nowait(pcm)
+
+        self.stream = sd.InputStream(
+            device=device["index"] if device is not None else None,
+            samplerate=CONFIG["AUDIO_SAMPLE_RATE"],
+            channels=CONFIG["AUDIO_CHANNELS"],
+            blocksize=CONFIG["AUDIO_BLOCK_SIZE"],
             dtype="float32",
             callback=callback,
-    ):
-        while not stop_event.is_set():
-            time.sleep(0.1)
+        )
+        self.stream.start()
 
+    async def recv(self):
+        await asyncio.sleep(CONFIG["AUDIO_BLOCK_SIZE"] / CONFIG["AUDIO_SAMPLE_RATE"])
 
-# ============================================================
-# Client generators
-# ============================================================
+        try:
+            pcm = self.buffer.get_nowait()
+        except queue.Empty:
+            pcm = np.zeros(
+                (CONFIG["AUDIO_CHANNELS"], CONFIG["AUDIO_BLOCK_SIZE"]),
+                dtype=np.int16,
+            )
 
-def mjpeg_client(broadcaster):
-    q = broadcaster.register()
-    try:
-        while not stop_event.is_set():
-            yield q.get()
-    finally:
-        broadcaster.unregister(q)
-
-
-def audio_client(broadcaster: Broadcaster):
-    q = broadcaster.register()
-    try:
-        # Send WAV header first
-        yield wav_header(
-            sample_rate=44100,
-            channels=1,
-            bits_per_sample=16,
+        frame = AudioFrame.from_ndarray(
+            pcm,
+            format="s16",
+            layout="mono" if CONFIG["AUDIO_CHANNELS"] == 1 else "stereo"
         )
 
-        while not stop_event.is_set():
-            yield q.get()
-    finally:
-        broadcaster.unregister(q)
+        frame.sample_rate = CONFIG["AUDIO_SAMPLE_RATE"]
+        frame.pts = self.samples_sent
+        frame.time_base = Fraction(1, CONFIG["AUDIO_SAMPLE_RATE"])
 
-
-# ============================================================
-# Discovery helpers
-# ============================================================
-
-def discover_cameras():
-    cams = []
-    failed = False
-    for i in range(10):
-        if failed and len(cams) != 0:
-            break
-        cap = cv2.VideoCapture(i)
-        if cap.isOpened():
-            cams.append(i)
-            cap.release()
-    return cams
-
-
-def discover_displays():
-    with mss.mss() as sct:
-        return sct.monitors[1:]
-
-
-def find_loopback_device():
-    for index, device in enumerate(sd.query_devices()):
-        if "loopback" in device["name"].lower() or "monitor" in device["name"].lower():
-            return index
-    return None
+        self.samples_sent += pcm.shape[1]
+        return frame
 
 
 # ============================================================
@@ -247,100 +269,170 @@ def main():
     parser.add_argument("-c", "--camera", action="store_true", help="Enable camera capture")
     parser.add_argument("-m", "--mic", action="store_true", help="Enable microphone capture")
     parser.add_argument("-s", "--speaker", action="store_true", help="Enable speaker capture")
+    parser.add_argument(
+        "-f", "--flags",
+        action="append",
+        metavar="KEY=VALUE",
+        help=(
+            "Override configuration flags (can be repeated)\n"
+            f"Defaults: {format_defaults(CONFIG)}"
+        )
+    ).completer = config_completer
 
     argcomplete.autocomplete(parser, always_complete_options=False)
     args = parser.parse_args()
+
+    if args.flags:
+        for item in args.flags:
+            if "=" not in item:
+                parser.error(f"Invalid --config format '{item}'. Use KEY=VALUE.")
+
+            key, value = item.split("=", 1)
+
+            if key.trim() not in CONFIG:
+                parser.error(f"Invalid config key '{key}'.")
+
+            try:
+                CONFIG[key.trim()] = int(value.trim())
+            except ValueError:
+                parser.error(f"Value for '{key.trim()}' must be an integer.")
+
 
     if not any(vars(args).values()):
         args.display = True
 
     if args.display:
-        for index, display in enumerate(discover_displays()):
-            stream_key = f"display-{index}"
-            broadcaster = Broadcaster()
-            streams[stream_key] = broadcaster
-            threading.Thread(target=display_capture_loop, args=(display, broadcaster), daemon=True).start()
-            stream_links[stream_key] = f"/view/display/{index}"
+        for display_index, display_device in enumerate(get_displays()):
+            track_id = f"display-{display_index}"
+            video_tracks[track_id] = DisplayVideoTrack(display_device)
 
     if args.camera:
-        for index in discover_cameras():
-            stream_key = f"camera-{index}"
-            broadcaster = Broadcaster()
-            streams[stream_key] = broadcaster
-            threading.Thread(target=camera_capture_loop, args=(index, broadcaster), daemon=True).start()
-            stream_links[stream_key] = f"/view/camera/{index}"
+        for camera_index in get_cameras():
+            track_id = f"camera-{camera_index}"
+            video_tracks[track_id] = CameraVideoTrack(camera_index)
 
     if args.mic:
-        broadcaster = Broadcaster()
-        streams["mic"] = broadcaster
-        threading.Thread(target=audio_capture_loop, args=(None, broadcaster), daemon=True).start()
+        for audio_device in get_microphones():
+            track_id = f"audio-{audio_device['name']}"
+            audio_tracks[track_id] = AudioTrack(audio_device)
 
     if args.speaker:
-        broadcaster = Broadcaster()
-        streams["speaker"] = broadcaster
-        loop = find_loopback_device()
-        if loop is not None:
-            threading.Thread(target=audio_capture_loop, args=(loop, broadcaster), daemon=True).start()
+        loopback_device = get_loopback_device()
+        if loopback_device is not None:
+            track_id = f"loopback-{loopback_device['name']}"
+            audio_tracks[track_id] = AudioTrack(loopback_device)
 
     app = FastAPI()
 
-    # ============================================================
-    # API routes
-    # ============================================================
+    @app.get("/favicon.ico", include_in_schema=False)
+    def favicon():
+        return {}
 
-    @app.get("/video/{stream_id}")
-    def video_feed(stream_id: str):
-        return StreamingResponse(
-            mjpeg_client(streams[stream_id]),
-            media_type="multipart/x-mixed-replace; boundary=frame",
+    @app.get("/tracks")
+    def tracks():
+        return {
+            "video": list(video_tracks.keys()),
+            "audio": list(audio_tracks.keys()),
+        }
+
+
+    @app.post("/offer")
+    async def offer(req: Request):
+        data = await req.json()
+        video_id = data["videoTrackId"]
+        audio_id = data["audioTrackId"]
+        remote_description = RTCSessionDescription(
+            sdp=data["description"]["sdp"],
+            type=data["description"]["type"],
         )
 
+        pc = RTCPeerConnection()
+        await pc.setRemoteDescription(remote_description)
 
-    @app.get("/audio/{stream_id}")
-    def audio_feed(stream_id: str):
-        return StreamingResponse(
-            audio_client(streams[stream_id]),
-            media_type="audio/wav",
-        )
+        for t in pc.getTransceivers():
+            if t.kind == "video" and video_id:
+                t.sender.replaceTrack(video_tracks[video_id])
+                t.direction = "sendonly"
+
+            elif t.kind == "audio" and audio_id:
+                t.sender.replaceTrack(audio_tracks[audio_id])
+                t.direction = "sendonly"
+
+        answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
+
+        return {
+            "description": pc.localDescription
+        }
 
 
-    # ============================================================
-    # Viewer pages (audio merged here)
-    # ============================================================
-
-    @app.get("/view/camera/{cam_id}", response_class=HTMLResponse)
-    def view_camera(cam_id: int):
-        return f"""
+    @app.get("/", response_class=HTMLResponse)
+    def home():
+        return """
     <!DOCTYPE html>
     <html>
-    <body>
-    <h2>Camera {cam_id} (Mic)</h2>
-    <img src="/video/camera-{cam_id}" style="width:100%">
-    <audio src="/audio/mic" autoplay controls></audio>
-    </body>
-    </html>
-    """
-
-
-    @app.get("/view/display/{display_id}", response_class=HTMLResponse)
-    def view_display(display_id: int):
-        return f"""
-    <!DOCTYPE html>
-    <html>
-    <body>
-    <h2>Display {display_id} (Speaker)</h2>
-    <img src="/video/display-{display_id}" style="width:100%">
-    <audio src="/audio/speaker" autoplay controls></audio>
-    </body>
+        <body>
+            Video: <select id="video"><option value="">-- None --</option></select>
+            Audio: <select id="audio"><option value="">-- None --</option></select>
+            <button onclick="start()">Start</button>
+            <br><br>
+            <video id="v" autoplay playsinline controls style="max-width="100%", max-height="100%"></video>
+            <script>
+                async function loadTracks() {
+                  const response = await fetch("/tracks");
+                  const tracks = await response.json();
+                
+                  for (const v of tracks.video) {
+                    video.add(new Option(v, v));
+                  }
+                  for (const a of tracks.audio) {
+                    audio.add(new Option(a, a));
+                  }
+                }
+                
+                async function start() {
+                  const stream = new MediaStream();
+                  v.srcObject = stream;
+                  
+                  const pc = new RTCPeerConnection();
+                  pc.ontrack = e => {
+                    stream.addTrack(e.track);
+                  }
+                
+                  if(video.value !== ""){
+                    pc.addTransceiver('video', { direction: 'recvonly' });
+                  }
+                  if(audio.value !== ""){
+                    pc.addTransceiver('audio', { direction: 'recvonly' });
+                  }
+                
+                  const offer = await pc.createOffer();
+                  await pc.setLocalDescription(offer);
+                
+                  const res = await fetch("/offer", {
+                    method: "POST",
+                    headers: {"Content-Type": "application/json"},
+                    body: JSON.stringify({
+                      description: pc.localDescription,
+                      videoTrackId: video.value,
+                      audioTrackId: audio.value
+                    })
+                  });
+                
+                  const answer = await res.json();
+                  await pc.setRemoteDescription(answer.description);
+                }
+                
+                loadTracks();
+            </script>
+        </body>
     </html>
     """
 
     try:
-        for key, value in stream_links.items():
-            print(f"Stream '{key}': http://localhost:8000{stream_links[key]}")
         uvicorn.run(app, host="0.0.0.0", port=8000)
     finally:
-        stop_event.set()
+        cancellation_token.set()
 
 
 if __name__ == "__main__":

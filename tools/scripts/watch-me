@@ -69,9 +69,16 @@ audio_tracks: Dict[str, AudioStreamTrack] = {}
 # Helpers
 # ============================================================
 
+__MSS = None
+def get_mss():
+    global __MSS
+    if __MSS is None:
+        __MSS = mss.mss()
+    return __MSS
+
+
 def get_displays():
-    with mss.mss() as mss_instance:
-        return mss_instance.monitors[1:]
+    return get_mss().monitors[1:]
 
 
 def get_cameras():
@@ -141,7 +148,6 @@ def config_completer(prefix, _, **__):
 class DisplayVideoTrack(VideoStreamTrack):
     def __init__(self, device):
         super().__init__()
-        self.mss = mss.mss()
         self.device = device
         self.buffer = None
         threading.Thread(target=self._run, daemon=True).start()
@@ -151,7 +157,7 @@ class DisplayVideoTrack(VideoStreamTrack):
             frame = draw_mouse_pointer(
                 cv2.cvtColor(
                     np.array(
-                        self.mss.grab(
+                        get_mss().grab(
                             self.device
                         )
                     ),

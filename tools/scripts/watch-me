@@ -289,13 +289,13 @@ def main():
 
             key, value = item.split("=", 1)
 
-            if key.trim() not in CONFIG:
+            if key.strip() not in CONFIG:
                 parser.error(f"Invalid config key '{key}'.")
 
             try:
-                CONFIG[key.trim()] = int(value.trim())
+                CONFIG[key.strip()] = int(value.strip())
             except ValueError:
-                parser.error(f"Value for '{key.trim()}' must be an integer.")
+                parser.error(f"Value for '{key.strip()}' must be an integer.")
 
 
     if not any(vars(args).values()):

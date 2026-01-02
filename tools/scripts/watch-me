@@ -68,6 +68,17 @@ audio_tracks: Dict[str, AudioStreamTrack] = {}
 # Helpers
 # ============================================================
 
+def open_input_device_stream(device=None, callback=None):
+    return sd.InputStream(
+        device=device["index"] if device is not None else None,
+        samplerate=int(device["default_samplerate"]) if device else CONFIG["AUDIO_SAMPLE_RATE"],
+        channels=CONFIG["AUDIO_CHANNELS"],
+        blocksize=CONFIG["AUDIO_BLOCK_SIZE"],
+        dtype="float32",
+        callback=callback
+    )
+
+
 __MSS = None
 def get_mss():
     global __MSS
@@ -91,11 +102,14 @@ def get_cameras():
 
 
 def get_microphones():
-    microphones = []
-    for device in sd.query_devices():
-        if device["max_input_channels"] > 0:
-            microphones.append(device)
-    return microphones
+    working_microphones = []
+    for device in [_device for _device in sd.query_devices() if _device["max_input_channels"] > 0]:
+        try:
+            with open_input_device_stream(device):
+                working_microphones.append(device)
+        except sd.PortAudioError as e:
+            print(f"[audio] Skipping device '{device['name']}': {str(e)}")
+    return working_microphones
 
 
 def get_loopback_device():
@@ -212,14 +226,7 @@ class AudioProducer:
             self.buffer.put(pcm)
 
         try:
-            self.stream = sd.InputStream(
-                device=self.device["index"] if self.device is not None else None,
-                samplerate=int(self.device["default_samplerate"]) if self.device else CONFIG["AUDIO_SAMPLE_RATE"],
-                channels=CONFIG["AUDIO_CHANNELS"],
-                blocksize=CONFIG["AUDIO_BLOCK_SIZE"],
-                dtype="float32",
-                callback=callback,
-            )
+            self.stream = open_input_device_stream(self.device, callback)
             self.stream.start()
         except sd.PortAudioError as e:
             print(f"[audio] Skipping device '{self.device['name']}': {e}")

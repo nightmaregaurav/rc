@@ -193,7 +193,7 @@ class AudioProducer:
 
         self.stream = sd.InputStream(
             device=self.device["index"] if self.device is not None else None,
-            samplerate=CONFIG["AUDIO_SAMPLE_RATE"],
+            samplerate=int(self.device["default_samplerate"]) if self.device else CONFIG["AUDIO_SAMPLE_RATE"],
             channels=CONFIG["AUDIO_CHANNELS"],
             blocksize=CONFIG["AUDIO_BLOCK_SIZE"],
             dtype="float32",

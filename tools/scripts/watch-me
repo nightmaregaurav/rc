@@ -338,14 +338,14 @@ def main():
                 track_id = f"audio-{audio_device['name']}"
                 audio_producer = AudioProducer(audio_device)
                 audio_tracks[track_id] = AudioTrack(audio_producer)
-                await audio_producer.start()
+                asyncio.create_task(audio_producer.start())
         if args.speaker:
             loopback_device = get_loopback_device()
             if loopback_device is not None:
                 track_id = f"loopback-{loopback_device['name']}"
                 audio_producer = AudioProducer(loopback_device)
                 audio_tracks[track_id] = AudioTrack(audio_producer)
-                await audio_producer.start()
+                asyncio.create_task(audio_producer.start())
         yield
 
     app = FastAPI(lifespan=lifespan)

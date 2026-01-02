@@ -49,7 +49,7 @@ CONFIG = {
     "DISPLAY_FPS": 15,
     "CAMERA_FPS": 30,
     "MAX_CAMERA_DEVICES_TO_TRY": 10,
-    "AUDIO_SAMPLE_RATE": 44100,
+    "AUDIO_SAMPLE_RATE": 48000,
     "AUDIO_CHANNELS": 1,
     "AUDIO_BLOCK_SIZE": 960
 }
@@ -120,6 +120,23 @@ def draw_mouse_pointer(frame: np.ndarray, monitor: dict):
     return frame
 
 
+def resample_pcm(pcm, src_rate, dst_rate):
+    if src_rate == dst_rate:
+        return pcm
+
+    ratio = dst_rate / src_rate
+    n_src = pcm.shape[1]
+    n_dst = int(n_src * ratio)
+
+    x_old = np.linspace(0, 1, n_src, endpoint=False)
+    x_new = np.linspace(0, 1, n_dst, endpoint=False)
+
+    return np.stack([
+        np.interp(x_new, x_old, ch).astype(np.int16)
+        for ch in pcm
+    ])
+
+
 def format_defaults(cfg: dict) -> str:
     return ", ".join(f"{k}={v}" for k, v in cfg.items())
 
@@ -184,11 +201,14 @@ class AudioProducer:
         def callback(indata, _, __, ___):
             if cancellation_token.is_set():
                 raise sd.CallbackStop()
-
-            pcm = np.clip(indata, -1.0, 1.0)
-            pcm = (pcm * 32767).astype(np.int16)
-            pcm = pcm.T
-
+            if self.device is not None:
+                pcm = resample_pcm(
+                    (np.clip(indata, -1.0, 1.0) * 32767).astype(np.int16).T,
+                    self.device["default_samplerate"],
+                    CONFIG["AUDIO_SAMPLE_RATE"]
+                )
+            else:
+                pcm = (np.clip(indata, -1.0, 1.0) * 32767).astype(np.int16).T
             self.buffer.put(pcm)
 
         try:

@@ -18,9 +18,9 @@
 
 import argparse
 import asyncio
+import queue
 from contextlib import asynccontextmanager
 import argcomplete
-import queue
 import threading
 import uvicorn
 import cv2
@@ -51,8 +51,7 @@ CONFIG = {
     "MAX_CAMERA_DEVICES_TO_TRY": 10,
     "AUDIO_SAMPLE_RATE": 44100,
     "AUDIO_CHANNELS": 1,
-    "AUDIO_BLOCK_SIZE": 960,
-    "AUDIO_BUFFER_SIZE": 5,
+    "AUDIO_BLOCK_SIZE": 960
 }
 
 
@@ -161,6 +160,7 @@ class DisplayProducer:
             )
             await asyncio.sleep(1 / CONFIG["DISPLAY_FPS"])
 
+
 class CameraProducer:
     def __init__(self, device_index: int):
         self.device = cv2.VideoCapture(device_index)
@@ -172,6 +172,34 @@ class CameraProducer:
             if ok:
                 self.buffer = frame
             await asyncio.sleep(1 / CONFIG["CAMERA_FPS"])
+
+
+class AudioProducer:
+    def __init__(self, device):
+        self.device = device
+        self.stream = None
+        self.buffer = queue.Queue()
+
+    async def start(self):
+        def callback(indata, _, __, ___):
+            if cancellation_token.is_set():
+                raise sd.CallbackStop()
+
+            pcm = np.clip(indata, -1.0, 1.0)
+            pcm = (pcm * 32767).astype(np.int16)
+            pcm = pcm.T
+
+            self.buffer.put(pcm)
+
+        self.stream = sd.InputStream(
+            device=self.device["index"] if self.device is not None else None,
+            samplerate=CONFIG["AUDIO_SAMPLE_RATE"],
+            channels=CONFIG["AUDIO_CHANNELS"],
+            blocksize=CONFIG["AUDIO_BLOCK_SIZE"],
+            dtype="float32",
+            callback=callback,
+        )
+        self.stream.start()
 
 
 # ============================================================
@@ -197,56 +225,25 @@ class VideoTrack(VideoStreamTrack):
 
 
 class AudioTrack(AudioStreamTrack):
-    def __init__(self, device=None):
+    def __init__(self, producer: AudioProducer):
         super().__init__()
-        self.buffer = queue.Queue(maxsize=CONFIG["AUDIO_BUFFER_SIZE"])
+        self.producer = producer
         self.samples_sent = 0
 
-        def callback(indata, _, __, ___):
-            if cancellation_token.is_set():
-                raise sd.CallbackStop()
-
-            pcm = np.clip(indata, -1.0, 1.0)
-            pcm = (pcm * 32767).astype(np.int16)
-            pcm = pcm.T
-
-            try:
-                self.buffer.put_nowait(pcm)
-            except queue.Full:
-                self.buffer.get_nowait()
-                self.buffer.put_nowait(pcm)
-
-        self.stream = sd.InputStream(
-            device=device["index"] if device is not None else None,
-            samplerate=CONFIG["AUDIO_SAMPLE_RATE"],
-            channels=CONFIG["AUDIO_CHANNELS"],
-            blocksize=CONFIG["AUDIO_BLOCK_SIZE"],
-            dtype="float32",
-            callback=callback,
-        )
-        self.stream.start()
-
     async def recv(self):
-        await asyncio.sleep(CONFIG["AUDIO_BLOCK_SIZE"] / CONFIG["AUDIO_SAMPLE_RATE"])
-
-        try:
-            pcm = self.buffer.get_nowait()
-        except queue.Empty:
-            pcm = np.zeros(
-                (CONFIG["AUDIO_CHANNELS"], CONFIG["AUDIO_BLOCK_SIZE"]),
-                dtype=np.int16,
-            )
-
+        pcm = self.producer.buffer.get()
+        pcm = pcm if pcm is not None else np.zeros(
+        (CONFIG["AUDIO_CHANNELS"], CONFIG["AUDIO_BLOCK_SIZE"]),
+            dtype=np.int16,
+        )
         frame = AudioFrame.from_ndarray(
             pcm,
             format="s16",
             layout="mono" if CONFIG["AUDIO_CHANNELS"] == 1 else "stereo"
         )
-
         frame.sample_rate = CONFIG["AUDIO_SAMPLE_RATE"]
         frame.pts = self.samples_sent
         frame.time_base = Fraction(1, CONFIG["AUDIO_SAMPLE_RATE"])
-
         self.samples_sent += pcm.shape[1]
         return frame
 
@@ -300,7 +297,7 @@ def main():
         args.display = True
 
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(_: FastAPI):
         if args.display:
             for display_index, display_device in enumerate(get_displays()):
                 track_id = f"display-{display_index}"
@@ -316,12 +313,16 @@ def main():
         if args.mic:
             for audio_device in get_microphones():
                 track_id = f"audio-{audio_device['name']}"
-                audio_tracks[track_id] = AudioTrack(audio_device)
+                audio_producer = AudioProducer(audio_device)
+                audio_tracks[track_id] = AudioTrack(audio_producer)
+                asyncio.create_task(audio_producer.start())
         if args.speaker:
             loopback_device = get_loopback_device()
             if loopback_device is not None:
                 track_id = f"loopback-{loopback_device['name']}"
-                audio_tracks[track_id] = AudioTrack(loopback_device)
+                audio_producer = AudioProducer(loopback_device)
+                audio_tracks[track_id] = AudioTrack(audio_producer)
+                asyncio.create_task(audio_producer.start())
         yield
 
     app = FastAPI(lifespan=lifespan)

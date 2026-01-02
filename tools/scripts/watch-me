@@ -18,10 +18,10 @@
 
 import argparse
 import asyncio
+from contextlib import asynccontextmanager
 import argcomplete
 import queue
 import threading
-import time
 import uvicorn
 import cv2
 import mss
@@ -142,61 +142,53 @@ def config_completer(prefix, _, **__):
 
 
 # ============================================================
-# Tracks
+# Track Producers
 # ============================================================
 
-class DisplayVideoTrack(VideoStreamTrack):
+class DisplayProducer:
     def __init__(self, device):
-        super().__init__()
         self.device = device
         self.buffer = None
-        threading.Thread(target=self._run, daemon=True).start()
 
-    def _run(self):
+    async def start(self):
         while not cancellation_token.is_set():
-            frame = draw_mouse_pointer(
+            self.buffer = draw_mouse_pointer(
                 cv2.cvtColor(
-                    np.array(
-                        get_mss().grab(
-                            self.device
-                        )
-                    ),
+                    np.array(get_mss().grab(self.device)),
                     cv2.COLOR_BGRA2BGR
                 ),
                 self.device
             )
-            self.buffer = frame
-            time.sleep(1 / CONFIG["DISPLAY_FPS"])
+            await asyncio.sleep(1 / CONFIG["DISPLAY_FPS"])
 
-    async def recv(self):
-        pts, time_base = await self.next_timestamp()
-        video_frame = VideoFrame.from_ndarray(
-            self.buffer if self.buffer is not None else np.zeros((720, 1280, 3), np.uint8),
-            format="bgr24"
-        )
-        video_frame.pts = pts
-        video_frame.time_base = time_base
-        return video_frame
-
-
-class CameraVideoTrack(VideoStreamTrack):
+class CameraProducer:
     def __init__(self, device_index: int):
-        super().__init__()
-        self.cap = cv2.VideoCapture(device_index)
+        self.device = cv2.VideoCapture(device_index)
         self.buffer = None
-        threading.Thread(target=self._run, daemon=True).start()
 
-    def _run(self):
+    async def start(self):
         while not cancellation_token.is_set():
-            ok, frame = self.cap.read()
+            ok, frame = self.device.read()
             if ok:
                 self.buffer = frame
-            time.sleep(1 / CONFIG["CAMERA_FPS"])
+            await asyncio.sleep(1 / CONFIG["CAMERA_FPS"])
+
+
+# ============================================================
+# Tracks
+# ============================================================
+
+class VideoTrack(VideoStreamTrack):
+    def __init__(self, producer: DisplayProducer | CameraProducer):
+        super().__init__()
+        self.producer = producer
 
     async def recv(self):
         pts, time_base = await self.next_timestamp()
         video_frame = VideoFrame.from_ndarray(
-            self.buffer if self.buffer is not None else np.zeros((480, 640, 3), np.uint8),
+            self.producer.buffer
+            if self.producer.buffer is not None
+            else np.zeros((720, 1280, 3), np.uint8),
             format="bgr24"
         )
         video_frame.pts = pts
@@ -307,28 +299,32 @@ def main():
     if not any(vars(args).values()):
         args.display = True
 
-    if args.display:
-        for display_index, display_device in enumerate(get_displays()):
-            track_id = f"display-{display_index}"
-            video_tracks[track_id] = DisplayVideoTrack(display_device)
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        if args.display:
+            for display_index, display_device in enumerate(get_displays()):
+                track_id = f"display-{display_index}"
+                display_producer = DisplayProducer(display_device)
+                video_tracks[track_id] = VideoTrack(display_producer)
+                asyncio.create_task(display_producer.start())
+        if args.camera:
+            for camera_index in get_cameras():
+                track_id = f"camera-{camera_index}"
+                camera_producer = CameraProducer(camera_index)
+                video_tracks[track_id] = VideoTrack(camera_producer)
+                asyncio.create_task(camera_producer.start())
+        if args.mic:
+            for audio_device in get_microphones():
+                track_id = f"audio-{audio_device['name']}"
+                audio_tracks[track_id] = AudioTrack(audio_device)
+        if args.speaker:
+            loopback_device = get_loopback_device()
+            if loopback_device is not None:
+                track_id = f"loopback-{loopback_device['name']}"
+                audio_tracks[track_id] = AudioTrack(loopback_device)
+        yield
 
-    if args.camera:
-        for camera_index in get_cameras():
-            track_id = f"camera-{camera_index}"
-            video_tracks[track_id] = CameraVideoTrack(camera_index)
-
-    if args.mic:
-        for audio_device in get_microphones():
-            track_id = f"audio-{audio_device['name']}"
-            audio_tracks[track_id] = AudioTrack(audio_device)
-
-    if args.speaker:
-        loopback_device = get_loopback_device()
-        if loopback_device is not None:
-            track_id = f"loopback-{loopback_device['name']}"
-            audio_tracks[track_id] = AudioTrack(loopback_device)
-
-    app = FastAPI()
+    app = FastAPI(lifespan=lifespan)
 
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon():

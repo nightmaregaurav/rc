@@ -1,0 +1,76 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "argcomplete",
+# ]
+# ///
+
+import os
+import argparse
+import argcomplete
+
+
+def get_total_size(path: str = ".") -> int:
+    if os.path.islink(path):
+        return 0
+
+    if os.path.isfile(path):
+        return os.path.getsize(path)
+
+    if not os.path.isdir(path):
+        return 0
+
+    total_size = 0
+
+    for root, _, files in os.walk(path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            if not os.path.islink(file_path):
+                total_size += os.path.getsize(file_path)
+
+    return total_size
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Calculate total size of a directory (recursive, excludes symlinks).",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "path",
+        nargs="?",
+        default=".",
+        help="Optional directory path (default: current directory).",
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    if not os.path.exists(args.path):
+        print("The specified path does not exist.")
+        return
+
+    try:
+        total_bytes = get_total_size(args.path)
+    except PermissionError as e:
+        print(f"Error: {e}")
+        return
+
+    total_mb = total_bytes / (1024 * 1024)
+
+    print(f"Path: {os.path.abspath(args.path)}")
+    print(f"Size: {total_bytes} bytes ({total_mb:.2f} MB)")
+
+
+if __name__ == "__main__":
+    main()

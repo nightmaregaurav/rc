@@ -67,9 +67,10 @@ def main():
         return
 
     total_mb = total_bytes / (1024 * 1024)
+    total_gb = total_mb / 1024
 
     print(f"Path: {os.path.abspath(args.path)}")
-    print(f"Size: {total_bytes} bytes ({total_mb:.2f} MB)")
+    print(f"Size: {total_bytes} bytes | {total_mb:.2f} MB | {total_gb:.2f} GB")
 
 
 if __name__ == "__main__":

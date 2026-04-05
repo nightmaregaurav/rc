@@ -1,0 +1,201 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "argcomplete",
+#   "requests",
+# ]
+# ///
+
+import time
+import urllib.error
+import urllib.request
+import argparse
+import argcomplete
+import ipaddress
+import socket
+
+import requests
+
+LAST_IP = None
+CLOUDFLARE_BASE_URL = "https://api.cloudflare.com/client/v4"
+
+
+def log(log_type, message):
+    print(f"[{log_type} @ {time.strftime('%Y-%m-%d %H:%M:%S')}] {message}")
+
+
+def is_record_in_sync(existing, ip, proxied, ttl):
+    if existing is None:
+        return False
+
+    if existing["content"] != ip:
+        return False
+
+    if existing["proxied"] != proxied:
+        return False
+
+    if not proxied and existing.get("ttl") != ttl:
+        return False
+
+    return True
+
+
+def get_dns_record(zone_id: str, record_name: str, token: str):
+    log("INFO", f"Fetching current DNS record for {record_name} from Cloudflare...")
+    url = f"{CLOUDFLARE_BASE_URL}/zones/{zone_id}/dns_records"
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    params = {
+        "name": record_name,
+        "type": "A",
+    }
+
+    response = requests.get(url, headers=headers, params=params, timeout=5)
+    response.raise_for_status()
+    data = response.json()
+
+    if not data["success"]:
+        raise Exception(f"Cloudflare API error: {data}")
+
+    records = data["result"]
+    return records[0] if records else None
+
+
+def upsert_dns_record(
+        name: str,
+        ip: str,
+        proxied: bool,
+        ttl: int,
+        zone_id: str,
+        token: str,
+):
+    existing = get_dns_record(zone_id, name, token)
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "type": "A",
+        "name": name,
+        "content": ip,
+        "ttl": ttl,
+        "proxied": proxied,
+    }
+
+    url = f"{CLOUDFLARE_BASE_URL}/zones/{zone_id}/dns_records"
+    if is_record_in_sync(existing, ip, proxied, ttl):
+        log("INFO", "DNS record already in desired state, skipping.")
+        return None
+    elif existing:
+        log("INFO", f"Existing DNS record found for {name}, updating it to point to {ip} with proxy {'enabled' if proxied else 'disabled'} and TTL {ttl} seconds.")
+        record_id = existing["id"]
+        url = f"{url}/{record_id}"
+        response = requests.put(url, headers=headers, json=payload, timeout=5)
+    else:
+        log("INFO", f"No existing DNS record found for {name}, creating a new one pointing to {ip} with proxy {'enabled' if proxied else 'disabled'} and TTL {ttl} seconds.")
+        response = requests.post(url, headers=headers, json=payload, timeout=5)
+
+    response.raise_for_status()
+    data = response.json()
+
+    if not data["success"]:
+        raise Exception(f"Cloudflare API error: {data}")
+
+    log("INFO", f"DNS record for {name} successfully {'updated' if existing else 'created'} to point to {ip}.")
+    return data["result"]
+
+
+def fetch_public_ip() -> str | None:
+    urls = [
+        "https://ifconfig.io/ip",
+        "https://ifconfig.me/ip",
+        "https://api.ipify.org",
+        "https://icanhazip.com",
+    ]
+    started_on = time.time()
+    index = 0
+    while time.time() - started_on < 30:
+        url_to_use = urls[index]
+        index = (index + 1) % len(urls)
+        try:
+            log("INFO", f"Attempting to fetch public IP from {url_to_use}...")
+            with urllib.request.urlopen(url_to_use, timeout=3) as response:
+                ip_candidate = response.read().decode().strip()
+                try:
+                    ip = ipaddress.ip_address(ip_candidate)
+                    log("INFO", f"Fetched public IP: {ip}")
+                    return str(ip)
+                except ValueError:
+                    continue
+        except (urllib.error.URLError, socket.timeout):
+            continue
+
+    log("ERROR", "Could not fetch public IP address from any service.")
+    return None
+
+
+def action(name, dns, proxy, ttl, zone_id, token):
+    global LAST_IP
+    ip = fetch_public_ip() if dns is None else dns
+    if ip is None:
+        return
+
+    log("INFO", "Checking for IP changes...")
+    if ip == LAST_IP:
+        log("INFO", "IP has not changed, skipping update.")
+        return
+
+    log("INFO", f"IP has changed from {LAST_IP} to {ip}.")
+    upsert_dns_record(
+        name=name,
+        ip=ip,
+        proxied=proxy,
+        ttl=ttl,
+        zone_id=zone_id,
+        token=token,
+    )
+    LAST_IP = ip
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Updates cloudflare dns records.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument("-N", "--name", type=str, default=None, required=True, help="Domain name")
+    parser.add_argument("-D", "--dns", type=str, default=None, required=False, help="DNS server location (IP/domain) [Default: auto-detect]")
+    parser.add_argument("-P", "--proxy", action="store_true", help="Cloudflare proxy (True/False), [Default: False]")
+    parser.add_argument("-T", "--ttl", type=int, default=0, required=False, help="Time to live (TTL) for the DNS record, in seconds. Use 0 for 'automatic' TTL, [Default: 0]")
+    parser.add_argument("-Z", "--zone-id", type=str, default=None, required=True, help="Cloudflare zone ID")
+    parser.add_argument("-K", "--key", type=str, default=None, required=True, help="Cloudflare API key")
+    parser.add_argument("-I", "--interval", type=int, default=0, required=False, help="Interval in seconds to check for IP changes. Use 0 to run once and exit, [Default: 0]")
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit."
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    if args.interval == 0:
+        action(args.name, args.dns, args.proxy, args.ttl, args.zone_id, args.key)
+    else:
+        import time
+        while True:
+            action(args.name, args.dns, args.proxy, args.ttl, args.zone_id, args.key)
+            time.sleep(args.interval)
+
+
+if __name__ == "__main__":
+    main()

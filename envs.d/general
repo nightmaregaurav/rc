@@ -1,2 +1,22 @@
 export PROJECT_HOME="$HOME/Repositories"
 export LD_LIBRARY_PATH="/lib:/usr/lib:/usr/local/lib"
+
+export UID=$(id -u)
+export GID=$(id -g)
+
+if [ -z "$TZ" ]; then
+  if [ -z "$TZ" ] && command -v timedatectl >/dev/null 2>&1; then
+    TZ=$(timedatectl 2>/dev/null | awk -F': ' '/Time zone/ {print $2}' | cut -d' ' -f1)
+  fi
+
+  if [ -z "$TZ" ] && [ -L /etc/localtime ]; then
+    TZ=$(readlink /etc/localtime 2>/dev/null | sed 's|.*/zoneinfo/||')
+  fi
+
+  if [ -z "$TZ" ]; then
+    TZ=$(date +%Z)
+  fi
+
+fi
+
+export TZ

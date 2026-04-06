@@ -1,0 +1,9 @@
+if [[ "$(uname -m)" == "arm"* || "$(uname -m)" == "aarch64" ]]; then
+    if grep -q -i "raspberry pi" /proc/device-tree/model 2>/dev/null; then
+        export IS_PI=1
+    else
+        export IS_PI=0
+    fi
+else
+    export IS_PI=0
+fi

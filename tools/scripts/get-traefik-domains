@@ -1,0 +1,47 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#   "argcomplete",
+#   "docker",
+# ]
+# ///
+
+import argparse
+import re
+
+import argcomplete
+import docker
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Get domains set to route using traefik in docker container labels.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help", action="help", help="Show help message and exit."
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    parser.parse_args()
+
+    client = docker.from_env()
+    domains = set()
+    for container in client.containers.list():
+        labels = container.labels
+        for key, value in labels.items():
+            if re.match(r"traefik\.http\.routers\..*\.rule", key):
+                m = re.search(r"Host\(`([^`]*)`\)", value)
+                if m:
+                    domains.add(m.group(1))
+
+    for d in domains:
+        print(d)
+
+
+if __name__ == "__main__":
+    main()

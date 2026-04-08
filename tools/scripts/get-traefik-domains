@@ -10,9 +10,21 @@
 
 import argparse
 import re
-
 import argcomplete
 import docker
+
+
+def get_domains():
+    client = docker.from_env()
+    domains = set()
+    for container in client.containers.list():
+        labels = container.labels
+        for key, value in labels.items():
+            if re.match(r"traefik\.http\.routers\..*\.rule", key):
+                m = re.search(r"Host\(`([^`]*)`\)", value)
+                if m:
+                    domains.add(m.group(1))
+    return domains
 
 
 def main():
@@ -29,16 +41,7 @@ def main():
     argcomplete.autocomplete(parser, always_complete_options=False)
     parser.parse_args()
 
-    client = docker.from_env()
-    domains = set()
-    for container in client.containers.list():
-        labels = container.labels
-        for key, value in labels.items():
-            if re.match(r"traefik\.http\.routers\..*\.rule", key):
-                m = re.search(r"Host\(`([^`]*)`\)", value)
-                if m:
-                    domains.add(m.group(1))
-
+    domains = get_domains()
     for d in domains:
         print(d)
 

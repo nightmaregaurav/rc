@@ -21,3 +21,8 @@ for file in "$current_rc_script_dir/envs.d/"*; do
         benchmark "Sourced envs.d/$(basename "$file")"
     fi
 done
+
+if [[ -f "$HOME/.envs" ]]; then
+    source "$HOME/.envs"
+    benchmark "Sourced ~/.envs"
+fi

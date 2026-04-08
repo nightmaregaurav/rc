@@ -12,6 +12,7 @@ import time
 import urllib.error
 import urllib.request
 import argparse
+from pathlib import Path
 import argcomplete
 import ipaddress
 import socket
@@ -20,10 +21,36 @@ import requests
 
 LAST_IP = None
 CLOUDFLARE_BASE_URL = "https://api.cloudflare.com/client/v4"
+LAST_IP_FILE = Path.home() / ".ip.public"
 
 
 def log(log_type, message):
     print(f"[{log_type} @ {time.strftime('%Y-%m-%d %H:%M:%S')}] {message}")
+
+
+def save_last_ip(ip: str):
+    global LAST_IP
+    normalized_ip = str(ipaddress.ip_address(ip))
+    LAST_IP_FILE.write_text(f"{normalized_ip}", encoding="utf-8")
+    LAST_IP = normalized_ip
+
+
+def load_last_ip():
+    global LAST_IP
+    try:
+        raw = LAST_IP_FILE.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        LAST_IP = None
+        return
+
+    if not raw:
+        LAST_IP = None
+        return
+
+    try:
+        LAST_IP = str(ipaddress.ip_address(raw))
+    except ValueError:
+        LAST_IP = None
 
 
 def is_record_in_sync(existing, ip, proxied, ttl):
@@ -142,7 +169,6 @@ def fetch_public_ip() -> str | None:
 
 
 def action(name, dns, proxy, ttl, zone_id, token):
-    global LAST_IP
     ip = fetch_public_ip() if dns is None else dns
     if ip is None:
         return
@@ -161,7 +187,7 @@ def action(name, dns, proxy, ttl, zone_id, token):
         zone_id=zone_id,
         token=token,
     )
-    LAST_IP = ip
+    save_last_ip(ip)
 
 
 def main():
@@ -187,6 +213,7 @@ def main():
 
     argcomplete.autocomplete(parser, always_complete_options=False)
     args = parser.parse_args()
+    load_last_ip()
 
     if args.interval == 0:
         action(args.name, args.dns, args.proxy, args.ttl, args.zone_id, args.key)

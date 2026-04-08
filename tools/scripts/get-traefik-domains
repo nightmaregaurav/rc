@@ -34,14 +34,20 @@ def main():
         add_help=False,
     )
 
+    parser.add_argument("-P", "--plain", action="store_true", help="Output plain list of domains, space separated and no line breaks")
+
     parser.add_argument(
         "-h", "--help", action="help", help="Show help message and exit."
     )
 
     argcomplete.autocomplete(parser, always_complete_options=False)
-    parser.parse_args()
+    args = parser.parse_args()
 
     domains = get_domains()
+    if args.plain:
+        print(" ".join(domains))
+        return
+
     for d in domains:
         print(d)
 

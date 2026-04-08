@@ -12,45 +12,18 @@ import time
 import urllib.error
 import urllib.request
 import argparse
-from pathlib import Path
+from collections.abc import Sequence
 import argcomplete
 import ipaddress
 import socket
 
 import requests
 
-LAST_IP = None
 CLOUDFLARE_BASE_URL = "https://api.cloudflare.com/client/v4"
-LAST_IP_FILE = Path.home() / ".ip.public"
 
 
 def log(log_type, message):
     print(f"[{log_type} @ {time.strftime('%Y-%m-%d %H:%M:%S')}] {message}")
-
-
-def save_last_ip(ip: str):
-    global LAST_IP
-    normalized_ip = str(ipaddress.ip_address(ip))
-    LAST_IP_FILE.write_text(f"{normalized_ip}", encoding="utf-8")
-    LAST_IP = normalized_ip
-
-
-def load_last_ip():
-    global LAST_IP
-    try:
-        raw = LAST_IP_FILE.read_text(encoding="utf-8").strip()
-    except FileNotFoundError:
-        LAST_IP = None
-        return
-
-    if not raw:
-        LAST_IP = None
-        return
-
-    try:
-        LAST_IP = str(ipaddress.ip_address(raw))
-    except ValueError:
-        LAST_IP = None
 
 
 def is_record_in_sync(existing, ip, proxied, ttl):
@@ -168,26 +141,24 @@ def fetch_public_ip() -> str | None:
     return None
 
 
-def action(name, dns, proxy, ttl, zone_id, token):
+def action(names: Sequence[str], dns, proxy, ttl, zone_id, token):
     ip = fetch_public_ip() if dns is None else dns
     if ip is None:
         return
 
     log("INFO", "Checking for IP changes...")
-    if ip == LAST_IP:
-        log("INFO", "IP has not changed, skipping update.")
-        return
-
-    log("INFO", f"IP has changed from {LAST_IP} to {ip}.")
-    upsert_dns_record(
-        name=name,
-        ip=ip,
-        proxied=proxy,
-        ttl=ttl,
-        zone_id=zone_id,
-        token=token,
-    )
-    save_last_ip(ip)
+    for name in names:
+        try:
+            upsert_dns_record(
+                name=name,
+                ip=ip,
+                proxied=proxy,
+                ttl=ttl,
+                zone_id=zone_id,
+                token=token,
+            )
+        except Exception as exc:
+            log("ERROR", f"Failed to update DNS record for {name}: {exc}")
 
 
 def main():
@@ -197,7 +168,15 @@ def main():
         add_help=False,
     )
 
-    parser.add_argument("-N", "--name", type=str, default=None, required=True, help="Domain name")
+    parser.add_argument(
+        "-N",
+        "--name",
+        type=str,
+        nargs="+",
+        action="append",
+        required=True,
+        help="Domain name(s). Supports '--name a.com b.com' and repeated '--name a.com --name b.com'.",
+    )
     parser.add_argument("-D", "--dns", type=str, default=None, required=False, help="DNS server location (IP/domain) [Default: auto-detect]")
     parser.add_argument("-P", "--proxy", action="store_true", help="Cloudflare proxy (True/False), [Default: False]")
     parser.add_argument("-T", "--ttl", type=int, default=0, required=False, help="Time to live (TTL) for the DNS record, in seconds. Use 0 for 'automatic' TTL, [Default: 0]")
@@ -213,14 +192,14 @@ def main():
 
     argcomplete.autocomplete(parser, always_complete_options=False)
     args = parser.parse_args()
-    load_last_ip()
+    names = [name for group in args.name for name in group]
 
     if args.interval == 0:
-        action(args.name, args.dns, args.proxy, args.ttl, args.zone_id, args.key)
+        action(names, args.dns, args.proxy, args.ttl, args.zone_id, args.key)
     else:
         import time
         while True:
-            action(args.name, args.dns, args.proxy, args.ttl, args.zone_id, args.key)
+            action(names, args.dns, args.proxy, args.ttl, args.zone_id, args.key)
             time.sleep(args.interval)
 
 

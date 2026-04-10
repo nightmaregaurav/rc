@@ -39,7 +39,6 @@ cd /opt/rc
 if [ -d .git ]; then
     echo "rc repository already exists. Pulling latest changes..."
     git pull
-    cd ..
 else
     echo "Cloning rc repository..."
     git clone https://github.com/nightmaregaurav/rc.git .
@@ -55,10 +54,10 @@ fi
 set +euo pipefail
 echo "Sourcing activate script directly to activate rc in the current shell..."
 source /opt/rc/activate
-cd "$start_dir"
-set -euo pipefail
 
 # Continue with the rest of your setup (e.g., install uv and other tools)
+set -euo pipefail
+cd "$start_dir"
 echo "Setting up uv..."
 echo "Detecting operating system..."
 OS="$(uname -s)"

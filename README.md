@@ -61,6 +61,7 @@ The following tools are included to simplify common tasks:
 - `re-run`: Keeps running a command on given time intervals.
 - `recurse-run`: Recursively runs a command in all subdirectories.
 - `serve`: Simple wrapper for http-server (node)
+- `set-system-env`: Set system environment variables safely (linux).
 - `snap-camera`: Captures photos using available cameras.
 - `snap-screen`: Captures screenshots for all available screens.
 - `split-video`: Splits a video file into multiple parts in chunks of the specified duration.

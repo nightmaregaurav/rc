@@ -19,9 +19,7 @@ set -euo pipefail
 
 echo "Preparing to clone rc repository..."
 start_dir=$(pwd)
-cd "$HOME"
-mkdir -p Repositories/
-cd Repositories/
+cd "/opt"
 
 if [ -d "rc" ]; then
     echo "rc repository already exists. Pulling latest changes..."
@@ -34,24 +32,16 @@ else
 fi
 
 echo "Writing source line to shell rc files..."
-rc_files=("$HOME/.bashrc" "$HOME/.zshrc")
-for shell_rc in "${rc_files[@]}"; do
-  if [ -f "$shell_rc" ]; then
-      if ! grep -q "source \"$HOME/Repositories/rc/activate\"" "$shell_rc"; then
-          echo "source \"$HOME/Repositories/rc/activate\"" >> "$shell_rc"
-          echo "Updated $shell_rc"
-      else
-          echo "$shell_rc already contains the source line."
-      fi
-  else
-    echo "source \"$HOME/Repositories/rc/activate\"" >> "$shell_rc"
-    echo "Created $shell_rc and added the source line."
-  fi
-done
+sudo tee /etc/profile.d/nightmaregaurav-rc.sh > /dev/null <<EOF
+#!/bin/sh
+
+source /opt/rc/activate
+EOF
+echo "Created rc profile source script at /etc/profile.d/nightmaregaurav-rc.sh"
 
 set +euo pipefail
 echo "Sourcing activate script directly to activate rc in the current shell..."
-source "$HOME/Repositories/rc/activate"
+source /opt/rc/activate
 
 cd "$start_dir"
 

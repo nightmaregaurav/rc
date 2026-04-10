@@ -15,11 +15,15 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
   exit 0
 fi
 
+# if there is no argument, set it as --start to avoid unbound variable error
+if [[ $# -eq 0 ]]; then
+  set -- "--start"
+fi
+
 set -euo pipefail
 
 # Get current user and group
 start_dir=$(pwd)
-
 
 if [[ "$1" == "--repo" ]]; then
   echo "Preparing to clone rc repository..."

@@ -46,12 +46,10 @@ else
 fi
 
 # Write source line to shell rc files
-echo "Writing source line to shell rc files..."
-sudo tee /etc/profile.d/nightmaregaurav-rc.sh > /dev/null <<EOF
-#!/bin/sh
-source /opt/rc/activate
-EOF
-echo "Created rc profile source script at /etc/profile.d/nightmaregaurav-rc.sh"
+echo "Writing source line to shell profile..."
+if ! grep -Fxq "source /opt/rc/activate" /etc/profile; then
+    echo "source /opt/rc/activate" | sudo tee -a /etc/profile > /dev/null
+fi
 
 # Source the activate script in the current shell
 set +euo pipefail

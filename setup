@@ -42,6 +42,7 @@ if [ -d .git ]; then
 else
     echo "Cloning rc repository..."
     git clone https://github.com/nightmaregaurav/rc.git .
+    git config --global --add safe.directory /opt/rc
 fi
 
 # Write source line to shell rc files

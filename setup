@@ -17,18 +17,36 @@ fi
 
 set -euo pipefail
 
-echo "Preparing to clone rc repository..."
+# Get current user and group
 start_dir=$(pwd)
-cd "/opt"
 
-if [ -d "rc" ]; then
+USER=$(whoami)
+sudo mkdir -p /opt/rc
+if ! getent group rc-script-users > /dev/null; then
+    sudo groupadd rc-script-users
+    echo "Group 'rc-script-users' created."
+else
+    echo "Group 'rc-script-users' already exists."
+fi
+echo "Adding root and $USER to 'rc-script-users' group..."
+sudo usermod -aG rc-script-users root
+sudo usermod -aG rc-script-users "$USER"
+echo "Changing ownership of /opt/rc to root:rc-script-users..."
+sudo chown -R root:rc-script-users /opt/rc
+echo "Setting group write permissions on /opt/rc..."
+sudo chmod -R g+rw /opt/rc
+echo "Reload user groups for current session..."
+newgrp rc-script-users
+
+echo "Preparing to clone rc repository..."
+cd /opt/rc
+if [ -d .git ]; then
     echo "rc repository already exists. Pulling latest changes..."
-    cd rc
     git pull
     cd ..
 else
     echo "Cloning rc repository..."
-    git clone https://github.com/nightmaregaurav/rc.git
+    git clone https://github.com/nightmaregaurav/rc.git .
 fi
 
 echo "Writing source line to shell rc files..."

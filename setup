@@ -54,10 +54,11 @@ EOF
 echo "Created rc profile source script at /etc/profile.d/nightmaregaurav-rc.sh"
 
 # Source the activate script in the current shell
+set +euo pipefail
 echo "Sourcing activate script directly to activate rc in the current shell..."
 source /opt/rc/activate
-
 cd "$start_dir"
+set -euo pipefail
 
 # Continue with the rest of your setup (e.g., install uv and other tools)
 echo "Setting up uv..."

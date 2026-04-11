@@ -47,8 +47,16 @@ fi
 
 # Write source line to shell rc files
 echo "Writing source line to shell profile..."
-if ! grep -Fxq "source /opt/rc/activate" /etc/profile; then
-    echo "source /opt/rc/activate" | sudo tee -a /etc/profile > /dev/null
+if [ -f /etc/profile ]; then
+    if ! grep -Fxq "source /opt/rc/activate" /etc/profile; then
+        echo "source /opt/rc/activate" | sudo tee -a /etc/profile > /dev/null
+    fi
+fi
+
+if [ -f /etc/zprofile ]; then
+    if ! grep -Fxq "source /opt/rc/activate" /etc/zprofile; then
+        echo "source /opt/rc/activate" | sudo tee -a /etc/zprofile > /dev/null
+    fi
 fi
 
 # Source the activate script in the current shell

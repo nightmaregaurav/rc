@@ -1,0 +1,275 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.14"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
+
+import argparse
+import argcomplete
+import json
+import plistlib
+import platform
+import subprocess
+import sys
+from pathlib import Path
+from typing import List, Dict
+from argcomplete.completers import DirectoriesCompleter
+
+MOUNT_BASE = "/Volumes"
+
+
+# =========================
+# helpers
+# =========================
+
+def run(cmd: str) -> str:
+    return subprocess.check_output(cmd, shell=True, text=True).strip()
+
+
+def human_size(num_bytes: int | str) -> str:
+    try:
+        n = int(num_bytes)
+    except (TypeError, ValueError):
+        return str(num_bytes)
+
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if n < 1024:
+            return f"{n:.1f}{unit}"
+        n /= 1024
+    return f"{n:.1f}PB"
+
+
+def safe_name(name: str, idx: int) -> str:
+    return f"{name.strip().replace(' ', '_')}_{idx}"
+
+
+# =========================
+# Linux backend
+# =========================
+
+def linux_devices() -> List[Dict]:
+    data = run("lsblk -J -o NAME,SIZE,MODEL,TRAN,TYPE,MOUNTPOINT")
+    js = json.loads(data)
+
+    devices = []
+    idx = 0
+
+    for dev in js["blockdevices"]:
+        if dev.get("tran") != "usb":
+            continue
+
+        parts = dev.get("children") or []
+        if not parts:
+            continue
+
+        for part in parts:
+            devices.append({
+                "index": idx,
+                "name": dev.get("model") or part["name"],
+                "size": part["size"],
+                "devpath": f"/dev/{part['name']}",
+            })
+            idx += 1
+
+    return devices
+
+
+def linux_mount(dev: Dict, path: Path):
+    path.mkdir(parents=True, exist_ok=True)
+    run(f"sudo mount {dev['devpath']} {path}")
+    print(f"Mounted {dev['devpath']}")
+
+
+def linux_unmount(dev: Dict):
+    mp = get_linux_mount_point(dev["devpath"])
+    if not mp:
+        print("Not mounted", file=sys.stderr)
+        return
+    run(f"sudo umount {mp}")
+    print(f"Unmounted {dev['devpath']}")
+
+
+def get_linux_mount_point(devpath: str) -> str | None:
+    try:
+        out = run(f"lsblk -no MOUNTPOINT {devpath}")
+        return out.strip() or None
+    except Exception:
+        return None
+
+
+# =========================
+# macOS backend
+# =========================
+
+def mac_devices() -> List[Dict]:
+    disks_data = subprocess.check_output(["diskutil", "list", "-plist"])
+    disks_js = plistlib.loads(disks_data)
+
+    devices = []
+    idx = 0
+
+    for disk in disks_js.get("AllDisksAndPartitions", []):
+        dev = f"/dev/{disk['DeviceIdentifier']}"
+
+        try:
+            info_data = subprocess.check_output(["diskutil", "info", "-plist", dev])
+            info = plistlib.loads(info_data)
+        except Exception:
+            continue
+
+        if info.get("BusProtocol") != "USB":
+            continue
+
+        parts = disk.get("Partitions") or []
+        for part in parts:
+            devices.append({
+                "index": idx,
+                "name": part.get("VolumeName") or part.get("DeviceIdentifier"),
+                "size": part.get("Size", 0),
+                "devpath": f"/dev/{part['DeviceIdentifier']}",
+            })
+            idx += 1
+
+    return devices
+
+
+def mac_mount(dev: Dict, path: Path | None):
+    run(f"diskutil mount {dev['devpath']}")
+    print(f"Mounted {dev['devpath']}")
+
+
+def mac_unmount(dev: Dict):
+    mp = get_mac_mount_point(dev["devpath"])
+    if not mp:
+        print("Not mounted", file=sys.stderr)
+        return
+    run(f"diskutil unmount {dev['devpath']}")
+    print(f"Unmounted {dev['devpath']}")
+
+
+def get_mac_mount_point(devpath: str) -> str | None:
+    try:
+        out = subprocess.check_output(
+            ["diskutil", "info", "-plist", devpath]
+        )
+        info = plistlib.loads(out)
+        return info.get("MountPoint")
+    except Exception:
+        return None
+
+
+# =========================
+# backend selector
+# =========================
+
+def get_backend():
+    system = platform.system()
+
+    if system == "Linux":
+        return linux_devices, linux_mount, linux_unmount, get_linux_mount_point
+    elif system == "Darwin":
+        return mac_devices, mac_mount, mac_unmount, get_mac_mount_point
+    else:
+        print("Unsupported OS", file=sys.stderr)
+        sys.exit(1)
+
+
+# =========================
+# commands
+# =========================
+
+def list_devices():
+    get_devs, _, _, get_mp = get_backend()
+    devices = get_devs()
+
+    if not devices:
+        print("No USB storage devices found.")
+        return
+
+    for d in devices:
+        mp = get_mp(d["devpath"])
+
+        print(
+            f"{d['index']:2d} | "
+            f"{d['name']:<25} | "
+            f"{human_size(d['size']):<10} | "
+            f"{d['devpath']:<18} | "
+            f"{mp or '-'}"
+        )
+
+
+def mount_device(idx: int, path: str | None):
+    get_devs, do_mount, _, get_mp = get_backend()
+    devices = get_devs()
+
+    dev = next((d for d in devices if d["index"] == idx), None)
+    if not dev:
+        print("Invalid index", file=sys.stderr)
+        return
+
+    mp = get_mp(dev["devpath"])
+    if mp:
+        print(f"Already mounted at {mp}")
+        return
+
+    if platform.system() == "Linux":
+        mount_path = Path(path) if path else Path(MOUNT_BASE) / safe_name(dev["name"], idx)
+        do_mount(dev, mount_path)
+    else:
+        do_mount(dev, None)
+
+
+def unmount_device(idx: int):
+    get_devs, _, do_unmount = get_backend()
+    devices = get_devs()
+
+    dev = next((d for d in devices if d["index"] == idx), None)
+    if not dev:
+        print("Invalid index", file=sys.stderr)
+        return
+
+    do_unmount(dev)
+
+
+# =========================
+# CLI
+# =========================
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="USB storage manager (Linux + macOS)",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    sub = parser.add_subparsers(dest="command")
+
+    sub.add_parser("ls")
+
+    m = sub.add_parser("mount")
+    m.add_argument("index", type=int)
+    m.add_argument("path", nargs="?").completer = DirectoriesCompleter()
+
+    u = sub.add_parser("unmount")
+    u.add_argument("index", type=int)
+
+    parser.add_argument("-h", "--help", action="help")
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    if args.command == "ls":
+        list_devices()
+    elif args.command == "mount":
+        mount_device(args.index, args.path)
+    elif args.command == "unmount":
+        unmount_device(args.index)
+    else:
+        parser.print_help()
+
+
+if __name__ == "__main__":
+    main()

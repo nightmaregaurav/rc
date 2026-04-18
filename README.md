@@ -68,6 +68,7 @@ The following tools are included to simplify common tasks:
 - `storage-usage`: Calculate total size of a directory (recursive, excludes symlinks).
 - `up-since`: Shows how long the system has been up since last reboot.
 - `update-cloudflare-dns`: Updates Cloudflare DNS record with ease.
+- `usb-storage`: Usb storage manager for macOS and linux.
 - `user-session-ssh`: Tool to install/uninstall ssh server to run on logged-in user's session for Windows.
 - `volume-control`: Controls the volume of the system.
 - `watch-me`: Monitors screens, cameras, speaker, and mic of the device and streams them.

@@ -8,14 +8,15 @@
 # ///
 
 import argparse
-import argcomplete
 import json
-import plistlib
 import platform
+import plistlib
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
+
+import argcomplete
 from argcomplete.completers import DirectoriesCompleter
 
 MOUNT_BASE = "/Volumes"
@@ -24,6 +25,7 @@ MOUNT_BASE = "/Volumes"
 # =========================
 # helpers
 # =========================
+
 
 def run(cmd: str) -> str:
     return subprocess.check_output(cmd, shell=True, text=True).strip()
@@ -50,6 +52,7 @@ def safe_name(name: str, idx: int) -> str:
 # Linux backend
 # =========================
 
+
 def linux_devices() -> List[Dict]:
     data = run("lsblk -J -o NAME,SIZE,MODEL,TRAN,TYPE,MOUNTPOINT")
     js = json.loads(data)
@@ -66,12 +69,14 @@ def linux_devices() -> List[Dict]:
             continue
 
         for part in parts:
-            devices.append({
-                "index": idx,
-                "name": dev.get("model") or part["name"],
-                "size": part["size"],
-                "devpath": f"/dev/{part['name']}",
-            })
+            devices.append(
+                {
+                    "index": idx,
+                    "name": dev.get("model") or part["name"],
+                    "size": part["size"],
+                    "devpath": f"/dev/{part['name']}",
+                }
+            )
             idx += 1
 
     return devices
@@ -104,6 +109,7 @@ def get_linux_mount_point(devpath: str) -> str | None:
 # macOS backend
 # =========================
 
+
 def mac_devices() -> List[Dict]:
     disks_data = subprocess.check_output(["diskutil", "list", "-plist"])
     disks_js = plistlib.loads(disks_data)
@@ -125,12 +131,14 @@ def mac_devices() -> List[Dict]:
 
         parts = disk.get("Partitions") or []
         for part in parts:
-            devices.append({
-                "index": idx,
-                "name": part.get("VolumeName") or part.get("DeviceIdentifier"),
-                "size": part.get("Size", 0),
-                "devpath": f"/dev/{part['DeviceIdentifier']}",
-            })
+            devices.append(
+                {
+                    "index": idx,
+                    "name": part.get("VolumeName") or part.get("DeviceIdentifier"),
+                    "size": part.get("Size", 0),
+                    "devpath": f"/dev/{part['DeviceIdentifier']}",
+                }
+            )
             idx += 1
 
     return devices
@@ -152,9 +160,7 @@ def mac_unmount(dev: Dict):
 
 def get_mac_mount_point(devpath: str) -> str | None:
     try:
-        out = subprocess.check_output(
-            ["diskutil", "info", "-plist", devpath]
-        )
+        out = subprocess.check_output(["diskutil", "info", "-plist", devpath])
         info = plistlib.loads(out)
         return info.get("MountPoint")
     except Exception:
@@ -164,6 +170,7 @@ def get_mac_mount_point(devpath: str) -> str | None:
 # =========================
 # backend selector
 # =========================
+
 
 def get_backend():
     system = platform.system()
@@ -180,6 +187,7 @@ def get_backend():
 # =========================
 # commands
 # =========================
+
 
 def list_devices():
     get_devs, _, _, get_mp = get_backend()
@@ -216,14 +224,16 @@ def mount_device(idx: int, path: str | None):
         return
 
     if platform.system() == "Linux":
-        mount_path = Path(path) if path else Path(MOUNT_BASE) / safe_name(dev["name"], idx)
+        mount_path = (
+            Path(path) if path else Path(MOUNT_BASE) / safe_name(dev["name"], idx)
+        )
         do_mount(dev, mount_path)
     else:
         do_mount(dev, None)
 
 
 def unmount_device(idx: int):
-    get_devs, _, do_unmount = get_backend()
+    get_devs, _, do_unmount, _ = get_backend()
     devices = get_devs()
 
     dev = next((d for d in devices if d["index"] == idx), None)
@@ -237,6 +247,7 @@ def unmount_device(idx: int):
 # =========================
 # CLI
 # =========================
+
 
 def main():
     parser = argparse.ArgumentParser(

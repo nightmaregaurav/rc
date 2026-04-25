@@ -1,5 +1,10 @@
 export PROJECT_HOME="$HOME/Repositories"
 export LD_LIBRARY_PATH="/lib:/usr/lib:/usr/local/lib"
 
-export USER_ID=$(id -u)
-export GROUP_ID=$(id -g)
+if [ -z "$PUID" ]; then
+  export PUID=$(id -u)
+fi
+
+if [ -z "$PGID" ]; then
+  export PGID=$(id -g)
+fi

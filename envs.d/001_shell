@@ -23,7 +23,3 @@ export HISTSIZE=2000
 
 # Set history file
 export HISTFILE="$HOME/.history"
-
-envsudo() {
-  sudo env "PATH=$PATH" "$@"
-}

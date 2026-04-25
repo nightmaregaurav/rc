@@ -13,3 +13,8 @@ alias privatezsh="zsh -f --login -c 'unset HISTFILE; exec zsh'"
 
 # private bash
 alias privatebash="bash --noprofile --norc -c 'set +o history; exec bash'"
+
+# sudo with path environment preserved
+envsudo() {
+  sudo env "PATH=$PATH" "$@"
+}

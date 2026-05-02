@@ -42,13 +42,17 @@ fi
 echo "Preparing $ROOT_DIR/opt/rc directory..."
 sudo mkdir -p $ROOT_DIR/opt/rc
 
-# Set ownership of $ROOT_DIR/opt/rc to root:<current group>
-echo "Changing ownership of $ROOT_DIR/opt/rc to root:$GROUP..."
-sudo chown -R root:"$GROUP" $ROOT_DIR/opt/rc
+if [ -n "$PREFIX" ]; then
+    echo "Running in Termux. No need to change ownership or set permissions."
+else
+    # Set ownership of $ROOT_DIR/opt/rc to root:<current group>
+    echo "Changing ownership of $ROOT_DIR/opt/rc to root:$GROUP..."
+    sudo chown -R root:"$GROUP" $ROOT_DIR/opt/rc
 
-# Set group write permissions on $ROOT_DIR/opt/rc
-echo "Setting group write permissions on $ROOT_DIR/opt/rc..."
-sudo chmod -R g+rw $ROOT_DIR/opt/rc
+    # Set group write permissions on $ROOT_DIR/opt/rc
+    echo "Setting group write permissions on $ROOT_DIR/opt/rc..."
+    sudo chmod -R g+rw $ROOT_DIR/opt/rc
+fi
 
 # Clone the rc repository
 echo "Preparing to clone rc repository..."

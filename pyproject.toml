@@ -2,7 +2,7 @@
 name = "rc"
 version = "1.0.0"
 description = "This repository provides a collection of environment variable setups, aliases, and functions to enhance your shell experience. It is designed to be sourced in your .bashrc or .zshrc file to enable a variety of utilities and configurations."
-requires-python = ">=3.13, >=3.14"
+requires-python = ">=3.13"
 dependencies = [
     "argcomplete",
     "opencv-python",

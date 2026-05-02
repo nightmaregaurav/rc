@@ -134,9 +134,8 @@ case "$OS" in
         ;;
 esac
 
-echo "Installing Python versions 3.13 and 3.14 using uv..."
+echo "Installing Python versions 3.13 using uv..."
 uv python install 3.13
-uv python install 3.14
 echo "Installing argcomplete package using uv..."
 uv tool install argcomplete
 echo "Setup completed successfully."

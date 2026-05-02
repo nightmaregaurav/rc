@@ -34,9 +34,11 @@ USER=$(whoami)
 GROUP=$(id -gn "$USER")
 
 if [ -n "$PREFIX" ]; then
-  ROOT_DIR="$PREFIX"
+    echo "Running in Termux. Will use $PREFIX as the root directory."
+    ROOT_DIR="$PREFIX"
 else
-  ROOT_DIR=""
+    echo "Running in native environment. Will use / as the root directory."
+    ROOT_DIR=""
 fi
 
 echo "Preparing $ROOT_DIR/opt/rc directory..."

@@ -2,6 +2,17 @@
 
 SCRIPT=$(basename "$0")
 
+# If running in Termux, make sudo a no-op
+if [ -n "$PREFIX" ]; then
+  sudo() {
+    # ignore common sudo flags if present
+    while [ "$1" = "-n" ] || [ "$1" = "-H" ] || [ "$1" = "-E" ]; do
+      shift
+    done
+    "$@"
+  }
+fi
+
 HELP_MESSAGE="Usage: $SCRIPT
 
 Clones rc, sets up the required environment, and sources it to the shell configuration file.
@@ -22,47 +33,53 @@ start_dir=$(pwd)
 USER=$(whoami)
 GROUP=$(id -gn "$USER")
 
-echo "Preparing /opt/rc directory..."
-sudo mkdir -p /opt/rc
+if [ -n "$PREFIX" ]; then
+  ROOT_DIR="$PREFIX"
+else
+  ROOT_DIR=""
+fi
 
-# Set ownership of /opt/rc to root:<current group>
-echo "Changing ownership of /opt/rc to root:$GROUP..."
-sudo chown -R root:"$GROUP" /opt/rc
+echo "Preparing $ROOT_DIR/opt/rc directory..."
+sudo mkdir -p $ROOT_DIR/opt/rc
 
-# Set group write permissions on /opt/rc
-echo "Setting group write permissions on /opt/rc..."
-sudo chmod -R g+rw /opt/rc
+# Set ownership of $ROOT_DIR/opt/rc to root:<current group>
+echo "Changing ownership of $ROOT_DIR/opt/rc to root:$GROUP..."
+sudo chown -R root:"$GROUP" $ROOT_DIR/opt/rc
+
+# Set group write permissions on $ROOT_DIR/opt/rc
+echo "Setting group write permissions on $ROOT_DIR/opt/rc..."
+sudo chmod -R g+rw $ROOT_DIR/opt/rc
 
 # Clone the rc repository
 echo "Preparing to clone rc repository..."
-cd /opt/rc
+cd $ROOT_DIR/opt/rc
 if [ -d .git ]; then
     echo "rc repository already exists. Pulling latest changes..."
     git pull
 else
     echo "Cloning rc repository..."
     git clone https://github.com/nightmaregaurav/rc.git .
-    git config --global --add safe.directory /opt/rc
+    git config --global --add safe.directory $ROOT_DIR/opt/rc
 fi
 
 # Write source line to shell rc files
 echo "Writing source line to shell profile..."
-if [ -f /etc/profile ]; then
-    if ! grep -Fxq "source /opt/rc/activate" /etc/profile; then
-        echo "source /opt/rc/activate" | sudo tee -a /etc/profile > /dev/null
+if [ -f $ROOT_DIR/etc/profile ]; then
+    if ! grep -Fxq "source $ROOT_DIR/opt/rc/activate" $ROOT_DIR/etc/profile; then
+        echo "source $ROOT_DIR/opt/rc/activate" | sudo tee -a $ROOT_DIR/etc/profile > /dev/null
     fi
 fi
 
-if [ -f /etc/zprofile ]; then
-    if ! grep -Fxq "source /opt/rc/activate" /etc/zprofile; then
-        echo "source /opt/rc/activate" | sudo tee -a /etc/zprofile > /dev/null
+if [ -f $ROOT_DIR/etc/zprofile ]; then
+    if ! grep -Fxq "source $ROOT_DIR/opt/rc/activate" $ROOT_DIR/etc/zprofile; then
+        echo "source $ROOT_DIR/opt/rc/activate" | sudo tee -a $ROOT_DIR/etc/zprofile > /dev/null
     fi
 fi
 
 # Source the activate script in the current shell
 set +euo pipefail
 echo "Sourcing activate script directly to activate rc in the current shell..."
-source /opt/rc/activate
+source $ROOT_DIR/opt/rc/activate
 
 # Continue with the rest of your setup (e.g., install uv and other tools)
 set -euo pipefail

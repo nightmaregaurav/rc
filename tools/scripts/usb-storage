@@ -267,7 +267,7 @@ def main():
     u = sub.add_parser("unmount")
     u.add_argument("index", type=int)
 
-    parser.add_argument("-h", "--help", action="help")
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
 
     argcomplete.autocomplete(parser, always_complete_options=False)
     args = parser.parse_args()

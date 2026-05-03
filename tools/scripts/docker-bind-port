@@ -1,0 +1,136 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#   "argcomplete",
+#   "docker",
+# ]
+# ///
+
+import argparse
+import argcomplete
+import docker
+import sys
+
+
+def parse_mapping(mapping: str):
+    try:
+        container, host_port, container_port = mapping.split(":")
+        return container, int(host_port), int(container_port)
+    except ValueError:
+        raise ValueError(
+            "Invalid format. Expected: <containerName>:<hostPort>:<containerPort>"
+        )
+
+
+def ensure_image(client, image_name: str):
+    try:
+        client.images.get(image_name)
+    except docker.errors.ImageNotFound:
+        print(f"Pulling image: {image_name}")
+        client.images.pull(image_name)
+
+
+def container_exists(client, name: str):
+    try:
+        return client.containers.get(name)
+    except docker.errors.NotFound:
+        return None
+
+
+def create_forwarder(
+    client,
+    target_container: str,
+    host_port: int,
+    container_port: int,
+):
+    forwarder_name = f"port-forwarder-{target_container}-{host_port}-{container_port}"
+
+    existing = container_exists(client, forwarder_name)
+    if existing:
+        print(f"Forwarder already exists: {forwarder_name}")
+        return existing
+
+    ensure_image(client, "alpine/socat")
+
+    command = [
+        f"tcp-listen:{container_port},fork,reuseaddr",
+        f"tcp-connect:127.0.0.1:{container_port}",
+    ]
+
+    print(f"Creating forwarder: {forwarder_name}")
+
+    container = client.containers.run(
+        "alpine/socat",
+        command,
+        name=forwarder_name,
+        detach=True,
+        network_mode=f"container:{target_container}",
+        ports={f"{container_port}/tcp": host_port},
+        restart_policy={"Name": "unless-stopped"},
+    )
+
+    return container
+
+
+def validate_target_container(client, name: str):
+    try:
+        container = client.containers.get(name)
+        if container.status != "running":
+            raise RuntimeError(f"Target container '{name}' is not running.")
+        return container
+    except docker.errors.NotFound:
+        raise RuntimeError(f"Target container '{name}' not found.")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Expose a port from an existing Docker container without modifying compose.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "mapping",
+        help="Format: <containerName>:<hostPort>:<containerPort>",
+    )
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    try:
+        container_name, host_port, container_port = parse_mapping(args.mapping)
+    except ValueError as e:
+        print(e)
+        sys.exit(1)
+
+    client = docker.from_env()
+
+    try:
+        validate_target_container(client, container_name)
+    except RuntimeError as e:
+        print(e)
+        sys.exit(1)
+
+    try:
+        container = create_forwarder(
+            client,
+            container_name,
+            host_port,
+            container_port,
+        )
+    except Exception as e:
+        print(f"Failed to create forwarder: {e}")
+        sys.exit(1)
+
+    print("\n✅ Forwarding active")
+    print(f"Host:       localhost:{host_port}")
+    print(f"Container:  {container_name}:{container_port}")
+    print(f"Forwarder:  {container.name}")
+
+
+if __name__ == "__main__":
+    main()

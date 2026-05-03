@@ -31,6 +31,7 @@ The following tools are included to simplify common tasks:
 - `compress-image`: Compress images with lossless-first strategy and lossy fallback.
 - `count`: Counts the total number of files and folders in the current directory.
 - `cpu-usage`: Displays CPU usage percentage.
+- `docker-bind-port`: Binds a port on the host machine to a port in an already running docker container.
 - `duplicates`: Manages duplicate files by listing, or deleting them.
 - `free-port-after`: Finds a free port after a specified port.
 - `get-traefik-domains`: Lists domain names set in docker label for traefik.

@@ -1,0 +1,105 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#   "psutil",
+#   "argcomplete",
+# ]
+# ///
+
+import argparse
+import argcomplete
+import platform
+import psutil
+
+
+def bytes_to_gb(b):
+    return b / (1024 ** 3)
+
+
+def fmt_usage(used, total):
+    if used is None or total is None:
+        return "N/A"
+    pct = (used / total) * 100 if total else 0
+    return f"{bytes_to_gb(used):.1f}G / {bytes_to_gb(total):.1f}G ({pct:.1f}%)"
+
+
+def fmt_pct(val):
+    return f"{val:.1f}%" if val is not None else "N/A"
+
+
+def get_cpu():
+    usage = psutil.cpu_percent(interval=0.5)
+    freq = psutil.cpu_freq()
+    return usage, (freq.current if freq else None)
+
+
+def get_cpu_temp():
+    try:
+        temps = psutil.sensors_temperatures()
+        for _, entries in temps.items():
+            for t in entries:
+                if t.current:
+                    return t.current
+    except Exception:
+        pass
+    return None
+
+
+def print_stats():
+    print("\n=== HW STATS SNAPSHOT ===")
+    print(f"System: {platform.system()} {platform.release()}")
+
+    # CPU
+    cpu_usage, cpu_freq = get_cpu()
+    cpu_temp = get_cpu_temp()
+
+    print("\n[CPU]")
+    print(f"Usage: {fmt_pct(cpu_usage)}")
+    print(f"Frequency: {cpu_freq:.0f} MHz" if cpu_freq else "Frequency: N/A")
+    print(f"Temperature: {cpu_temp:.1f}°C" if cpu_temp else "Temperature: N/A")
+    print(f"Cores (logical): {psutil.cpu_count()}")
+    print(f"Cores (physical): {psutil.cpu_count(logical=False)}")
+
+    # Memory
+    mem = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+
+    print("\n[MEMORY]")
+    print(f"RAM: {fmt_usage(mem.used, mem.total)}")
+    print(f"Swap: {fmt_usage(swap.used, swap.total)}")
+
+    if hasattr(mem, "cached"):
+        print(f"Cache: {bytes_to_gb(mem.cached):.2f}G")
+
+    # Disk
+    disk = psutil.disk_usage("/")
+    print("\n[DISK]")
+    print(f"Disk: {fmt_usage(disk.used, disk.total)}")
+    print(f"Free: {bytes_to_gb(disk.free):.2f}G")
+
+    print("\n=========================\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Show hardware usage snapshot (human-readable)",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit."
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    print_stats()
+
+
+if __name__ == "__main__":
+    main()

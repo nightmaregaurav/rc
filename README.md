@@ -41,6 +41,7 @@ The following tools are included to simplify common tasks:
 - `git-rmprofile` or (`git rmprofile`): To remove a git profile.
 - `hash-pbkdf2`: Hashes a password using PBKDF2 algorithm.
 - `hear-me`: Listens in using all available microphones and saves the audio to a file.
+- `hw-stat`: Shows basic hardware usage statistics like CPU, RAM, and Disk.
 - `img2pdf`: Converts images into a single PDF file.
 - `localip`: Prints the local IP address.
 - `localip-fast`: Prints the local IP address, a little faster than (`localip`).

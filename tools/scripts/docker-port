@@ -32,6 +32,17 @@ def ensure_image(client, image_name: str):
         client.images.pull(image_name)
 
 
+def get_container(client, identifier: str):
+    try:
+        return client.containers.get(identifier)
+    except docker.errors.NotFound:
+        raise RuntimeError(f"Container '{identifier}' not found.")
+
+
+def get_forwarder_name(stable_name: str, host_port: int, container_port: int):
+    return f"port-forwarder-{stable_name}-{host_port}-{container_port}"
+
+
 def container_exists(client, name: str):
     try:
         return client.containers.get(name)
@@ -39,13 +50,9 @@ def container_exists(client, name: str):
         return None
 
 
-def create_forwarder(
-    client,
-    target_container: str,
-    host_port: int,
-    container_port: int,
-):
-    forwarder_name = f"port-forwarder-{target_container}-{host_port}-{container_port}"
+def create_forwarder(client, target_container_obj, host_port: int, container_port: int):
+    stable_name = target_container_obj.name
+    forwarder_name = get_forwarder_name(stable_name, host_port, container_port)
 
     existing = container_exists(client, forwarder_name)
     if existing:
@@ -66,7 +73,7 @@ def create_forwarder(
         command,
         name=forwarder_name,
         detach=True,
-        network_mode=f"container:{target_container}",
+        network_mode=f"container:{target_container_obj.id}",
         ports={f"{container_port}/tcp": host_port},
         restart_policy={"Name": "unless-stopped"},
     )
@@ -74,26 +81,48 @@ def create_forwarder(
     return container
 
 
-def validate_target_container(client, name: str):
+def remove_forwarder(client, target_container_obj, host_port: int, container_port: int):
+    stable_name = target_container_obj.name
+    forwarder_name = get_forwarder_name(stable_name, host_port, container_port)
+
+    existing = container_exists(client, forwarder_name)
+    if not existing:
+        print(f"No forwarder found: {forwarder_name}")
+        return
+
+    print(f"Stopping forwarder: {forwarder_name}")
     try:
-        container = client.containers.get(name)
-        if container.status != "running":
-            raise RuntimeError(f"Target container '{name}' is not running.")
-        return container
-    except docker.errors.NotFound:
-        raise RuntimeError(f"Target container '{name}' not found.")
+        existing.stop(timeout=5)
+    except Exception:
+        pass
+
+    print(f"Removing forwarder: {forwarder_name}")
+    existing.remove()
+
+    print("✅ Forwarder removed")
+
+
+def validate_running(container):
+    if container.status != "running":
+        raise RuntimeError(f"Target container '{container.name}' is not running.")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Expose a port from an existing Docker container without modifying compose.",
+        description="Expose or remove a port from an existing Docker container without modifying compose.",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )
 
     parser.add_argument(
         "mapping",
-        help="Format: <containerName>:<hostPort>:<containerPort>",
+        help="Format: <containerName|id>:<hostPort>:<containerPort>",
+    )
+
+    parser.add_argument(
+        "-r", "--rm",
+        action="store_true",
+        help="Remove the forwarder instead of creating it.",
     )
 
     parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
@@ -102,7 +131,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        container_name, host_port, container_port = parse_mapping(args.mapping)
+        container_identifier, host_port, container_port = parse_mapping(args.mapping)
     except ValueError as e:
         print(e)
         sys.exit(1)
@@ -110,25 +139,32 @@ def main():
     client = docker.from_env()
 
     try:
-        validate_target_container(client, container_name)
+        target_container = get_container(client, container_identifier)
     except RuntimeError as e:
         print(e)
         sys.exit(1)
 
     try:
+        if args.rm:
+            remove_forwarder(client, target_container, host_port, container_port)
+            return
+
+        validate_running(target_container)
+
         container = create_forwarder(
             client,
-            container_name,
+            target_container,
             host_port,
             container_port,
         )
+
     except Exception as e:
-        print(f"Failed to create forwarder: {e}")
+        print(f"Error: {e}")
         sys.exit(1)
 
     print("\n✅ Forwarding active")
     print(f"Host:       localhost:{host_port}")
-    print(f"Container:  {container_name}:{container_port}")
+    print(f"Container:  {target_container.name}:{container_port}")
     print(f"Forwarder:  {container.name}")
 
 

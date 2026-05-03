@@ -1,0 +1,45 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#   "argcomplete",
+# ]
+# ///
+
+import argparse
+import base64
+import hashlib
+import os
+import argcomplete
+
+def generate_hash(text: str, iterations: int) -> str:
+    salt = os.urandom(16)
+    dk = hashlib.pbkdf2_hmac("sha512", text.encode(), salt, iterations)
+
+    # format: @Base64(salt + iterations(4 bytes big endian) + hash)
+    combined = salt + iterations.to_bytes(4, "big") + dk
+    return "@" + base64.b64encode(combined).decode()
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Generate PBKDF2 hash",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument("text", help="Plaintext to encode")
+    parser.add_argument("-i", "--iteration", type=int, default=100000, help="PBKDF2 iteration count (default: 100000)")
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    result = generate_hash(args.text, args.iteration)
+
+    print("Generated PBKDF2 hash:\n")
+    print(result)
+
+
+if __name__ == "__main__":
+    main()

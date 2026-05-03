@@ -39,6 +39,7 @@ The following tools are included to simplify common tasks:
 - `git-lsprofiles` or (`git lsprofiles`): To list all git profiles.
 - `git-mkprofile` or (`git mkprofile`): To create a new git profile.
 - `git-rmprofile` or (`git rmprofile`): To remove a git profile.
+- `hash-pbkdf2`: Hashes a password using PBKDF2 algorithm.
 - `hear-me`: Listens in using all available microphones and saves the audio to a file.
 - `img2pdf`: Converts images into a single PDF file.
 - `localip`: Prints the local IP address.

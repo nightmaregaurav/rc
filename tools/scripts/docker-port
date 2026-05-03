@@ -14,6 +14,9 @@ import docker
 import sys
 
 
+LABEL_PREFIX = "docker-port"
+
+
 def parse_mapping(mapping: str):
     try:
         container, host_port, container_port = mapping.split(":")
@@ -63,7 +66,7 @@ def create_forwarder(client, target_container_obj, host_port: int, container_por
 
     command = [
         f"tcp-listen:{host_port},fork,reuseaddr",
-        f"tcp-connect:{target_container_obj.name}:{container_port}",
+        f"tcp-connect:{stable_name}:{container_port}",
     ]
 
     print(f"Creating forwarder: {forwarder_name}")
@@ -75,6 +78,12 @@ def create_forwarder(client, target_container_obj, host_port: int, container_por
         detach=True,
         network_mode="host",
         restart_policy={"Name": "unless-stopped"},
+        labels={
+            f"{LABEL_PREFIX}.managed": "true",
+            f"{LABEL_PREFIX}.target": stable_name,
+            f"{LABEL_PREFIX}.host_port": str(host_port),
+            f"{LABEL_PREFIX}.container_port": str(container_port),
+        },
     )
 
     return container
@@ -101,6 +110,28 @@ def remove_forwarder(client, target_container_obj, host_port: int, container_por
     print("✅ Forwarder removed")
 
 
+def list_forwarders(client):
+    containers = client.containers.list(all=True, filters={"label": f"{LABEL_PREFIX}.managed=true"})
+
+    if not containers:
+        print("No forwarders found.")
+        return
+
+    print("\nActive Docker Port Forwarders:\n")
+
+    for c in containers:
+        labels = c.labels
+        target = labels.get(f"{LABEL_PREFIX}.target", "unknown")
+        host_port = labels.get(f"{LABEL_PREFIX}.host_port", "unknown")
+        container_port = labels.get(f"{LABEL_PREFIX}.container_port", "unknown")
+
+        print(f"- Name:        {c.name}")
+        print(f"  Target:      {target}:{container_port}")
+        print(f"  Host:        localhost:{host_port}")
+        print(f"  Status:      {c.status}")
+        print()
+
+
 def validate_running(container):
     if container.status != "running":
         raise RuntimeError(f"Target container '{container.name}' is not running.")
@@ -108,34 +139,35 @@ def validate_running(container):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Expose or remove a port from an existing Docker container without modifying compose.",
+        description="Expose, remove, or list forwarded ports for Docker containers.",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )
 
-    parser.add_argument(
-        "mapping",
-        help="Format: <containerName|id>:<hostPort>:<containerPort>",
-    )
-
-    parser.add_argument(
-        "-r", "--rm",
-        action="store_true",
-        help="Remove the forwarder instead of creating it.",
-    )
+    parser.add_argument("mapping", nargs="?", help="Format: <containerName|id>:<hostPort>:<containerPort>")
+    parser.add_argument("-r", "--rm", action="store_true", help="Remove the forwarder.")
+    parser.add_argument("-l", "--ls", action="store_true", help="List all forwarders.")
 
     parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
 
     argcomplete.autocomplete(parser, always_complete_options=False)
     args = parser.parse_args()
 
+    client = docker.from_env()
+
+    if args.ls:
+        list_forwarders(client)
+        return
+
+    if not args.mapping:
+        print("Error: mapping is required unless using --ls")
+        sys.exit(1)
+
     try:
         container_identifier, host_port, container_port = parse_mapping(args.mapping)
     except ValueError as e:
         print(e)
         sys.exit(1)
-
-    client = docker.from_env()
 
     try:
         target_container = get_container(client, container_identifier)

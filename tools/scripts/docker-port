@@ -62,8 +62,8 @@ def create_forwarder(client, target_container_obj, host_port: int, container_por
     ensure_image(client, "alpine/socat")
 
     command = [
-        f"tcp-listen:{container_port},fork,reuseaddr",
-        f"tcp-connect:127.0.0.1:{container_port}",
+        f"tcp-listen:{host_port},fork,reuseaddr",
+        f"tcp-connect:{target_container_obj.name}:{container_port}",
     ]
 
     print(f"Creating forwarder: {forwarder_name}")
@@ -73,8 +73,7 @@ def create_forwarder(client, target_container_obj, host_port: int, container_por
         command,
         name=forwarder_name,
         detach=True,
-        network_mode=f"container:{target_container_obj.id}",
-        ports={f"{container_port}/tcp": host_port},
+        network_mode="host",
         restart_policy={"Name": "unless-stopped"},
     )
 

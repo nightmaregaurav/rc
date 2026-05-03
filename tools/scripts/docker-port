@@ -46,6 +46,15 @@ def get_forwarder_name(stable_name: str, host_port: int, container_port: int):
     return f"port-forwarder-{stable_name}-{host_port}-{container_port}"
 
 
+def get_container_ip(container):
+    networks = container.attrs["NetworkSettings"]["Networks"]
+    if not networks:
+        raise RuntimeError("Container is not connected to any network.")
+
+    # pick first network (works for your case)
+    return next(iter(networks.values()))["IPAddress"]
+
+
 def container_exists(client, name: str):
     try:
         return client.containers.get(name)
@@ -64,9 +73,10 @@ def create_forwarder(client, target_container_obj, host_port: int, container_por
 
     ensure_image(client, "alpine/socat")
 
+    container_ip = get_container_ip(target_container_obj)
     command = [
         f"tcp-listen:{host_port},fork,reuseaddr",
-        f"tcp-connect:{stable_name}:{container_port}",
+        f"tcp-connect:{container_ip}:{container_port}",
     ]
 
     print(f"Creating forwarder: {forwarder_name}")

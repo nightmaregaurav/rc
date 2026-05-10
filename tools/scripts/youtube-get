@@ -52,7 +52,21 @@ def download_ytdlp(mode: str, urls: list[str]) -> None:
     print(f"\nDownloading {len(urls)} URL(s) with yt-dlp ({mode})")
     opts = build_ytdlp_options(mode)
     with YoutubeDL(opts) as ydl:
-        ydl.download(urls)
+        failed: list[tuple[str, str]] = []
+        for url in urls:
+            try:
+                print(f"\n=== Downloading: {url}")
+                ydl.download([url])
+            except Exception as e:
+                print(f"\nFailed: {url}")
+                print(f"Reason: {e}")
+                failed.append((url, str(e)))
+
+        if failed:
+            print("\n=== Failed downloads ===")
+            for url, err in failed:
+                print(f"- {url}")
+                print(f"  {err}")
 
 
 def download(mode: str, urls: list[str]) -> None:
@@ -65,11 +79,8 @@ def download(mode: str, urls: list[str]) -> None:
         jobs.setdefault(key, []).append(url)
 
     for (backend, current_mode), grouped_urls in jobs.items():
-        try:
-            if backend == "ytdlp":
-                download_ytdlp(current_mode, grouped_urls)
-        except Exception as e:
-            print(f"\nFailed to download for backend={backend} and mode={current_mode}: {e}")
+        if backend == "ytdlp":
+            download_ytdlp(current_mode, grouped_urls)
 
 
 def main() -> None:

@@ -14,74 +14,84 @@ import argcomplete
 from yt_dlp import YoutubeDL
 
 
-def build_options(mode: str, url: str) -> dict:
+def determine_auto_mode(url: str) -> str:
+    if url.startswith("https://music.youtube.com/watch?v="):
+        return "bestaudio"
+    if url.startswith("https://www.youtube.com/watch?v=") or url.startswith("https://youtu.be/"):
+        return "bestvideo"
+    return "bestaudio"
+
+
+def build_ytdlp_options(mode: str) -> dict:
     base_opts = {
         "nocheckcertificate": True,
         "concurrent_fragment_downloads": 4,
         "outtmpl": "%(title)s.%(ext)s",
         "quiet": False,
+        "writethumbnail": True,
     }
-
-    if mode == "auto" and url.startswith("https://www.youtube.com/watch?v="):
-        mode = "bestvideo"
-    elif mode == "auto" and url.startswith("https://music.youtube.com/watch?v="):
-        mode = "bestaudio"
-    elif mode == "auto" and url.startswith("https://youtu.be/"):
-        mode = "bestvideo"
-    elif mode == "auto":
-        mode = "bestaudio"
-
     match mode:
         case "bestaudio":
             base_opts["format"] = "bestaudio/bestaudio"
-        case "mp3":
-            base_opts.update({
-                "format": "bestaudio/bestaudio",
-                "postprocessors": [
-                    {"key": "FFmpegExtractAudio", "preferredcodec": "mp3"}
-                ],
-            })
         case "bestvideo":
             base_opts["format"] = "bestvideo+bestaudio/bestvideo+bestaudio"
-        case "mp4":
-            base_opts["format"] = (
-                "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio"
-            )
         case _:
-            raise ValueError(f"Unknown mode '{mode}'. Valid: bestaudio, mp3, bestvideo, mp4")
+            raise ValueError(
+                f"Unknown mode '{mode}'. "
+                "Valid: auto, bestaudio, bestvideo"
+            )
+    base_opts["postprocessors"] = [
+        {"key": "FFmpegMetadata"},
+        {"key": "EmbedThumbnail"},
+    ]
 
     return base_opts
 
 
-def download(mode: str, urls: list[str]) -> None:
-    opts = build_options(mode, urls[0])
-    print(f"Downloading with mode {mode}...")
+def download_ytdlp(mode: str, urls: list[str]) -> None:
+    print(f"\nDownloading {len(urls)} URL(s) with yt-dlp ({mode})")
+    opts = build_ytdlp_options(mode)
     with YoutubeDL(opts) as ydl:
+        ydl.download(urls)
+
+
+def download(mode: str, urls: list[str]) -> None:
+    jobs: dict[tuple[str, str], list[str]] = {}
+
+    for url in urls:
+        current_mode = (determine_auto_mode(url) if mode == "auto" else mode)
+        backend = "ytdlp"
+        key = (backend, current_mode)
+        jobs.setdefault(key, []).append(url)
+
+    for (backend, current_mode), grouped_urls in jobs.items():
         try:
-            ydl.download(urls)
+            if backend == "ytdlp":
+                download_ytdlp(current_mode, grouped_urls)
         except Exception as e:
-            print(f"Error downloading: {e}")
+            print(f"\nFailed to download for backend={backend} and mode={current_mode}: {e}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="youtube-get",
-        description="Download YouTube videos or audio using the yt-dlp Python API.",
+        description="Download media from YouTube using yt-dlp.",
         formatter_class=argparse.RawTextHelpFormatter,
         add_help=False,
     )
 
     parser.add_argument(
-        "mode",
-        choices=["auto", "bestaudio", "mp3", "bestvideo", "mp4"],
+        "-m", "--mode",
+        choices=["auto", "bestaudio", "bestvideo"],
         default="auto",
-        help="Download mode (default: mp4).",
-    ).completer = None  # choices already provide sensible completion
+        help="Download mode (default: auto).",
+
+    ).completer = None
 
     parser.add_argument(
         "urls",
         nargs="+",
-        help="One or more YouTube URLs to download.",
+        help="One or more URLs.",
     )
 
     parser.add_argument(
@@ -95,6 +105,11 @@ def main() -> None:
 
     try:
         download(args.mode, args.urls)
+
+    except KeyboardInterrupt:
+        print("\nInterrupted.")
+        sys.exit(130)
+
     except Exception as e:
         print(f"Fatal error: {e}")
         sys.exit(1)

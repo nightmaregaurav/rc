@@ -6,7 +6,7 @@ This repository provides a collection of environment variable setups, aliases, a
 
 ### Option 1 (persistent):
 ```bash
-/bin/bash -c "$(curl -fsSL https://github.com/nightmaregaurav/rc/raw/refs/heads/main/setup)"
+/bin/bash -c "$(curl -fsSL -H 'Cache-Control: no-cache' https://github.com/nightmaregaurav/rc/raw/refs/heads/main/setup)"
 ```
 
 ### Option 2 (temporary):

@@ -57,10 +57,11 @@ def download(mode: str, urls: list[str]) -> None:
     opts = build_options(mode, urls[0])
     print(f"Downloading with mode {mode}...")
     with YoutubeDL(opts) as ydl:
-        try:
-            ydl.download(urls)
-        except Exception as e:
-            print(f"Error downloading: {e}")
+        for url in urls:
+            try:
+                ydl.download([url])
+            except Exception as e:
+                print(f"Error downloading: {e}")
 
 
 def main() -> None:

@@ -26,13 +26,6 @@ if [[ "$1" == "--help" || "$1" == "-h" ]]; then
   exit 0
 fi
 
-set -euo pipefail
-
-# Get current user and group
-start_dir=$(pwd)
-USER=$(whoami)
-GROUP=$(id -gn "$USER")
-
 if [ -n "$PREFIX" ]; then
     echo "Running in Termux. Will use $PREFIX as the root directory."
     ROOT_DIR="$PREFIX"
@@ -40,6 +33,13 @@ else
     echo "Running in native environment. Will use / as the root directory."
     ROOT_DIR=""
 fi
+
+set -euo pipefail
+
+# Get current user and group
+start_dir=$(pwd)
+USER=$(whoami)
+GROUP=$(id -gn "$USER")
 
 echo "Preparing $ROOT_DIR/opt/rc directory..."
 sudo mkdir -p $ROOT_DIR/opt/rc

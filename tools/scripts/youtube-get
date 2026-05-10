@@ -14,13 +14,22 @@ import argcomplete
 from yt_dlp import YoutubeDL
 
 
-def build_options(mode: str) -> dict:
+def build_options(mode: str, url: str) -> dict:
     base_opts = {
         "nocheckcertificate": True,
         "concurrent_fragment_downloads": 4,
         "outtmpl": "%(title)s.%(ext)s",
         "quiet": False,
     }
+
+    if mode == "auto" and url.startswith("https://www.youtube.com/watch?v="):
+        mode = "bestvideo"
+    elif mode == "auto" and url.startswith("https://music.youtube.com/watch?v="):
+        mode = "bestaudio"
+    elif mode == "auto" and url.startswith("https://youtu.be/"):
+        mode = "bestvideo"
+    elif mode == "auto":
+        mode = "bestaudio"
 
     match mode:
         case "bestaudio":
@@ -45,14 +54,13 @@ def build_options(mode: str) -> dict:
 
 
 def download(mode: str, urls: list[str]) -> None:
-    opts = build_options(mode)
+    opts = build_options(mode, urls[0])
+    print(f"Downloading with mode {mode}...")
     with YoutubeDL(opts) as ydl:
-        for url in urls:
-            print(f"Downloading {url} with mode {mode}...")
-            try:
-                ydl.download([url])
-            except Exception as e:
-                print(f"Error downloading {url}: {e}")
+        try:
+            ydl.download(urls)
+        except Exception as e:
+            print(f"Error downloading: {e}")
 
 
 def main() -> None:
@@ -65,8 +73,8 @@ def main() -> None:
 
     parser.add_argument(
         "mode",
-        choices=["bestaudio", "mp3", "bestvideo", "mp4"],
-        default="mp4",
+        choices=["auto", "bestaudio", "mp3", "bestvideo", "mp4"],
+        default="auto",
         help="Download mode (default: mp4).",
     ).completer = None  # choices already provide sensible completion
 

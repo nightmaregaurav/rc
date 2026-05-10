@@ -76,6 +76,7 @@ def main() -> None:
         "mode",
         choices=["auto", "bestaudio", "mp3", "bestvideo", "mp4"],
         default="auto",
+        required=False,
         help="Download mode (default: mp4).",
     ).completer = None  # choices already provide sensible completion
 

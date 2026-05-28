@@ -40,11 +40,36 @@ def list_profiles(profile_dir: Path) -> list[str]:
     return sorted(profiles)
 
 
-def print_profiles(profiles: list[str]) -> None:
+def load_profile_vars(profile_name: str, profile_dir: Path) -> dict[str, str]:
+    """Load all exported variables from a profile file."""
+    profile_file = profile_dir / f".{profile_name}"
+    if not profile_file.is_file():
+        return {}
+
+    env = {}
+    for line in profile_file.read_text().splitlines():
+        line = line.strip()
+        if not line or not line.startswith("export "):
+            continue
+        key, _, value = line[len("export "):].partition("=")
+        env[key.strip()] = value.strip().strip('"')
+    return env
+
+
+def print_profiles(profiles: list[str], verbose: bool = False) -> None:
     """Print profiles in a consistent, user-friendly format."""
     print("[*] Available profiles:")
     for name in profiles:
         print(f"  - {name}")
+        if verbose:
+            vars_dict = load_profile_vars(name, GIT_PROFILE_DIR)
+            if vars_dict:
+                print(f"      Name: {vars_dict.get('GIT_SSH_PROFILE__NAME', 'N/A')}")
+                print(f"      Email: {vars_dict.get('GIT_SSH_PROFILE__EMAIL', 'N/A')}")
+                print(f"      SSH Key: {vars_dict.get('GIT_SSH_PROFILE__SSH_KEY_PATH', 'N/A')}")
+                remote_regex = vars_dict.get('GIT_SSH_PROFILE__REMOTE_REGEX', '')
+                if remote_regex:
+                    print(f"      Remote Regex: {remote_regex}")
 
 
 # ──────────────────────────────── main ────────────────────────────────
@@ -58,16 +83,22 @@ def main():
     )
 
     parser.add_argument(
+        "-v", "--verbose",
+        action="store_true",
+        help="Show detailed profile information"
+    )
+
+    parser.add_argument(
         "-h", "--help",
         action="help",
         help="Show help message and exit"
     )
 
     argcomplete.autocomplete(parser, always_complete_options=False)
-    parser.parse_args()
+    args = parser.parse_args()
 
     profiles = list_profiles(GIT_PROFILE_DIR)
-    print_profiles(profiles)
+    print_profiles(profiles, verbose=args.verbose)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,285 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
+
+import os
+import sys
+import subprocess
+import argparse
+import argcomplete
+import re
+from pathlib import Path
+
+
+# ──────────────────────────────── constants ────────────────────────────────
+
+GIT_PROFILE_DIR = Path(
+    os.environ.get("GIT_PROFILE_DIR", Path.home() / ".git-ssh-profiles")
+).expanduser()
+
+GIT_AUTO_CACHE_FILE = Path.home() / ".git-auto-cache"
+
+
+# ──────────────────────────────── helpers ────────────────────────────────
+
+def get_existing_profiles(profile_dir: Path) -> list[str]:
+    """Return all existing profile names."""
+    if not profile_dir.exists():
+        return []
+    return [
+        f.name[1:]
+        for f in profile_dir.iterdir()
+        if f.is_file() and f.name.startswith(".")
+    ]
+
+
+def load_profile(profile_name: str) -> dict[str, str] | None:
+    """Load environment variables from a .<profile> script."""
+    script_path = GIT_PROFILE_DIR / f".{profile_name}"
+    if not script_path.is_file():
+        return None
+
+    env = {}
+    for line in script_path.read_text().splitlines():
+        line = line.strip()
+        if not line or not line.startswith("export "):
+            continue
+        key, _, value = line[len("export "):].partition("=")
+        env[key.strip()] = value.strip().strip('"')
+    return env
+
+
+def get_remote_url() -> str | None:
+    """Get the git remote URL (origin or default)."""
+    result = subprocess.run(
+        ["git", "config", "--get", "remote.origin.url"],
+        capture_output=True,
+        text=True
+    )
+    if result.returncode == 0:
+        return result.stdout.strip()
+    return None
+
+
+def inside_git_repo() -> bool:
+    """Check if the current directory is inside a git repository."""
+    result = subprocess.run(
+        ["git", "rev-parse", "--is-inside-work-tree"],
+        capture_output=True,
+        text=True
+    )
+    return result.returncode == 0
+
+
+def match_profile_by_regex(remote_url: str) -> list[str]:
+    """Find profiles whose remote regex matches the given URL."""
+    profiles = get_existing_profiles(GIT_PROFILE_DIR)
+    matching = []
+
+    for profile_name in profiles:
+        env = load_profile(profile_name)
+        if not env:
+            continue
+        remote_regex = env.get("GIT_SSH_PROFILE__REMOTE_REGEX", "")
+        if remote_regex:
+            try:
+                if re.search(remote_regex, remote_url):
+                    matching.append(profile_name)
+            except re.error:
+                print(f"[!] Invalid regex in profile '{profile_name}': {remote_regex}", file=sys.stderr)
+
+    return matching
+
+
+def prompt_profile_selection(profiles: list[str], default_profile: str | None = None) -> str | None:
+    """Prompt the user to select from a list of profiles."""
+    print("[*] Multiple profiles match or no profiles found. Select a profile:")
+    for i, profile in enumerate(profiles, 1):
+        env = load_profile(profile)
+        email = env.get("GIT_SSH_PROFILE__EMAIL", "") if env else ""
+        print(f"  {i}. {profile} ({email})")
+
+    if default_profile and default_profile in profiles:
+        default_idx = profiles.index(default_profile) + 1
+        print(f"[*] Default: {default_profile}")
+    else:
+        default_idx = 1
+
+    try:
+        choice = input(f"[*] Enter choice (1-{len(profiles)}) or press Enter for default [{default_idx}]: ").strip()
+        if not choice:
+            return profiles[default_idx - 1] if default_idx <= len(profiles) else None
+        idx = int(choice) - 1
+        if 0 <= idx < len(profiles):
+            return profiles[idx]
+        print("[!] Invalid selection.", file=sys.stderr)
+        return None
+    except (ValueError, KeyboardInterrupt):
+        return None
+
+
+def save_to_cache(remote_url: str, profile_name: str) -> None:
+    """Cache the profile selection for a remote URL."""
+    try:
+        cache = {}
+        if GIT_AUTO_CACHE_FILE.exists():
+            for line in GIT_AUTO_CACHE_FILE.read_text().splitlines():
+                if "=" in line:
+                    url, cached_profile = line.split("=", 1)
+                    cache[url] = cached_profile
+        cache[remote_url] = profile_name
+        content = "\n".join(f"{url}={profile}" for url, profile in cache.items())
+        GIT_AUTO_CACHE_FILE.write_text(content)
+    except Exception as e:
+        print(f"[!] Failed to save to cache: {e}", file=sys.stderr)
+
+
+def load_from_cache(remote_url: str) -> str | None:
+    """Load a cached profile selection for a remote URL."""
+    try:
+        if GIT_AUTO_CACHE_FILE.exists():
+            for line in GIT_AUTO_CACHE_FILE.read_text().splitlines():
+                if "=" in line:
+                    url, cached_profile = line.split("=", 1)
+                    if url == remote_url:
+                        return cached_profile
+    except Exception as e:
+        print(f"[!] Failed to load from cache: {e}", file=sys.stderr)
+    return None
+
+
+def apply_profile(profile_name: str, git_args: list[str]) -> None:
+    """Apply a profile and run git command (from git-as logic)."""
+    env = load_profile(profile_name)
+    if not env:
+        print(f"[!] Profile '{profile_name}' not found.", file=sys.stderr)
+        sys.exit(1)
+
+    ssh_key = env["GIT_SSH_PROFILE__SSH_KEY_PATH"]
+    git_name = env["GIT_SSH_PROFILE__NAME"]
+    git_email = env["GIT_SSH_PROFILE__EMAIL"]
+    git_gpgsign = env["GIT_SSH_PROFILE__GPG_SIGN"]
+    git_gpgformat = env["GIT_SSH_PROFILE__GPG_FORMAT"]
+    git_gpgkey = env["GIT_SSH_PROFILE__GPG_KEY"]
+
+    # Outside repo — only SSH customization
+    if not inside_git_repo():
+        subprocess.run(
+            ["git", "-c", f"core.sshCommand=ssh -i \"{ssh_key}\"", *git_args],
+            check=False
+        )
+        return
+
+    # Inside repo — apply temporary local config
+    subprocess.run(["git", "config", "--local", "user.name", git_name], check=False)
+    subprocess.run(["git", "config", "--local", "user.email", git_email], check=False)
+    subprocess.run(["git", "config", "--local", "core.sshCommand", f"ssh -i \"{ssh_key}\""], check=False)
+    subprocess.run(["git", "config", "--local", "commit.gpgsign", git_gpgsign], check=False)
+    subprocess.run(["git", "config", "--local", "gpg.format", git_gpgformat], check=False)
+    subprocess.run(["git", "config", "--local", "user.signingkey", git_gpgkey], check=False)
+
+    subprocess.run(["git", *git_args], check=False)
+
+
+# ──────────────────────────────── main ────────────────────────────────
+
+def main():
+    script_name = Path(sys.argv[0]).name.replace("-", " ", 1)
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Automatically detect remote URL and apply the corresponding git profile.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit",
+    )
+
+    parser.add_argument(
+        "-c", "--clear-cache",
+        action="store_true",
+        help="Clear the profile cache and exit",
+    )
+
+    parser.add_argument(
+        "git_args",
+        nargs=argparse.REMAINDER,
+        help="Git command and arguments to execute",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    # Handle cache clearing
+    if args.clear_cache:
+        if GIT_AUTO_CACHE_FILE.exists():
+            GIT_AUTO_CACHE_FILE.unlink()
+            print("[✓] Cache cleared.")
+        else:
+            print("[*] Cache is already empty.")
+        sys.exit(0)
+
+    # Get remote URL
+    if not inside_git_repo():
+        print("[!] Not inside a git repository.", file=sys.stderr)
+        sys.exit(1)
+
+    remote_url = get_remote_url()
+    if not remote_url:
+        print("[!] No remote URL found.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"[*] Remote URL: {remote_url}")
+
+    # Check cache first
+    cached_profile = load_from_cache(remote_url)
+    if cached_profile and cached_profile in get_existing_profiles(GIT_PROFILE_DIR):
+        print(f"[*] Using cached profile: {cached_profile}")
+        apply_profile(cached_profile, args.git_args)
+        return
+
+    # Try to match by regex
+    matching_profiles = match_profile_by_regex(remote_url)
+
+    if len(matching_profiles) == 1:
+        profile = matching_profiles[0]
+        print(f"[✓] Profile matched: {profile}")
+        save_to_cache(remote_url, profile)
+        apply_profile(profile, args.git_args)
+    elif len(matching_profiles) > 1:
+        print(f"[*] Multiple profiles matched: {', '.join(matching_profiles)}")
+        profile = prompt_profile_selection(matching_profiles)
+        if profile:
+            save_to_cache(remote_url, profile)
+            apply_profile(profile, args.git_args)
+        else:
+            print("[!] No profile selected.", file=sys.stderr)
+            sys.exit(1)
+    else:
+        # No matches - prompt user to select from all profiles
+        all_profiles = get_existing_profiles(GIT_PROFILE_DIR)
+        if not all_profiles:
+            print(f"[!] No profiles found in {GIT_PROFILE_DIR}", file=sys.stderr)
+            sys.exit(1)
+
+        print("[*] No profile regex matched the remote URL.")
+        profile = prompt_profile_selection(all_profiles)
+        if profile:
+            save_to_cache(remote_url, profile)
+            apply_profile(profile, args.git_args)
+        else:
+            print("[!] No profile selected.", file=sys.stderr)
+            sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+

@@ -1,0 +1,232 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "argcomplete",
+# ]
+# ///
+
+import os
+import sys
+import stat
+import subprocess
+import argparse
+import argcomplete
+from pathlib import Path
+
+
+# ──────────────────────────────── constants ────────────────────────────────
+
+GIT_PROFILE_DIR = Path(
+    os.environ.get("GIT_PROFILE_DIR", Path.home() / ".git-ssh-profiles")
+).expanduser()
+
+# ──────────────────────────────── helpers ────────────────────────────────
+
+def read_input(prompt: str, required: bool = False, validator=None, default: str | None = None) -> str:
+    """Prompt the user for input with optional validation."""
+    while True:
+        value = input(prompt).strip()
+        if not value and default:
+            return default
+        if not value and required:
+            print("[!] Input required.", file=sys.stderr)
+            continue
+        if validator and not validator(value):
+            print("[!] Invalid input format.", file=sys.stderr)
+            continue
+        return value
+
+
+def validate_profile_name(name: str) -> bool:
+    """Ensure the profile name is alphanumeric, underscore, or dash."""
+    return name.replace("-", "").replace("_", "").isalnum()
+
+
+def get_existing_profiles(profile_dir: Path) -> list[str]:
+    """Return all existing profile names."""
+    if not profile_dir.exists():
+        return []
+    return sorted([
+        f.name[1:]
+        for f in profile_dir.iterdir()
+        if f.is_file() and f.name.startswith(".")
+    ])
+
+
+def load_profile(profile_name: str) -> dict[str, str] | None:
+    """Load environment variables from a .<profile> script."""
+    script_path = GIT_PROFILE_DIR / f".{profile_name}"
+    if not script_path.is_file():
+        return None
+
+    env = {}
+    for line in script_path.read_text().splitlines():
+        line = line.strip()
+        if not line or not line.startswith("export "):
+            continue
+        key, _, value = line[len("export "):].partition("=")
+        env[key.strip()] = value.strip().strip('"')
+    return env
+
+
+def select_profile(profiles: list[str]) -> str | None:
+    """Prompt user to select a profile."""
+    print("[*] Available profiles:")
+    for i, profile in enumerate(profiles, 1):
+        env = load_profile(profile)
+        email = env.get("GIT_SSH_PROFILE__EMAIL", "N/A") if env else "N/A"
+        print(f"  {i}. {profile} ({email})")
+
+    try:
+        choice = input("[*] Enter profile number to modify: ").strip()
+        idx = int(choice) - 1
+        if 0 <= idx < len(profiles):
+            return profiles[idx]
+        print("[!] Invalid selection.", file=sys.stderr)
+        return None
+    except ValueError:
+        print("[!] Invalid input.", file=sys.stderr)
+        return None
+
+
+def ensure_ssh_key(ssh_key: Path, git_email: str) -> None:
+    """Generate an SSH key if it does not exist."""
+    if ssh_key.exists():
+        print("[*] SSH key already exists, skipping generation.")
+        print("[*] Public key:")
+        print(ssh_key.with_suffix(".pub").read_text().strip())
+        return
+
+    print("[*] SSH key not found, generating...")
+    ssh_key.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run(["ssh-keygen", "-t", "ed25519", "-C", git_email, "-f", str(ssh_key)], check=True)
+    print("[*] Public key:")
+    print(ssh_key.with_suffix(".pub").read_text().strip())
+
+
+def create_profile_file(profile_name: str, git_name: str, git_email: str, ssh_key: Path, remote_regex: str = "") -> None:
+    """Create the profile script file under GIT_PROFILE_DIR."""
+    GIT_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
+    profile_file = GIT_PROFILE_DIR / f".{profile_name}"
+
+    remote_export = f'export GIT_SSH_PROFILE__REMOTE_REGEX="{remote_regex}"\n' if remote_regex else ""
+
+    content = f"""#!/bin/bash
+export GIT_SSH_PROFILE__SSH_KEY_PATH="{ssh_key}"
+export GIT_SSH_PROFILE__NAME="{git_name}"
+export GIT_SSH_PROFILE__EMAIL="{git_email}"
+export GIT_SSH_PROFILE__GPG_SIGN=true
+export GIT_SSH_PROFILE__GPG_FORMAT=ssh
+export GIT_SSH_PROFILE__GPG_KEY="{ssh_key.with_suffix('.pub')}"
+{remote_export}"""
+
+    profile_file.write_text(content)
+    profile_file.chmod(stat.S_IRWXU | stat.S_IRGRP | stat.S_IROTH)  # chmod 755
+    print(f"[✓] Profile '{profile_name}' modified and saved.")
+
+
+# ──────────────────────────────── main ────────────────────────────────
+
+def main():
+    script_name = Path(sys.argv[0]).name.replace("-", " ", 1)
+    existing_profiles = get_existing_profiles(GIT_PROFILE_DIR)
+
+    parser = argparse.ArgumentParser(
+        prog=script_name,
+        description="Modifies an existing git profile with SSH key and user information.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument(
+        "profile",
+        nargs="?",
+        help="Profile name to modify (optional, will prompt if not provided)",
+        choices=existing_profiles,
+    )
+
+    parser.add_argument(
+        "-h", "--help",
+        action="help",
+        help="Show help message and exit",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    if not existing_profiles:
+        print(f"[!] No profiles found in {GIT_PROFILE_DIR}", file=sys.stderr)
+        sys.exit(1)
+
+    # Select profile
+    if args.profile:
+        profile_name = args.profile
+    else:
+        profile_name = select_profile(existing_profiles)
+        if not profile_name:
+            sys.exit(1)
+
+    # Load current profile
+    current_env = load_profile(profile_name)
+    if not current_env:
+        print(f"[!] Failed to load profile '{profile_name}'.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"[*] Loaded profile: {profile_name}")
+    print("[*] Leave fields empty to keep current values.\n")
+
+    # Get current values
+    current_name = current_env.get("GIT_SSH_PROFILE__NAME", "")
+    current_email = current_env.get("GIT_SSH_PROFILE__EMAIL", "")
+    current_ssh_key = current_env.get("GIT_SSH_PROFILE__SSH_KEY_PATH", "")
+    current_remote_regex = current_env.get("GIT_SSH_PROFILE__REMOTE_REGEX", "")
+
+    # Interactive prompts with current values as defaults
+    git_name = read_input(f"[*] Git user.name [{current_name}]: ", default=current_name)
+    git_email = read_input(f"[*] Git user.email [{current_email}]: ", default=current_email)
+
+    ssh_key_raw = read_input(f"[*] SSH key path [{current_ssh_key}]: ", default=current_ssh_key)
+    ssh_key = Path(ssh_key_raw).expanduser().resolve()
+
+    remote_regex = read_input(f"[*] Remote regex [{current_remote_regex}]: ", default=current_remote_regex)
+
+    # Confirm changes
+    print("\n[*] Summary of changes:")
+    if git_name != current_name:
+        print(f"  Name: {current_name} → {git_name}")
+    else:
+        print(f"  Name: {git_name} (unchanged)")
+
+    if git_email != current_email:
+        print(f"  Email: {current_email} → {git_email}")
+    else:
+        print(f"  Email: {git_email} (unchanged)")
+
+    if str(ssh_key) != current_ssh_key:
+        print(f"  SSH Key: {current_ssh_key} → {ssh_key}")
+    else:
+        print(f"  SSH Key: {ssh_key} (unchanged)")
+
+    if remote_regex != current_remote_regex:
+        print(f"  Remote Regex: {current_remote_regex} → {remote_regex}")
+    else:
+        print(f"  Remote Regex: {remote_regex} (unchanged)")
+
+    confirm = read_input("\n[*] Proceed with modifications? (yes/no): ")
+    if confirm.lower() not in ["yes", "y"]:
+        print("[*] Cancelled.")
+        sys.exit(0)
+
+    # Ensure SSH key exists if changed
+    if str(ssh_key) != current_ssh_key:
+        ensure_ssh_key(ssh_key, git_email)
+
+    # Save modified profile
+    create_profile_file(profile_name, git_name, git_email, ssh_key, remote_regex)
+
+
+if __name__ == "__main__":
+    main()
+

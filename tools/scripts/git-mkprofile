@@ -59,10 +59,12 @@ def ensure_ssh_key(ssh_key: Path, git_email: str) -> None:
     print(ssh_key.with_suffix(".pub").read_text().strip())
 
 
-def create_profile_file(profile_name: str, git_name: str, git_email: str, ssh_key: Path) -> None:
+def create_profile_file(profile_name: str, git_name: str, git_email: str, ssh_key: Path, remote_regex: str = "") -> None:
     """Create the profile script file under GIT_PROFILE_DIR."""
     GIT_PROFILE_DIR.mkdir(parents=True, exist_ok=True)
     profile_file = GIT_PROFILE_DIR / f".{profile_name}"
+
+    remote_export = f'export GIT_SSH_PROFILE__REMOTE_REGEX="{remote_regex}"\n' if remote_regex else ""
 
     content = f"""#!/bin/bash
 export GIT_SSH_PROFILE__SSH_KEY_PATH="{ssh_key}"
@@ -71,7 +73,7 @@ export GIT_SSH_PROFILE__EMAIL="{git_email}"
 export GIT_SSH_PROFILE__GPG_SIGN=true
 export GIT_SSH_PROFILE__GPG_FORMAT=ssh
 export GIT_SSH_PROFILE__GPG_KEY="{ssh_key.with_suffix('.pub')}"
-"""
+{remote_export}"""
 
     profile_file.write_text(content)
     profile_file.chmod(stat.S_IRWXU | stat.S_IRGRP | stat.S_IROTH)  # chmod 755
@@ -107,8 +109,10 @@ def main():
     ssh_key_raw = read_input(f"[*] SSH key path (default: {ssh_key_default}): ", default=str(ssh_key_default))
     ssh_key = Path(ssh_key_raw).expanduser().resolve()
 
+    remote_regex = read_input("[*] Remote regex (optional, for auto-detection): ")
+
     ensure_ssh_key(ssh_key, git_email)
-    create_profile_file(profile_name, git_name, git_email, ssh_key)
+    create_profile_file(profile_name, git_name, git_email, ssh_key, remote_regex)
 
 
 if __name__ == "__main__":

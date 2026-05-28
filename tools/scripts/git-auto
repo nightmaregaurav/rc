@@ -186,6 +186,19 @@ def apply_profile(profile_name: str, git_args: list[str]) -> None:
     subprocess.run(["git", *git_args], check=False)
 
 
+def extract_clone_url(git_args: list[str]) -> str | None:
+    """Extract the clone URL from git clone command arguments."""
+    if not git_args or git_args[0] != "clone":
+        return None
+
+    # Find the repository URL (first non-flag argument after 'clone')
+    for arg in git_args[1:]:
+        if not arg.startswith("-"):
+            return arg
+
+    return None
+
+
 # ──────────────────────────────── main ────────────────────────────────
 
 def main():
@@ -227,15 +240,21 @@ def main():
             print("[*] Cache is already empty.")
         sys.exit(0)
 
-    # Get remote URL
-    if not inside_git_repo():
-        print("[!] Not inside a git repository.", file=sys.stderr)
-        sys.exit(1)
+    # Check if we're cloning (not in a repo but doing a clone operation)
+    clone_url = extract_clone_url(args.git_args)
+    if clone_url and not inside_git_repo():
+        print(f"[*] Clone URL detected: {clone_url}")
+        remote_url = clone_url
+    else:
+        # Get remote URL from current repo
+        if not inside_git_repo():
+            print("[!] Not inside a git repository.", file=sys.stderr)
+            sys.exit(1)
 
-    remote_url = get_remote_url()
-    if not remote_url:
-        print("[!] No remote URL found.", file=sys.stderr)
-        sys.exit(1)
+        remote_url = get_remote_url()
+        if not remote_url:
+            print("[!] No remote URL found.", file=sys.stderr)
+            sys.exit(1)
 
     print(f"[*] Remote URL: {remote_url}")
 

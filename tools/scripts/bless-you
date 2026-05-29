@@ -1,0 +1,323 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "sounddevice",
+#     "argcomplete",
+#     "numpy",
+# ]
+# ///
+
+from __future__ import annotations
+
+import argparse
+import argcomplete
+import math
+import platform
+import shlex
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
+
+import sounddevice as sd
+
+
+@dataclass
+class AudioStats:
+	peak: float
+	rms: float
+	crest_factor: float
+
+
+@dataclass
+class DetectionConfig:
+	samplerate: int = 44_100
+	blocksize: int = 1_024
+	device: str | int | None = None
+	calibration_seconds: float = 1.5
+	threshold_multiplier: float = 4.0
+	min_peak: float = 0.18
+	crest_factor: float = 2.2
+	burst_min_seconds: float = 0.06
+	burst_max_seconds: float = 0.80
+	cooldown_seconds: float = 2.0
+
+
+def parse_device(value: str) -> str | int | None:
+	value = value.strip()
+	if not value:
+		return None
+	if value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
+		return int(value)
+	return value
+
+
+def frame_stats(frame) -> AudioStats:
+	"""Compute simple loudness metrics for a single audio frame."""
+	if getattr(frame, "ndim", 1) > 1:
+		frame = frame[:, 0]
+
+	peak = 0.0
+	sum_squares = 0.0
+	count = 0
+
+	for sample in frame:
+		value = float(sample)
+		abs_value = abs(value)
+		if abs_value > peak:
+			peak = abs_value
+		sum_squares += value * value
+		count += 1
+
+	if count == 0:
+		return AudioStats(peak=0.0, rms=0.0, crest_factor=0.0)
+
+	rms = math.sqrt(sum_squares / count)
+	crest = peak / max(rms, 1e-9)
+	return AudioStats(peak=peak, rms=rms, crest_factor=crest)
+
+
+def calibrate_noise_floor(stream: sd.InputStream, config: DetectionConfig) -> float:
+	"""Measure ambient noise before detection starts."""
+	end_time = time.monotonic() + max(config.calibration_seconds, 0.0)
+	samples: list[float] = []
+
+	while time.monotonic() < end_time:
+		frame, _ = stream.read(config.blocksize)
+		stats = frame_stats(frame)
+		if stats.rms > 0:
+			samples.append(stats.rms)
+
+	if not samples:
+		return 0.01
+
+	samples.sort()
+	mid = len(samples) // 2
+	if len(samples) % 2:
+		return samples[mid]
+	return (samples[mid - 1] + samples[mid]) / 2.0
+
+
+def detect_sneeze(config: DetectionConfig) -> AudioStats:
+	"""Listen until a sneeze-like burst is detected."""
+	try:
+		with sd.InputStream(
+			device=config.device,
+			samplerate=config.samplerate,
+			channels=1,
+			dtype="float32",
+			blocksize=config.blocksize,
+		) as stream:
+			print("[INFO] Calibrating ambient noise...")
+			noise_floor = calibrate_noise_floor(stream, config)
+			print(f"[INFO] Noise floor set to {noise_floor:.5f}")
+			print("[INFO] Listening for a sneeze...")
+
+			candidate_started: float | None = None
+			candidate_peak = 0.0
+			candidate_crest = 0.0
+
+			while True:
+				frame, _ = stream.read(config.blocksize)
+				stats = frame_stats(frame)
+				now = time.monotonic()
+
+				if stats.rms > 0:
+					noise_floor = (noise_floor * 0.98) + (stats.rms * 0.02)
+
+				loud_threshold = max(config.min_peak, noise_floor * config.threshold_multiplier)
+				burst_is_loud = stats.peak >= loud_threshold and stats.crest_factor >= config.crest_factor
+
+				if burst_is_loud:
+					if candidate_started is None:
+						candidate_started = now
+						candidate_peak = stats.peak
+						candidate_crest = stats.crest_factor
+					else:
+						candidate_peak = max(candidate_peak, stats.peak)
+						candidate_crest = max(candidate_crest, stats.crest_factor)
+					continue
+
+				if candidate_started is None:
+					continue
+
+				duration = now - candidate_started
+				recent_enough = config.burst_min_seconds <= duration <= config.burst_max_seconds
+				if recent_enough:
+					return AudioStats(
+						peak=candidate_peak,
+						rms=noise_floor,
+						crest_factor=candidate_crest,
+					)
+
+				candidate_started = None
+				candidate_peak = 0.0
+				candidate_crest = 0.0
+		raise RuntimeError("Unreachable: detection loop exited unexpectedly.")
+	except KeyboardInterrupt:
+		raise
+	except Exception as exc:
+		sys.exit(f"Error: Could not access the microphone. {exc}")
+
+
+def command_exists(name: str) -> bool:
+	"""Return True when a command is available on PATH."""
+	return subprocess.run(
+		["/bin/sh", "-lc", f"command -v {shlex.quote(name)} >/dev/null 2>&1"],
+		check=False,
+	).returncode == 0
+
+
+def say_text(text: str) -> None:
+	"""Speak text using the best available OS-specific TTS command."""
+	sysname = platform.system().lower()
+
+	if "darwin" in sysname:
+		command = ["say", text]
+	elif "linux" in sysname:
+		if command_exists("spd-say"):
+			command = ["spd-say", text]
+		elif command_exists("espeak"):
+			command = ["espeak", text]
+		else:
+			sys.exit("Error: No text-to-speech command found. Install 'say', 'spd-say', or 'espeak'.")
+	elif "windows" in sysname:
+		safe_text = text.replace("'", "''")
+		command = [
+			"powershell",
+			"-NoProfile",
+			"-Command",
+			(
+				"Add-Type -AssemblyName System.Speech; "
+				f"$speak = New-Object System.Speech.Synthesis.SpeechSynthesizer; $speak.Speak('{safe_text}')"
+			),
+		]
+	else:
+		sys.exit("Error: Unsupported operating system for text-to-speech.")
+
+	try:
+		subprocess.run(command, check=True)
+	except FileNotFoundError:
+		sys.exit("Error: Text-to-speech command was not found on this system.")
+	except subprocess.CalledProcessError as exc:
+		sys.exit(f"Error: Text-to-speech failed with exit code {exc.returncode}.")
+
+
+def main() -> None:
+	parser = argparse.ArgumentParser(
+		description="Listen to the microphone, detect a sneeze-like burst, and say 'Bless you'.",
+		formatter_class=argparse.RawTextHelpFormatter,
+		add_help=False,
+	)
+
+	parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+	parser.add_argument(
+		"-p",
+		"--phrase",
+		default="Bless you",
+		help="Text to speak when a sneeze is detected (default: 'Bless you').",
+	)
+	parser.add_argument(
+		"-d",
+		"--device",
+		type=parse_device,
+		help="Input microphone device index or name (default: system default).",
+	)
+	parser.add_argument(
+		"-r",
+		"--samplerate",
+		type=int,
+		default=44_100,
+		help="Microphone samplerate in Hz (default: 44100).",
+	)
+	parser.add_argument(
+		"-b",
+		"--blocksize",
+		type=int,
+		default=1_024,
+		help="Audio block size used during detection (default: 1024).",
+	)
+	parser.add_argument(
+		"-w",
+		"--warmup",
+		type=float,
+		default=1.5,
+		help="Seconds to use for ambient noise calibration (default: 1.5).",
+	)
+	parser.add_argument(
+		"-t",
+		"--threshold",
+		type=float,
+		default=4.0,
+		help="How many times louder than the noise floor a burst must be (default: 4.0).",
+	)
+	parser.add_argument(
+		"--min-peak",
+		type=float,
+		default=0.18,
+		help="Minimum absolute peak amplitude that can trigger detection (default: 0.18).",
+	)
+	parser.add_argument(
+		"--crest-factor",
+		type=float,
+		default=2.2,
+		help="Minimum peak-to-RMS ratio for a sneeze-like burst (default: 2.2).",
+	)
+	parser.add_argument(
+		"--burst-min",
+		type=float,
+		default=0.06,
+		help="Minimum burst duration in seconds (default: 0.06).",
+	)
+	parser.add_argument(
+		"--burst-max",
+		type=float,
+		default=0.80,
+		help="Maximum burst duration in seconds (default: 0.80).",
+	)
+	parser.add_argument(
+		"--cooldown",
+		type=float,
+		default=2.0,
+		help="Seconds to wait before allowing another blessing (default: 2.0).",
+	)
+	parser.add_argument(
+		"--keep-listening",
+		action="store_true",
+		help="Keep listening after speaking instead of exiting after the first detected sneeze.",
+	)
+
+	argcomplete.autocomplete(parser, always_complete_options=False)
+	args = parser.parse_args()
+
+	config = DetectionConfig(
+		samplerate=args.samplerate,
+		blocksize=args.blocksize,
+		device=args.device,
+		calibration_seconds=args.warmup,
+		threshold_multiplier=args.threshold,
+		min_peak=args.min_peak,
+		crest_factor=args.crest_factor,
+		burst_min_seconds=args.burst_min,
+		burst_max_seconds=args.burst_max,
+		cooldown_seconds=args.cooldown,
+	)
+
+	while True:
+		stats = detect_sneeze(config)
+		print(
+			f"[INFO] Sneeze-like burst detected (peak={stats.peak:.3f}, rms={stats.rms:.5f}, crest={stats.crest_factor:.2f})."
+		)
+		say_text(args.phrase)
+		if not args.keep_listening:
+			return
+		time.sleep(config.cooldown_seconds)
+
+
+if __name__ == "__main__":
+	main()
+
+
+

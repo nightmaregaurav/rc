@@ -70,17 +70,22 @@ fi
 
 # Write source line to shell rc files
 echo "Writing source line to shell profile..."
-if [ -f $ROOT_DIR/etc/profile ]; then
-    if ! grep -Fxq "source $ROOT_DIR/opt/rc/activate" $ROOT_DIR/etc/profile; then
-        echo "source $ROOT_DIR/opt/rc/activate" | sudo tee -a $ROOT_DIR/etc/profile > /dev/null
+# since our activate script skips after being sourced once it's safer to source activate script in them all
+potential_default_sources=(
+    "$ROOT_DIR/etc/profile"
+    "$ROOT_DIR/etc/bash.bashrc"
+    "$ROOT_DIR/etc/bashrc"
+    "$ROOT_DIR/etc/zprofile"
+    "$ROOT_DIR/etc/zshrc"
+    "$ROOT_DIR/etc/zshenv"
+    "$ROOT_DIR/etc/zlogin"
+)
+for source_file in "${potential_default_sources[@]}"; do
+    [[ -e "$source_file" ]] || touch "$source_file"
+    if ! grep -Fxq "source $ROOT_DIR/opt/rc/activate" $source_file; then
+        echo "source $ROOT_DIR/opt/rc/activate" | sudo tee -a $source_file > /dev/null
     fi
-fi
-
-if [ -f $ROOT_DIR/etc/zprofile ]; then
-    if ! grep -Fxq "source $ROOT_DIR/opt/rc/activate" $ROOT_DIR/etc/zprofile; then
-        echo "source $ROOT_DIR/opt/rc/activate" | sudo tee -a $ROOT_DIR/etc/zprofile > /dev/null
-    fi
-fi
+done
 
 # Source the activate script in the current shell
 set +euo pipefail

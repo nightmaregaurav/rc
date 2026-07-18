@@ -1,3 +1,8 @@
+# Determine if it's already sourced (current_rc_script_dir env var will be set if it is)
+if [ -n "${current_rc_script_dir}" ]; then
+    return 0
+fi
+
 # Determine if benchmarking is enabled
 if [ -n "${RC_BENCHMARK}" ]; then
     current_time_ms() {

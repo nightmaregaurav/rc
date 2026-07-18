@@ -44,7 +44,7 @@ GROUP=$(id -gn "$USER")
 echo "Preparing $ROOT_DIR/opt/rc directory..."
 sudo mkdir -p $ROOT_DIR/opt/rc
 
-if [ $ROOT_DIR = "" ]; then
+if [ "$ROOT_DIR" = "" ]; then
     echo "Running in Termux. No need to change ownership or set permissions."
 else
     # Set ownership of $ROOT_DIR/opt/rc to root:<current group>
@@ -105,20 +105,32 @@ case "$OS" in
             echo "Homebrew not found. Please install Homebrew first: https://brew.sh/"
             exit 1
         fi
-        echo "Installing uv with Homebrew..."
-        brew install uv
+        if ! command -v uv >/dev/null 2>&1; then
+            echo "Installing uv with Homebrew..."
+            brew install uv
+        else
+            echo "UV is already installed"
+        fi
         ;;
 
     Linux)
         set +u
         if [[ -n "$TERMUX_VERSION" ]]; then
             echo "Detected Android (Termux)."
-            echo "Installing uv with pkg..."
-            pkg install uv
+            if ! command -v uv >/dev/null 2>&1; then
+                echo "Installing uv with pkg..."
+                pkg install uv
+            else
+                echo "UV is already installed"
+            fi
         else
             echo "Detected Linux."
-            echo "Installing uv with curl..."
-            curl -LsSf https://astral.sh/uv/install.sh | sh
+            if ! command -v uv >/dev/null 2>&1; then
+                echo "Installing uv with curl..."
+                curl -LsSf https://astral.sh/uv/install.sh | sh
+            else
+                echo "UV is already installed"
+            fi
         fi
         set -u
         ;;
@@ -129,8 +141,12 @@ case "$OS" in
             echo "winget not found. Please make sure you're running this in a Windows environment with winget available."
             exit 1
         fi
-        echo "Installing uv with winget..."
-        winget install --id=astral-sh.uv -e --source winget
+        if ! command -v uv >/dev/null 2>&1; then
+            echo "Installing uv with winget..."
+            winget install --id=astral-sh.uv -e --source winget
+        else
+            echo "UV is already installed"
+        fi
         ;;
 
     *)

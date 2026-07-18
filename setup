@@ -45,7 +45,7 @@ echo "Preparing $ROOT_DIR/opt/rc directory..."
 sudo mkdir -p $ROOT_DIR/opt/rc
 
 if [ "$ROOT_DIR" = "" ]; then
-    echo "Running in Termux. No need to change ownership or set permissions."
+    echo "Running in non-prefix env. No need to change ownership or set permissions."
 else
     # Set ownership of $ROOT_DIR/opt/rc to root:<current group>
     echo "Changing ownership of $ROOT_DIR/opt/rc to root:$GROUP..."

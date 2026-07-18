@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Determine if it's already sourced (current_rc_script_dir env var will be set if it is)
-if [ -n "${current_rc_script_dir}" ]; then
+if [ -n "${rc_sourced}" ]; then
     return 0
 fi
 
@@ -89,3 +89,5 @@ export PATH=$(echo "$PATH" | awk -v RS=':' '!seen[$0]++ { path = path (NR==1 ? "
 benchmark "Filter duplicates from PATH"
 
 benchmark "End"
+
+export rc_sourced=1

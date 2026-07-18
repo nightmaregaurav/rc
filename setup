@@ -81,7 +81,7 @@ potential_default_sources=(
     "$ROOT_DIR/etc/zlogin"
 )
 for source_file in "${potential_default_sources[@]}"; do
-    [[ -e "$source_file" ]] || touch "$source_file"
+    [[ -e "$source_file" ]] || sudo touch "$source_file"
     if ! grep -Fxq "source $ROOT_DIR/opt/rc/activate" $source_file; then
         echo "source $ROOT_DIR/opt/rc/activate" | sudo tee -a $source_file > /dev/null
     fi

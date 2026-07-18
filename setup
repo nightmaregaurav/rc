@@ -73,7 +73,9 @@ echo "Writing source line to shell profile..."
 # since our activate script skips after being sourced once it's safer to source activate script in them all
 potential_default_sources=(
     "$ROOT_DIR/etc/profile"
+    "$ROOT_DIR/etc/profile.d/rc"
     "$ROOT_DIR/etc/bash.bashrc"
+    "$ROOT_DIR/etc/bash/bashrc"
     "$ROOT_DIR/etc/bashrc"
     "$ROOT_DIR/etc/zprofile"
     "$ROOT_DIR/etc/zshrc"
@@ -81,6 +83,7 @@ potential_default_sources=(
     "$ROOT_DIR/etc/zlogin"
 )
 for source_file in "${potential_default_sources[@]}"; do
+    sudo mkdir -p "$(dirname "$source_file")"
     [[ -e "$source_file" ]] || sudo touch "$source_file"
     if ! grep -Fxq "source $ROOT_DIR/opt/rc/activate" $source_file; then
         echo "source $ROOT_DIR/opt/rc/activate" | sudo tee -a $source_file > /dev/null

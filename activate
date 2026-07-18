@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Determine if it's already sourced (current_rc_script_dir env var will be set if it is)
 if [ -n "${current_rc_script_dir}" ]; then
     return 0

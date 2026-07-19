@@ -5,7 +5,7 @@ if [ -f "/opt/homebrew/opt/nvm/nvm.sh" ]; then
   [ -s "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm" ] && source "/opt/homebrew/opt/nvm/etc/bash_completion.d/nvm"
 else
   [ -s "$NVM_DIR/nvm.sh" ] && source $NVM_DIR/nvm.sh
-  [ -s "$NVM_DIR/bash_completion" ] && source $NVM_DIR/bash_completion
-  [ -s "$NVM_DIR/etc/bash_completion.d/nvm" ] && source $NVM_DIR/etc/bash_completion.d/nvm
+  [ "$CURRENT_SHELL" != "/bin/sh" ] && [ -s "$NVM_DIR/bash_completion" ] && source $NVM_DIR/bash_completion
+  [ "$CURRENT_SHELL" != "/bin/sh" ] && [ -s "$NVM_DIR/etc/bash_completion.d/nvm" ] && source $NVM_DIR/etc/bash_completion.d/nvm
   [ -s "$NVM_DIR/install-nvm-exec" ] && source $NVM_DIR/install-nvm-exec
 fi

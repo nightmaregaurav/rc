@@ -6,28 +6,32 @@ if [ -n "$PREFIX" ]; then
 else
     ROOT=""
 fi
-PATH_LIST=(
-    "$HOME/.flutter/bin"
-    "$HOME/.config/composer/vendor/bin"
-    "$HOME/.dotnet/tools"
-    "$HOME/.dotnet"
-    "$HOME/.local/share/JetBrains/Toolbox/scripts"
-    "$HOME/Library/Application Support/JetBrains/Toolbox/scripts"
-    "$HOME/.local/share/bin"
-    "$HOME/.local/bin"
-    "$HOME/local/bin"
-    "$HOME/bin"
-    "$ROOT/opt/mssql-tools/bin"
-    "$ROOT/opt/homebrew/bin"
-    "$ROOT/opt/homebrew/sbin"
-    "$ROOT/usr/local/bin"
-    "$ROOT/usr/local/sbin"
-    "$ROOT/usr/bin/core_perl"
-    "$ROOT/usr/bin/vendor_perl"
-    "$ROOT/usr/bin/site_perl"
-    "$ROOT/usr/bin"
-    "$ROOT/usr/sbin"
-    "$ROOT/bin"
-    "$ROOT/sbin"
-)
-export PATH=$(IFS=:; echo "${PATH_LIST[*]}"):$PATH
+
+append_path() {
+    PATH="${PATH:+$PATH:}$1"
+}
+
+append_path "$HOME/.flutter/bin"
+append_path "$HOME/.config/composer/vendor/bin"
+append_path "$HOME/.dotnet/tools"
+append_path "$HOME/.dotnet"
+append_path "$HOME/.local/share/JetBrains/Toolbox/scripts"
+append_path "$HOME/Library/Application Support/JetBrains/Toolbox/scripts"
+append_path "$HOME/.local/share/bin"
+append_path "$HOME/.local/bin"
+append_path "$HOME/local/bin"
+append_path "$HOME/bin"
+append_path "$ROOT/opt/mssql-tools/bin"
+append_path "$ROOT/opt/homebrew/bin"
+append_path "$ROOT/opt/homebrew/sbin"
+append_path "$ROOT/usr/local/bin"
+append_path "$ROOT/usr/local/sbin"
+append_path "$ROOT/usr/bin/core_perl"
+append_path "$ROOT/usr/bin/vendor_perl"
+append_path "$ROOT/usr/bin/site_perl"
+append_path "$ROOT/usr/bin"
+append_path "$ROOT/usr/sbin"
+append_path "$ROOT/bin"
+append_path "$ROOT/sbin"
+
+export PATH

@@ -14,11 +14,11 @@ mkdir -p "$ANDROID_NDK_HOME"
 export ANDROID_ADB_SERVER_PORT=5037
 
 # path setup
-ANDROID_PATH_LIST=(
-    $ANDROID_HOME/emulator
-    $ANDROID_HOME/tools
-    $ANDROID_HOME/platform-tools
-    $ANDROID_HOME/tools/bin
-    $ANDROID_HOME/cmdline-tools/latest/bin
-)
-export PATH=$(IFS=:; echo "${ANDROID_PATH_LIST[*]}"):$PATH
+
+append_path "$ANDROID_HOME/emulator"
+append_path "$ANDROID_HOME/tools"
+append_path "$ANDROID_HOME/platform-tools"
+append_path "$ANDROID_HOME/tools/bin"
+append_path "$ANDROID_HOME/cmdline-tools/latest/bin"
+
+export PATH

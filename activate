@@ -50,10 +50,10 @@ if [ -n "${BASH_VERSION:-}" ]; then
     export current_rc_script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 elif [ -n "${ZSH_VERSION}" ]; then
     export current_rc_script_dir="$(cd "$(dirname "${(%):-%x}")" && pwd)"
-elif [ -n "${.sh.file}" ]; then
-    export current_rc_script_dir="$(cd "$(dirname "${.sh.file}")" && pwd)"
+elif [ -n "${KSH_VERSION:-}" ]; then
+    current_rc_script_dir=$(cd "$(dirname "${.sh.file}")" && pwd)
 else
-    export current_rc_script_dir="$(pwd)"
+    export current_rc_script_dir="/opt/rc"
 fi
 benchmark "Determine current_rc_script_dir"
 

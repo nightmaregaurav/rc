@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 SCRIPT=$(basename "$0")
 
@@ -45,7 +45,7 @@ echo "Preparing $ROOT_DIR/opt/rc directory..."
 sudo mkdir -p $ROOT_DIR/opt/rc
 
 if [ "$ROOT_DIR" = "" ]; then
-    echo "Running in non-prefix env. No need to change ownership or set permissions."
+    echo "Running in native environment. No need to change ownership or set permissions."
 else
     # Set ownership of $ROOT_DIR/opt/rc to root:<current group>
     echo "Changing ownership of $ROOT_DIR/opt/rc to root:$GROUP..."
@@ -71,22 +71,27 @@ fi
 # Write source line to shell rc files
 echo "Writing source line to shell profile..."
 # since our activate script skips after being sourced once it's safer to source activate script in them all
-potential_default_sources=(
-    "$ROOT_DIR/etc/profile"
-    "$ROOT_DIR/etc/profile.d/rc"
-    "$ROOT_DIR/etc/bash.bashrc"
-    "$ROOT_DIR/etc/bash/bashrc"
-    "$ROOT_DIR/etc/bashrc"
-    "$ROOT_DIR/etc/zprofile"
-    "$ROOT_DIR/etc/zshrc"
-    "$ROOT_DIR/etc/zshenv"
-    "$ROOT_DIR/etc/zlogin"
-)
-for source_file in "${potential_default_sources[@]}"; do
+potential_default_sources="
+$ROOT_DIR/etc/profile
+$ROOT_DIR/etc/profile.d/rc
+$ROOT_DIR/etc/bash.bashrc
+$ROOT_DIR/etc/bash/bashrc
+$ROOT_DIR/etc/bashrc
+$ROOT_DIR/etc/zprofile
+$ROOT_DIR/etc/zshrc
+$ROOT_DIR/etc/zshenv
+$ROOT_DIR/etc/zlogin
+"
+
+for source_file in $potential_default_sources; do
     sudo mkdir -p "$(dirname "$source_file")"
-    [[ -e "$source_file" ]] || sudo touch "$source_file"
-    if ! grep -Fxq "source $ROOT_DIR/opt/rc/activate" $source_file; then
-        echo "source $ROOT_DIR/opt/rc/activate" | sudo tee -a $source_file > /dev/null
+
+    if [ ! -e "$source_file" ]; then
+        sudo touch "$source_file"
+    fi
+
+    if ! grep -Fxq "source $ROOT_DIR/opt/rc/activate" "$source_file"; then
+        printf '%s\n' "source $ROOT_DIR/opt/rc/activate" | sudo tee -a "$source_file" >/dev/null
     fi
 done
 

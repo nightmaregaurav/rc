@@ -83,11 +83,11 @@ benchmark "Save public IP"
 benchmark "Save local IP"
 
 # Set history append mode
-if [ -n "${ZSH_VERSION}" ]; then
-  setopt INC_APPEND_HISTORY
-else
-  shopt -s histappend
-  PROMPT_COMMAND="history -a;$PROMPT_COMMAND"
+if [ -n "${ZSH_VERSION:-}" ]; then
+    setopt INC_APPEND_HISTORY
+elif [ -n "${BASH_VERSION:-}" ]; then
+    shopt -s histappend
+    PROMPT_COMMAND="history -a${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
 fi
 benchmark "Configure history append"
 

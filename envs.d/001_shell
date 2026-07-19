@@ -1,16 +1,13 @@
 # this file is named 001_shell to make sure it is sourced second
 # current shell setup
-shell_from_ps=$(ps -p $$ -o comm= 2>/dev/null || echo "")
 if [ -n "${BASH_VERSION:-}" ]; then
     export CURRENT_SHELL=$(which bash)
 elif [ -n "${ZSH_VERSION}" ]; then
     export CURRENT_SHELL=$(which zsh)
 elif [ -n "${KSH_VERSION:-}" ]; then
     export CURRENT_SHELL=$(which ksh)
-elif [ -n "${shell_from_ps}" ]; then
-    export CURRENT_SHELL="/bin/sh"
 else
-    export CURRENT_SHELL="$shell_from_ps"
+    export CURRENT_SHELL="/bin/sh"
 fi
 
 # Hide EOL sign ('%')

@@ -1,3 +1,10 @@
+# Skip if sourced within the last 2 seconds
+now=$(date +%s)
+
+if [ -n "${rc_sourced:-}" ] && [ $((now - rc_sourced)) -lt 2 ]; then
+    return 0
+fi
+
 # Determine if it's already sourced (current_rc_script_dir env var will be set if it is)
 if [ -n "${rc_sourced}" ]; then
     return 0
@@ -88,4 +95,4 @@ benchmark "Filter duplicates from PATH"
 
 benchmark "End"
 
-export rc_sourced=1
+export rc_sourced="$now"

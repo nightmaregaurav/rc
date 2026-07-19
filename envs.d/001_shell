@@ -1,11 +1,13 @@
 # this file is named 001_shell to make sure it is sourced second
 # current shell setup
 if [ -n "${BASH_VERSION:-}" ]; then
-    export CURRENT_SHELL=$(which bash)
-elif [ -n "${ZSH_VERSION}" ]; then
-    export CURRENT_SHELL=$(which zsh)
+    export CURRENT_SHELL="$(command -v bash)"
+elif [ -n "${ZSH_VERSION:-}" ]; then
+    export CURRENT_SHELL="$(command -v zsh)"
 elif [ -n "${KSH_VERSION:-}" ]; then
-    export CURRENT_SHELL=$(which ksh)
+    export CURRENT_SHELL="$(command -v ksh)"
+elif [ -n "${FISH_VERSION:-}" ]; then
+    export CURRENT_SHELL="$(command -v fish)"
 else
     export CURRENT_SHELL="/bin/sh"
 fi

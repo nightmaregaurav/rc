@@ -5,14 +5,16 @@ for file in "$current_rc_script_dir/envs.d/"*; do
     fi
 
     should_source=false
-    if [[ $file == *.zsh ]]; then
-        [[ $CURRENT_SHELL == */zsh ]] && should_source=true
-    elif [[ $file == *.bash ]]; then
+    if [[ $file == *.bash ]]; then
         [[ $CURRENT_SHELL == */bash ]] && should_source=true
-    elif [[ $file == *.ash ]]; then
-        [[ $CURRENT_SHELL == */ash ]] && should_source=true
+    elif [[ $file == *.zsh ]]; then
+        [[ $CURRENT_SHELL == */zsh ]] && should_source=true
+    elif [[ $file == *.ksh ]]; then
+        [[ $CURRENT_SHELL == */ksh ]] && should_source=true
     elif [[ $file == *.fish ]]; then
         [[ $CURRENT_SHELL == */fish ]] && should_source=true
+    elif [[ $file == *.sh ]]; then
+        [[ $CURRENT_SHELL == */sh ]] && should_source=true
     else
         should_source=true
     fi

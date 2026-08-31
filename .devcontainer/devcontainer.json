@@ -1,6 +1,6 @@
 {
   "name": "RC",
-  "dockerComposeFile": ["docker-compose.yml"],
+  "dockerComposeFile": ["compose.yml"],
   "service": "devcontainer",
   "shutdownAction": "stopCompose",
   "workspaceFolder": "/workspace/",

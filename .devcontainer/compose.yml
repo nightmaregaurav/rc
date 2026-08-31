@@ -1,0 +1,21 @@
+name: rc
+
+networks:
+    rc-network:
+        name: rc-network
+
+services:
+  devcontainer:
+    build:
+      context: .
+    platform: linux/amd64
+    container_name: rc-devcontainer
+    volumes:
+      - type: bind
+        source: ..
+        target: /workspace
+      - type: bind
+        source: ~/.ssh
+        target: /root/.ssh
+    networks:
+      - rc-network

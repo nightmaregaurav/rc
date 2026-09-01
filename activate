@@ -1,3 +1,10 @@
+# Skip if sourced within the last 2 seconds
+now=$(date +%s)
+
+if [ -n "${rc_sourced:-}" ] && [ $((now - rc_sourced)) -lt 2 ]; then
+    return 0
+fi
+
 # Determine if benchmarking is enabled
 if [ -n "${RC_BENCHMARK}" ]; then
     current_time_ms() {
@@ -84,3 +91,5 @@ export PATH=$(echo "$PATH" | awk -v RS=':' '!seen[$0]++ { path = path (NR==1 ? "
 benchmark "Filter duplicates from PATH"
 
 benchmark "End"
+
+export rc_sourced="$now"

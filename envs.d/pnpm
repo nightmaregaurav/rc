@@ -1,0 +1,2 @@
+export PNPM_HOME="$HOME/.pnpm"
+append_path "$PNPM_HOME/bin"

@@ -1,15 +1,19 @@
 # this file is named 000_path to make sure it is sourced first
-# path setup
+
+append_path() {
+    case ":$PATH:" in
+        *":$1:"*) ;;
+        *) PATH="${PATH:+$PATH:}$1" ;;
+    esac
+    export PATH
+}
+
 # if PREFIX is set, then start start the root paths with that instead of /
 if [ -n "$PREFIX" ]; then
     ROOT="${PREFIX%/}"
 else
     ROOT=""
 fi
-
-append_path() {
-    PATH="${PATH:+$PATH:}$1"
-}
 
 append_path "$HOME/.flutter/bin"
 append_path "$HOME/.config/composer/vendor/bin"
@@ -33,5 +37,3 @@ append_path "$ROOT/usr/bin"
 append_path "$ROOT/usr/sbin"
 append_path "$ROOT/bin"
 append_path "$ROOT/sbin"
-
-export PATH

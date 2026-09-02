@@ -20,5 +20,3 @@ append_path "$ANDROID_HOME/tools"
 append_path "$ANDROID_HOME/platform-tools"
 append_path "$ANDROID_HOME/tools/bin"
 append_path "$ANDROID_HOME/cmdline-tools/latest/bin"
-
-export PATH

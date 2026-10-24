@@ -1,0 +1,411 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "argcomplete",
+#     "selenium",
+# ]
+# ///
+
+import argparse
+import os
+import re
+import sys
+from html.parser import HTMLParser
+from pathlib import Path
+
+import argcomplete
+from selenium import webdriver
+from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+
+
+URL = "https://goat.tekkon.com.np/admin/employees-all"
+EMPLOYEE_SELECTOR = ".profile-card"
+WAIT_TIMEOUT = 60
+
+USERNAME_ENV = "GOAT_USERNAME"
+PASSWORD_ENV = "GOAT_PASSWORD"
+
+
+# ============================================================
+# HTML PARSER
+# ============================================================
+
+class EmployeeHTMLParser(HTMLParser):
+    """Extract employee details from individual profile cards."""
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.contacts = []
+        self.current_card = None
+        self.card_depth = 0
+        self.in_name = False
+        self.in_text = False
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        classes = attrs.get("class", "").split()
+
+        if tag == "div":
+            if self.current_card is None and "profile-card" in classes:
+                self.current_card = {
+                    "Name": "",
+                    "Company": "Tekkon",
+                    "Position": "",
+                    "Phone": "",
+                    "Email": "",
+                    "Blood Group": "",
+                    "_profile_text": "",
+                }
+                self.card_depth = 1
+            elif self.current_card is not None:
+                self.card_depth += 1
+
+        if self.current_card is None:
+            return
+
+        if tag == "h5" and "card-title" in classes:
+            self.in_name = True
+
+        if tag == "p" and "card-text" in classes:
+            self.in_text = True
+
+        if tag == "br" and self.in_text:
+            self.current_card["_profile_text"] += "\n"
+
+    def handle_endtag(self, tag):
+        if self.current_card is None:
+            return
+
+        if tag == "h5":
+            self.in_name = False
+
+        if tag == "p":
+            self.in_text = False
+
+        if tag == "div":
+            self.card_depth -= 1
+            if self.card_depth == 0:
+                self._finish_card()
+
+    def handle_data(self, data):
+        if self.current_card is None:
+            return
+
+        if self.in_name:
+            self.current_card["Name"] += data
+
+        if self.in_text:
+            self.current_card["_profile_text"] += data
+
+    def _finish_card(self):
+        contact = self.current_card
+        contact["Name"] = clean_text(contact["Name"])
+
+        raw_text = contact.pop("_profile_text", "")
+        lines = [
+            clean_text(line)
+            for line in raw_text.splitlines()
+        ]
+        lines = [line for line in lines if line]
+
+        if lines:
+            contact["Position"] = lines[0]
+
+        for line in lines:
+            if ":" not in line:
+                continue
+
+            label, value = line.split(":", 1)
+            label = clean_text(label).lower()
+            value = clean_text(value)
+
+            if label in ("contact", "phone", "phone number", "mobile"):
+                contact["Phone"] = value
+            elif label in ("email", "e-mail"):
+                contact["Email"] = value
+            elif label in ("blood group", "blood type"):
+                contact["Blood Group"] = value
+            elif label in ("position", "designation", "job title"):
+                contact["Position"] = value
+            elif label == "company":
+                contact["Company"] = value
+
+        for key in ("Phone", "Email", "Blood Group", "Position"):
+            if contact[key].lower() in ("null", "none", "n/a", "-"):
+                contact[key] = ""
+
+        if contact["Name"]:
+            self.contacts.append(contact)
+
+        self.current_card = None
+        self.card_depth = 0
+        self.in_name = False
+        self.in_text = False
+
+
+def clean_text(value):
+    return re.sub(r"\s+", " ", value or "").strip()
+
+
+def parse_employee_html(html):
+    parser = EmployeeHTMLParser()
+    parser.feed(html)
+    parser.close()
+    return parser.contacts
+
+
+# ============================================================
+# VCARD GENERATION
+# ============================================================
+
+def parse_name(full_name):
+    parts = full_name.strip().split()
+
+    if len(parts) == 1:
+        return parts[0], "", ""
+
+    if len(parts) == 2:
+        return parts[0], "", parts[1]
+
+    return parts[0], " ".join(parts[1:-1]), parts[-1]
+
+
+def escape_vcard(value):
+    value = str(value or "")
+    value = value.replace("\\", "\\\\")
+    value = value.replace("\r\n", "\n")
+    value = value.replace("\r", "\n")
+    value = value.replace("\n", "\\n")
+    value = value.replace(";", "\\;")
+    value = value.replace(",", "\\,")
+    return value
+
+
+def create_vcf(contacts):
+    lines = []
+
+    for contact in contacts:
+        first, middle, last = parse_name(contact["Name"])
+        full_name = " ".join(
+            part for part in (first, middle, last) if part
+        )
+
+        lines.extend([
+            "BEGIN:VCARD",
+            "VERSION:3.0",
+            f"N:{escape_vcard(last)};"
+            f"{escape_vcard(first)};"
+            f"{escape_vcard(middle)};;",
+            f"FN:{escape_vcard(full_name)}",
+        ])
+
+        if contact.get("Company"):
+            lines.append(f"ORG:{escape_vcard(contact['Company'])}")
+
+        if contact.get("Position"):
+            lines.append(f"TITLE:{escape_vcard(contact['Position'])}")
+
+        if contact.get("Phone"):
+            lines.append(
+                f"TEL;TYPE=CELL:{escape_vcard(contact['Phone'])}"
+            )
+
+        if contact.get("Email"):
+            lines.append(f"EMAIL:{escape_vcard(contact['Email'])}")
+
+        if contact.get("Blood Group"):
+            lines.append(
+                "NOTE:Blood Group: "
+                + escape_vcard(contact["Blood Group"])
+            )
+
+        lines.append("END:VCARD")
+
+    return "\r\n".join(lines) + "\r\n"
+
+
+# ============================================================
+# LOGIN
+# ============================================================
+
+def is_login_page(driver):
+    return bool(
+        driver.find_elements(
+            By.CSS_SELECTOR,
+            "form.login-form[action*='/admin/login']",
+        )
+    )
+
+
+def login_if_needed(driver):
+    """Log in only when the site's login form is displayed."""
+    if not is_login_page(driver):
+        return
+
+    username = os.environ.get(USERNAME_ENV)
+    password = os.environ.get(PASSWORD_ENV)
+
+    missing = [
+        name
+        for name, value in (
+            (USERNAME_ENV, username),
+            (PASSWORD_ENV, password),
+        )
+        if not value
+    ]
+
+    if missing:
+        raise RuntimeError(
+            "Login page reached, but required environment variables "
+            "are missing or empty: " + ", ".join(missing)
+        )
+
+    wait = WebDriverWait(driver, WAIT_TIMEOUT)
+
+    email_field = wait.until(
+        lambda d: d.find_element(By.CSS_SELECTOR, "input[name='email']")
+    )
+    password_field = driver.find_element(
+        By.CSS_SELECTOR, "input[name='password']"
+    )
+    submit_button = driver.find_element(
+        By.CSS_SELECTOR,
+        "form.login-form button[type='submit']",
+    )
+
+    print("Login page detected; submitting credentials...")
+
+    email_field.clear()
+    email_field.send_keys(username)
+
+    password_field.clear()
+    password_field.send_keys(password)
+
+    submit_button.click()
+
+    try:
+        wait.until(lambda d: not is_login_page(d))
+    except TimeoutException as exc:
+        raise RuntimeError(
+            "Login did not complete. Check the credentials or whether "
+            "the site displayed a login error."
+        ) from exc
+
+    print("Login form dismissed.")
+
+
+# ============================================================
+# EXTRACTION
+# ============================================================
+
+def extract_employee_html(driver):
+    """Extract rendered cards directly from the browser DOM."""
+    wait = WebDriverWait(driver, WAIT_TIMEOUT)
+
+    wait.until(
+        lambda d: bool(
+            d.find_elements(By.CSS_SELECTOR, EMPLOYEE_SELECTOR)
+        )
+    )
+
+    html = driver.execute_script(
+        """
+        return Array.from(
+            document.querySelectorAll(arguments[0])
+        ).map(card => card.outerHTML).join("\\n");
+        """,
+        EMPLOYEE_SELECTOR,
+    )
+
+    if not html.strip():
+        raise RuntimeError(
+            f"No employee cards found using {EMPLOYEE_SELECTOR!r}. "
+            "Check the selector against the current page."
+        )
+
+    return html
+
+
+# ============================================================
+# CLI
+# ============================================================
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Export Tekkon employee contacts to a vCard file.",
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
+
+    parser.add_argument(
+        "output",
+        type=Path,
+        help="Destination path for the .vcf file.",
+    )
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    output = args.output.expanduser()
+
+    if output.suffix.lower() != ".vcf":
+        parser.error("Output path must end with .vcf.")
+
+    if output.exists() and output.is_dir():
+        parser.error("Output path is a directory, not a file.")
+
+    driver = None
+
+    try:
+        print(f"Opening {URL} in Chrome...")
+        driver = webdriver.Chrome()
+        driver.get(URL)
+
+        login_if_needed(driver)
+
+        print("Waiting for employee cards...")
+        employee_html = extract_employee_html(driver)
+
+        # HTML is kept in memory only; no debug file is created.
+        contacts = parse_employee_html(employee_html)
+
+        if not contacts:
+            raise RuntimeError(
+                "Employee cards were found, but no names were parsed. "
+                "The page's HTML structure may have changed."
+            )
+
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(
+            create_vcf(contacts),
+            encoding="utf-8",
+            newline="",
+        )
+
+        print(f"Exported {len(contacts)} contacts.")
+        print(f"Output: {output.resolve()}")
+        print(
+            "Contacts without phone numbers: "
+            f"{sum(not c.get('Phone') for c in contacts)}"
+        )
+        print(
+            "Contacts without email addresses: "
+            f"{sum(not c.get('Email') for c in contacts)}"
+        )
+
+    except (RuntimeError, TimeoutException, WebDriverException) as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    finally:
+        if driver is not None:
+            driver.quit()
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

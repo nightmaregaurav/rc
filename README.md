@@ -72,6 +72,7 @@ The following tools are included to simplify common tasks:
 - `snap-screen`: Captures screenshots for all available screens.
 - `split-video`: Splits a video file into multiple parts in chunks of the specified duration.
 - `storage-usage`: Calculate total size of a directory (recursive, excludes symlinks).
+- `tekkon-contacts-export`: Exports contacts from Tekkon's GOAT. (Only useful for me and folks at my company lol)
 - `up-since`: Shows how long the system has been up since last reboot.
 - `update-cloudflare-dns`: Updates Cloudflare DNS record with ease.
 - `usb-storage`: Usb storage manager for macOS and linux.

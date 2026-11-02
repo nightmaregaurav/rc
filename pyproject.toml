@@ -24,5 +24,8 @@ dependencies = [
     "fastapi",
     "uvicorn",
     "docker",
-    "selenium"
+    "selenium",
+    "mediapipe",
+    "numpy",
+    "soundfile"
 ]

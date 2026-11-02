@@ -3,46 +3,43 @@
 # /// script
 # requires-python = ">=3.13"
 # dependencies = [
-#     "sounddevice",
-#     "argcomplete",
-#     "numpy",
+# 	"argcomplete",
+# 	"mediapipe",
+# 	"numpy",
+# 	"sounddevice",
+# 	"soundfile",
 # ]
 # ///
 
 from __future__ import annotations
 
 import argparse
-import argcomplete
-import math
-import platform
+import os
 import shlex
 import subprocess
 import sys
 import time
-from dataclasses import dataclass
+import urllib.error
+import urllib.request
+from pathlib import Path
 
+import argcomplete
+import mediapipe as mp
+import numpy as np
 import sounddevice as sd
+import soundfile as sf
+from argcomplete.completers import DirectoriesCompleter
 
 
-@dataclass
-class AudioStats:
-	peak: float
-	rms: float
-	crest_factor: float
-
-
-@dataclass
-class DetectionConfig:
-	samplerate: int = 44_100
-	blocksize: int = 1_024
-	device: str | int | None = None
-	calibration_seconds: float = 1.5
-	threshold_multiplier: float = 4.0
-	min_peak: float = 0.18
-	crest_factor: float = 2.2
-	burst_min_seconds: float = 0.06
-	burst_max_seconds: float = 0.80
-	cooldown_seconds: float = 2.0
+YAMNET_URL = "https://storage.googleapis.com/mediapipe-models/audio_classifier/yamnet/float32/1/yamnet.tflite"
+YAMNET_CLASS_COUNT = 521
+YAMNET_SNEEZE_INDEX = 44
+WINDOW_SECONDS = 1.0
+WINDOW_HOP_SECONDS = 0.48
+MODEL_DIR = Path(__file__).resolve().parents[2] / ".local" / "models"
+YAMNET_PATH = MODEL_DIR / "yamnet" / "yamnet.tflite"
+MEMORY_PATH = MODEL_DIR / "bless-you" / "sneeze.npz"
+AUDIO_EXTENSIONS = {".aif", ".aiff", ".au", ".caf", ".flac", ".mp3", ".ogg", ".wav"}
 
 
 def parse_device(value: str) -> str | int | None:
@@ -54,116 +51,248 @@ def parse_device(value: str) -> str | int | None:
 	return value
 
 
-def frame_stats(frame) -> AudioStats:
-	"""Compute simple loudness metrics for a single audio frame."""
-	if getattr(frame, "ndim", 1) > 1:
-		frame = frame[:, 0]
+def ensure_yamnet_model() -> Path:
+	if YAMNET_PATH.is_file() and YAMNET_PATH.stat().st_size > 1_000_000:
+		return YAMNET_PATH
 
-	peak = 0.0
-	sum_squares = 0.0
-	count = 0
+	YAMNET_PATH.parent.mkdir(parents=True, exist_ok=True)
+	temporary_path = YAMNET_PATH.with_suffix(".tflite.tmp")
+	try:
+		print("[INFO] Downloading the YAMNet sound classifier...")
+		with urllib.request.urlopen(YAMNET_URL, timeout=60) as response:
+			with temporary_path.open("wb") as model_file:
+				while chunk := response.read(1024 * 1024):
+					model_file.write(chunk)
 
-	for sample in frame:
-		value = float(sample)
-		abs_value = abs(value)
-		if abs_value > peak:
-			peak = abs_value
-		sum_squares += value * value
-		count += 1
+		if temporary_path.stat().st_size <= 1_000_000:
+			raise RuntimeError("Downloaded model file is unexpectedly small.")
 
-	if count == 0:
-		return AudioStats(peak=0.0, rms=0.0, crest_factor=0.0)
-
-	rms = math.sqrt(sum_squares / count)
-	crest = peak / max(rms, 1e-9)
-	return AudioStats(peak=peak, rms=rms, crest_factor=crest)
-
-
-def calibrate_noise_floor(stream: sd.InputStream, config: DetectionConfig) -> float:
-	"""Measure ambient noise before detection starts."""
-	end_time = time.monotonic() + max(config.calibration_seconds, 0.0)
-	samples: list[float] = []
-
-	while time.monotonic() < end_time:
-		frame, _ = stream.read(config.blocksize)
-		stats = frame_stats(frame)
-		if stats.rms > 0:
-			samples.append(stats.rms)
-
-	if not samples:
-		return 0.01
-
-	samples.sort()
-	mid = len(samples) // 2
-	if len(samples) % 2:
-		return samples[mid]
-	return (samples[mid - 1] + samples[mid]) / 2.0
+		os.replace(temporary_path, YAMNET_PATH)
+		print(f"[INFO] Model saved to {YAMNET_PATH}")
+		return YAMNET_PATH
+	except Exception as exc:
+		temporary_path.unlink(missing_ok=True)
+		if isinstance(exc, urllib.error.URLError):
+			raise RuntimeError(f"Could not download the YAMNet model: {exc}") from exc
+		raise
 
 
-def detect_sneeze(config: DetectionConfig) -> AudioStats:
-	"""Listen until a sneeze-like burst is detected."""
+def create_classifier(model_path: Path):
+	options = mp.tasks.audio.AudioClassifierOptions(
+		base_options=mp.tasks.BaseOptions(model_asset_path=str(model_path)),
+		max_results=YAMNET_CLASS_COUNT,
+		score_threshold=0.0,
+	)
+	return mp.tasks.audio.AudioClassifier.create_from_options(options)
+
+
+def get_sneeze_index(result) -> int:
+	for head in result.classifications:
+		for category in head.categories:
+			name = (category.category_name or category.display_name or "").lower()
+			if name == "sneeze" and category.index is not None:
+				return int(category.index)
+	return YAMNET_SNEEZE_INDEX
+
+
+def scores_from_result(result) -> np.ndarray:
+	scores = np.zeros(YAMNET_CLASS_COUNT, dtype=np.float32)
+	for head in result.classifications:
+		for category in head.categories:
+			if category.index is not None and 0 <= category.index < YAMNET_CLASS_COUNT:
+				scores[category.index] = category.score
+	return scores
+
+
+def classify_audio(classifier, samples: np.ndarray, samplerate: int):
+	waveform = np.asarray(samples, dtype=np.float32)
+	if waveform.ndim > 1:
+		waveform = waveform.mean(axis=1)
+	waveform = np.nan_to_num(waveform, copy=False)
+	waveform = np.clip(waveform, -1.0, 1.0)
+
+	minimum_samples = int(samplerate * 0.98)
+	if waveform.size < minimum_samples:
+		waveform = np.pad(waveform, (0, minimum_samples - waveform.size))
+
+	audio_data = mp.tasks.components.containers.AudioData.create_from_array(
+		np.ascontiguousarray(waveform), sample_rate=samplerate
+	)
+	return classifier.classify(audio_data)
+
+
+def audio_windows(samples: np.ndarray, samplerate: int):
+	window_size = max(1, int(samplerate * WINDOW_SECONDS))
+	hop_size = max(1, int(samplerate * WINDOW_HOP_SECONDS))
+	if samples.ndim > 1:
+		samples = samples.mean(axis=1)
+
+	if samples.size < window_size:
+		yield samples
+		return
+
+	for start in range(0, samples.size - window_size + 1, hop_size):
+		yield samples[start:start + window_size]
+
+
+def similarity_threshold_for(fingerprints: np.ndarray) -> float:
+	norms = np.linalg.norm(fingerprints, axis=1, keepdims=True)
+	normalized = fingerprints / np.maximum(norms, 1e-8)
+	if len(normalized) < 2:
+		return 0.70
+
+	similarities = normalized @ normalized.T
+	np.fill_diagonal(similarities, -1.0)
+	nearest = similarities.max(axis=1)
+	return float(np.clip(np.percentile(nearest, 10) - 0.05, 0.55, 0.90))
+
+
+def train_model(folder: Path) -> None:
+	if not folder.is_dir():
+		sys.exit(f"Error: '{folder}' is not a valid folder.")
+
+	audio_files = sorted(
+		path for path in folder.rglob("*")
+		if path.is_file() and path.suffix.lower() in AUDIO_EXTENSIONS
+	)
+	if not audio_files:
+		sys.exit(f"Error: No supported audio files found in '{folder}'.")
+
+	model_path = ensure_yamnet_model()
+	fingerprints = []
+	sneeze_scores = []
+	sneeze_index = YAMNET_SNEEZE_INDEX
+
+	print(f"[INFO] Training from {len(audio_files)} audio file(s)...")
+	with create_classifier(model_path) as classifier:
+		for audio_file in audio_files:
+			try:
+				samples, samplerate = sf.read(audio_file, dtype="float32", always_2d=True)
+				if not len(samples) or samplerate <= 0:
+					print(f"[WARN] Skipping empty audio file: {audio_file}", file=sys.stderr)
+					continue
+
+				results = []
+				for window in audio_windows(samples, int(samplerate)):
+					results.append(classify_audio(classifier, window, int(samplerate)))
+				vectors = [scores_from_result(result) for result in results]
+				if not vectors:
+					print(f"[WARN] No audio frames returned for: {audio_file}", file=sys.stderr)
+					continue
+
+				sneeze_index = get_sneeze_index(results[0])
+				best = max(vectors, key=lambda vector: vector[sneeze_index])
+				if np.linalg.norm(best) < 1e-8:
+					print(f"[WARN] No usable sound classification for: {audio_file}", file=sys.stderr)
+					continue
+
+				fingerprints.append(best)
+				sneeze_scores.append(float(best[sneeze_index]))
+				print(f"[INFO] Learned {audio_file.name} (sneeze score {best[sneeze_index]:.3f})")
+			except Exception as exc:
+				print(f"[WARN] Could not read {audio_file}: {exc}", file=sys.stderr)
+
+	if not fingerprints:
+		sys.exit("Error: Could not learn from any audio files.")
+
+	fingerprint_array = np.asarray(fingerprints, dtype=np.float32)
+	sneeze_threshold = max(0.01, float(np.percentile(sneeze_scores, 10)) * 0.5)
+	similarity_threshold = similarity_threshold_for(fingerprint_array)
+	MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+	np.savez_compressed(
+		MEMORY_PATH,
+		version=np.array(1, dtype=np.int16),
+		fingerprints=fingerprint_array,
+		sneeze_index=np.array(sneeze_index, dtype=np.int16),
+		sneeze_threshold=np.array(sneeze_threshold, dtype=np.float32),
+		similarity_threshold=np.array(similarity_threshold, dtype=np.float32),
+	)
+
+	print(f"[INFO] Trained from {len(fingerprints)} sneeze recording(s).")
+	print(f"[INFO] Sneeze memory saved to {MEMORY_PATH}")
+
+
+def load_memory() -> dict:
+	if not MEMORY_PATH.is_file():
+		sys.exit(
+			"Error: No trained sneeze memory found. Run "
+			"'bless-you --train <folder>' first."
+		)
+
+	try:
+		with np.load(MEMORY_PATH, allow_pickle=False) as data:
+			if int(data["version"]) != 1:
+				raise ValueError("unsupported model memory version")
+			fingerprints = np.asarray(data["fingerprints"], dtype=np.float32)
+			memory = {
+				"fingerprints": fingerprints,
+				"sneeze_index": int(data["sneeze_index"]),
+				"sneeze_threshold": float(data["sneeze_threshold"]),
+				"similarity_threshold": float(data["similarity_threshold"]),
+			}
+	except Exception as exc:
+		sys.exit(f"Error: Could not read trained sneeze memory: {exc}")
+
+	if memory["fingerprints"].ndim != 2 or memory["fingerprints"].shape[1] != YAMNET_CLASS_COUNT:
+		sys.exit("Error: Trained sneeze memory has an unexpected format. Train it again.")
+	return memory
+
+
+def match_sneeze(result, memory: dict) -> tuple[bool, float, float]:
+	fingerprints = memory["fingerprints"]
+	known_norms = np.linalg.norm(fingerprints, axis=1, keepdims=True)
+	known = fingerprints / np.maximum(known_norms, 1e-8)
+	vector = scores_from_result(result)
+	if not np.linalg.norm(vector):
+		return False, 0.0, 0.0
+
+	sneeze_score = float(vector[memory["sneeze_index"]])
+	vector = vector / max(float(np.linalg.norm(vector)), 1e-8)
+	similarity = float(np.max(known @ vector))
+
+	return (
+		sneeze_score >= memory["sneeze_threshold"]
+		and similarity >= memory["similarity_threshold"],
+		sneeze_score,
+		similarity,
+	)
+
+
+def detect_sneeze(classifier, memory: dict, device: str | int | None, samplerate: int):
+	window_size = int(samplerate * WINDOW_SECONDS)
+	hop_size = int(samplerate * WINDOW_HOP_SECONDS)
+	audio_buffer = np.empty(0, dtype=np.float32)
+
 	try:
 		with sd.InputStream(
-			device=config.device,
-			samplerate=config.samplerate,
+			device=device,
+			samplerate=samplerate,
 			channels=1,
 			dtype="float32",
-			blocksize=config.blocksize,
+			blocksize=hop_size,
 		) as stream:
-			print("[INFO] Calibrating ambient noise...")
-			noise_floor = calibrate_noise_floor(stream, config)
-			print(f"[INFO] Noise floor set to {noise_floor:.5f}")
 			print("[INFO] Listening for a sneeze...")
-
-			candidate_started: float | None = None
-			candidate_peak = 0.0
-			candidate_crest = 0.0
-
 			while True:
-				frame, _ = stream.read(config.blocksize)
-				stats = frame_stats(frame)
-				now = time.monotonic()
-
-				if stats.rms > 0:
-					noise_floor = (noise_floor * 0.98) + (stats.rms * 0.02)
-
-				loud_threshold = max(config.min_peak, noise_floor * config.threshold_multiplier)
-				burst_is_loud = stats.peak >= loud_threshold and stats.crest_factor >= config.crest_factor
-
-				if burst_is_loud:
-					if candidate_started is None:
-						candidate_started = now
-						candidate_peak = stats.peak
-						candidate_crest = stats.crest_factor
-					else:
-						candidate_peak = max(candidate_peak, stats.peak)
-						candidate_crest = max(candidate_crest, stats.crest_factor)
+				frame, overflowed = stream.read(hop_size)
+				if overflowed:
+					print("[WARN] Microphone audio overflowed; continuing.", file=sys.stderr)
+				audio_buffer = np.concatenate((audio_buffer, frame[:, 0]))
+				if audio_buffer.size < window_size:
 					continue
 
-				if candidate_started is None:
-					continue
-
-				duration = now - candidate_started
-				recent_enough = config.burst_min_seconds <= duration <= config.burst_max_seconds
-				if recent_enough:
-					return AudioStats(
-						peak=candidate_peak,
-						rms=noise_floor,
-						crest_factor=candidate_crest,
-					)
-
-				candidate_started = None
-				candidate_peak = 0.0
-				candidate_crest = 0.0
-		raise RuntimeError("Unreachable: detection loop exited unexpectedly.")
+				window = audio_buffer[-window_size:]
+				audio_buffer = window[-(window_size - hop_size):]
+				result = classify_audio(classifier, window, samplerate)
+				matched, score, similarity = match_sneeze(result, memory)
+				if matched:
+					return score, similarity
 	except KeyboardInterrupt:
 		raise
 	except Exception as exc:
-		sys.exit(f"Error: Could not access the microphone. {exc}")
+		sys.exit(f"Error: Could not access the microphone or run the sound model. {exc}")
 
 
 def command_exists(name: str) -> bool:
-	"""Return True when a command is available on PATH."""
 	return subprocess.run(
 		["/bin/sh", "-lc", f"command -v {shlex.quote(name)} >/dev/null 2>&1"],
 		check=False,
@@ -171,19 +300,17 @@ def command_exists(name: str) -> bool:
 
 
 def say_text(text: str) -> None:
-	"""Speak text using the best available OS-specific TTS command."""
-	sysname = platform.system().lower()
-
-	if "darwin" in sysname:
+	sysname = sys.platform
+	if sysname == "darwin":
 		command = ["say", text]
-	elif "linux" in sysname:
+	elif sysname.startswith("linux"):
 		if command_exists("spd-say"):
 			command = ["spd-say", text]
 		elif command_exists("espeak"):
 			command = ["espeak", text]
 		else:
-			sys.exit("Error: No text-to-speech command found. Install 'say', 'spd-say', or 'espeak'.")
-	elif "windows" in sysname:
+			sys.exit("Error: No text-to-speech command found. Install 'spd-say' or 'espeak'.")
+	elif sysname == "win32":
 		safe_text = text.replace("'", "''")
 		command = [
 			"powershell",
@@ -191,7 +318,8 @@ def say_text(text: str) -> None:
 			"-Command",
 			(
 				"Add-Type -AssemblyName System.Speech; "
-				f"$speak = New-Object System.Speech.Synthesis.SpeechSynthesizer; $speak.Speak('{safe_text}')"
+				"$speak = New-Object System.Speech.Synthesis.SpeechSynthesizer; "
+				f"$speak.Speak('{safe_text}')"
 			),
 		]
 	else:
@@ -207,12 +335,19 @@ def say_text(text: str) -> None:
 
 def main() -> None:
 	parser = argparse.ArgumentParser(
-		description="Listen to the microphone, detect a sneeze-like burst, and say 'Bless you'.",
+		description="Listen for sneezes using an AI sound classifier and a profile built from example recordings.",
 		formatter_class=argparse.RawTextHelpFormatter,
 		add_help=False,
 	)
 
 	parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+	parser.add_argument(
+		"-T",
+		"--train",
+		type=Path,
+		metavar="FOLDER",
+		help="Build or update the sneeze profile from audio files in FOLDER (for example, .local/training/bless-you).",
+	).completer = DirectoriesCompleter()
 	parser.add_argument(
 		"-p",
 		"--phrase",
@@ -230,94 +365,50 @@ def main() -> None:
 		"--samplerate",
 		type=int,
 		default=44_100,
-		help="Microphone samplerate in Hz (default: 44100).",
-	)
-	parser.add_argument(
-		"-b",
-		"--blocksize",
-		type=int,
-		default=1_024,
-		help="Audio block size used during detection (default: 1024).",
-	)
-	parser.add_argument(
-		"-w",
-		"--warmup",
-		type=float,
-		default=1.5,
-		help="Seconds to use for ambient noise calibration (default: 1.5).",
-	)
-	parser.add_argument(
-		"-t",
-		"--threshold",
-		type=float,
-		default=4.0,
-		help="How many times louder than the noise floor a burst must be (default: 4.0).",
-	)
-	parser.add_argument(
-		"--min-peak",
-		type=float,
-		default=0.18,
-		help="Minimum absolute peak amplitude that can trigger detection (default: 0.18).",
-	)
-	parser.add_argument(
-		"--crest-factor",
-		type=float,
-		default=2.2,
-		help="Minimum peak-to-RMS ratio for a sneeze-like burst (default: 2.2).",
-	)
-	parser.add_argument(
-		"--burst-min",
-		type=float,
-		default=0.06,
-		help="Minimum burst duration in seconds (default: 0.06).",
-	)
-	parser.add_argument(
-		"--burst-max",
-		type=float,
-		default=0.80,
-		help="Maximum burst duration in seconds (default: 0.80).",
+		help="Microphone sample rate in Hz (default: 44100).",
 	)
 	parser.add_argument(
 		"--cooldown",
 		type=float,
 		default=2.0,
-		help="Seconds to wait before allowing another blessing (default: 2.0).",
+		help="Seconds to wait before detecting another sneeze (default: 2.0).",
 	)
 	parser.add_argument(
 		"--keep-listening",
 		action="store_true",
-		help="Keep listening after speaking instead of exiting after the first detected sneeze.",
+		help="Keep listening after speaking instead of exiting after the first sneeze.",
 	)
 
 	argcomplete.autocomplete(parser, always_complete_options=False)
 	args = parser.parse_args()
 
-	config = DetectionConfig(
-		samplerate=args.samplerate,
-		blocksize=args.blocksize,
-		device=args.device,
-		calibration_seconds=args.warmup,
-		threshold_multiplier=args.threshold,
-		min_peak=args.min_peak,
-		crest_factor=args.crest_factor,
-		burst_min_seconds=args.burst_min,
-		burst_max_seconds=args.burst_max,
-		cooldown_seconds=args.cooldown,
-	)
+	if args.train:
+		train_model(args.train.expanduser().resolve())
+		return
+	if args.samplerate < 8_000:
+		parser.error("--samplerate must be at least 8000 Hz.")
+	if args.cooldown < 0:
+		parser.error("--cooldown cannot be negative.")
 
-	while True:
-		stats = detect_sneeze(config)
-		print(
-			f"[INFO] Sneeze-like burst detected (peak={stats.peak:.3f}, rms={stats.rms:.5f}, crest={stats.crest_factor:.2f})."
-		)
-		say_text(args.phrase)
-		if not args.keep_listening:
-			return
-		time.sleep(config.cooldown_seconds)
+	memory = load_memory()
+	model_path = ensure_yamnet_model()
+	with create_classifier(model_path) as classifier:
+		while True:
+			score, similarity = detect_sneeze(
+				classifier,
+				memory,
+				device=args.device,
+				samplerate=args.samplerate,
+			)
+			print(
+				f"[INFO] Sneeze detected (AI score={score:.3f}, "
+				f"example match={similarity:.3f})."
+			)
+			say_text(args.phrase)
+			if not args.keep_listening:
+				return
+			time.sleep(args.cooldown)
 
 
 if __name__ == "__main__":
 	main()
-
-
-

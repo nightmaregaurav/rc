@@ -40,6 +40,7 @@ MODEL_DIR = Path(__file__).resolve().parents[2] / ".local" / "models"
 YAMNET_PATH = MODEL_DIR / "yamnet" / "yamnet.tflite"
 MEMORY_PATH = MODEL_DIR / "bless-you" / "sneeze.npz"
 AUDIO_EXTENSIONS = {".aif", ".aiff", ".au", ".caf", ".flac", ".mp3", ".ogg", ".wav"}
+MIN_CONFIDENCE = 0.6
 
 
 def parse_device(value: str) -> str | int | None:
@@ -118,7 +119,7 @@ def classify_audio(classifier, samples: np.ndarray, samplerate: int):
 	audio_data = mp.tasks.components.containers.AudioData.create_from_array(
 		np.ascontiguousarray(waveform), sample_rate=samplerate
 	)
-	return classifier.classify(audio_data)
+	return classifier.classify(audio_data)[0]
 
 
 def audio_windows(samples: np.ndarray, samplerate: int):
@@ -270,6 +271,7 @@ def detect_sneeze(classifier, memory: dict, device: str | int | None, samplerate
 			channels=1,
 			dtype="float32",
 			blocksize=hop_size,
+            latency="high",
 		) as stream:
 			print("[INFO] Listening for a sneeze...")
 			while True:
@@ -400,13 +402,21 @@ def main() -> None:
 				device=args.device,
 				samplerate=args.samplerate,
 			)
-			print(
-				f"[INFO] Sneeze detected (AI score={score:.3f}, "
-				f"example match={similarity:.3f})."
-			)
-			say_text(args.phrase)
-			if not args.keep_listening:
-				return
+			if score > MIN_CONFIDENCE:
+				print(
+                    f"[INFO] Sneeze detected (AI score={score:.3f}, "
+                    f"example match={similarity:.3f})."
+                )
+				say_text(args.phrase)
+				if not args.keep_listening:
+					return
+			else:
+				print(
+					f"[INFO] Sneeze detected (AI score={score:.3f}, "
+					f"example match={similarity:.3f}). "
+					f"Discarding due to low confidence({MIN_CONFIDENCE})."
+				)
+
 			time.sleep(args.cooldown)
 
 

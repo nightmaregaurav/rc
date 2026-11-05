@@ -40,7 +40,7 @@ MODEL_DIR = Path(__file__).resolve().parents[2] / ".local" / "models"
 YAMNET_PATH = MODEL_DIR / "yamnet" / "yamnet.tflite"
 MEMORY_PATH = MODEL_DIR / "bless-you" / "sneeze.npz"
 AUDIO_EXTENSIONS = {".aif", ".aiff", ".au", ".caf", ".flac", ".mp3", ".ogg", ".wav"}
-MIN_CONFIDENCE = 0.6
+MIN_CONFIDENCE = 0.05
 
 
 def parse_device(value: str) -> str | int | None:

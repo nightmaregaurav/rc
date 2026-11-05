@@ -70,6 +70,7 @@ The following tools are included to simplify common tasks:
 - `set-system-env`: Set system environment variables safely (linux).
 - `snap-camera`: Captures photos using available cameras.
 - `snap-screen`: Captures screenshots for all available screens.
+- `speedtest`: Speedtest using cloudflare speedtest API.
 - `split-video`: Splits a video file into multiple parts in chunks of the specified duration.
 - `storage-usage`: Calculate total size of a directory (recursive, excludes symlinks).
 - `tekkon-contacts-export`: Exports contacts from Tekkon's GOAT. (Only useful for me and folks at my company lol)

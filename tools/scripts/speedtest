@@ -1,0 +1,281 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.13"
+# dependencies = []
+# ///
+
+from __future__ import annotations
+
+import argparse
+import concurrent.futures
+import json
+import statistics
+import sys
+import time
+import urllib.error
+import urllib.request
+import uuid
+
+
+BASE_URL = "https://speed.cloudflare.com"
+USER_AGENT = "speedtest-cli/1.0"
+
+DOWNLOAD_SIZES = [
+    100_000,
+    1_000_000,
+    10_000_000,
+]
+
+UPLOAD_SIZE = 5_000_000
+UPLOAD_CHUNK_SIZE = 100_000
+
+
+def format_speed(bytes_per_second: float) -> str:
+    mbps = bytes_per_second * 8 / 1_000_000
+    if mbps >= 1000:
+        return f"{mbps / 1000:.2f} Gbps"
+    return f"{mbps:.2f} Mbps"
+
+
+def format_size(size: int) -> str:
+    return f"{size / 1_000_000:.1f} MB"
+
+
+def make_request(
+    url: str,
+    *,
+    method: str = "GET",
+    data: bytes | None = None,
+    timeout: float = 30,
+) -> urllib.request.Request:
+    return urllib.request.Request(
+        url,
+        data=data,
+        method=method,
+        headers={
+            "User-Agent": USER_AGENT,
+            "Cache-Control": "no-cache",
+            "Content-Type": "application/octet-stream",
+        },
+    )
+
+
+def measure_latency(timeout: float) -> tuple[float, float]:
+    samples = []
+
+    for _ in range(5):
+        request = make_request(
+            f"{BASE_URL}/__down?bytes=0&nonce={uuid.uuid4().hex}",
+            timeout=timeout,
+        )
+
+        start = time.perf_counter()
+
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            response.read()
+
+        samples.append((time.perf_counter() - start) * 1000)
+
+    return min(samples), statistics.mean(samples)
+
+
+def download_test(size: int, timeout: float) -> float:
+    url = (
+        f"{BASE_URL}/__down"
+        f"?bytes={size}&nonce={uuid.uuid4().hex}"
+    )
+
+    request = make_request(url, timeout=timeout)
+
+    start = time.perf_counter()
+    received = 0
+
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        while chunk := response.read(256 * 1024):
+            received += len(chunk)
+
+    elapsed = time.perf_counter() - start
+
+    if not received or elapsed <= 0:
+        raise RuntimeError("Download returned no data.")
+
+    return received / elapsed
+
+
+def upload_test(size: int, timeout: float) -> float:
+    url = (
+        f"{BASE_URL}/__up"
+        f"?nonce={uuid.uuid4().hex}"
+    )
+
+    # Generate a deterministic payload without allocating
+    # multiple copies of the upload buffer.
+    payload = b"\0" * size
+
+    request = make_request(
+        url,
+        method="POST",
+        data=payload,
+        timeout=timeout,
+    )
+
+    start = time.perf_counter()
+
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        response.read()
+
+    elapsed = time.perf_counter() - start
+
+    if elapsed <= 0:
+        raise RuntimeError("Invalid upload duration.")
+
+    return size / elapsed
+
+
+def progress(message: str) -> None:
+    print(f"\n[TEST] {message}", flush=True)
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Internet download and upload speed test.",
+    )
+
+    parser.add_argument(
+        "-t",
+        "--timeout",
+        type=float,
+        default=60,
+        help="Request timeout in seconds (default: 60).",
+    )
+
+    parser.add_argument(
+        "-n",
+        "--runs",
+        type=int,
+        default=2,
+        help="Number of download test rounds (default: 2).",
+    )
+
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output results as JSON.",
+    )
+
+    parser.add_argument(
+        "--upload-size",
+        type=int,
+        default=UPLOAD_SIZE,
+        metavar="MB",
+        help="Upload payload size in bytes (default: 5000000).",
+    )
+
+    args = parser.parse_args()
+
+    if args.timeout <= 0:
+        parser.error("--timeout must be positive.")
+
+    if args.runs < 1 or args.runs > 10:
+        parser.error("--runs must be between 1 and 10.")
+
+    if args.upload_size < 100_000:
+        parser.error("--upload-size must be at least 100000 bytes.")
+
+    results = {
+        "latency_ms": None,
+        "latency_avg_ms": None,
+        "download_mbps": None,
+        "upload_mbps": None,
+        "download_bytes_per_second": None,
+        "upload_bytes_per_second": None,
+        "server": BASE_URL,
+    }
+
+    try:
+        if not args.json:
+            print("╭──────────────────────────────────╮")
+            print("│          SPEEDTEST CLI           │")
+            print("╰──────────────────────────────────╯")
+            print(f"[INFO] Server: {BASE_URL}")
+
+        # Latency
+        if not args.json:
+            progress("Measuring latency...")
+
+        latency_min, latency_avg = measure_latency(args.timeout)
+
+        results["latency_ms"] = round(latency_min, 2)
+        results["latency_avg_ms"] = round(latency_avg, 2)
+
+        if not args.json:
+            print(f"[INFO] Latency: {latency_min:.2f} ms")
+            print(f"[INFO] Average: {latency_avg:.2f} ms")
+
+        # Download
+        download_speeds = []
+
+        for run in range(args.runs):
+            for size in DOWNLOAD_SIZES:
+                if not args.json:
+                    progress(
+                        f"Download test {run + 1}/{args.runs} "
+                        f"({format_size(size)})..."
+                    )
+
+                speed = download_test(size, args.timeout)
+                download_speeds.append(speed)
+
+                if not args.json:
+                    print(f"[INFO] Download: {format_speed(speed)}")
+
+        download_speed = statistics.median(download_speeds)
+
+        results["download_bytes_per_second"] = round(download_speed, 2)
+        results["download_mbps"] = round(
+            download_speed * 8 / 1_000_000, 2
+        )
+
+        # Upload
+        if not args.json:
+            progress(
+                f"Upload test ({format_size(args.upload_size)})..."
+            )
+
+        upload_speed = upload_test(
+            args.upload_size,
+            args.timeout,
+        )
+
+        results["upload_bytes_per_second"] = round(upload_speed, 2)
+        results["upload_mbps"] = round(
+            upload_speed * 8 / 1_000_000, 2
+        )
+
+        if args.json:
+            print(json.dumps(results, indent=2))
+            return
+
+        print("\n╭──────────── RESULTS ─────────────╮")
+        print(f"│ Latency:  {latency_min:>10.2f} ms       │")
+        print(f"│ Download: {format_speed(download_speed):>15} │")
+        print(f"│ Upload:   {format_speed(upload_speed):>15} │")
+        print("╰─────────────────────────────────╯")
+
+    except KeyboardInterrupt:
+        print("\n[WARN] Test interrupted.", file=sys.stderr)
+        sys.exit(130)
+
+    except (
+        urllib.error.URLError,
+        TimeoutError,
+        OSError,
+        RuntimeError,
+    ) as exc:
+        print(f"\n[ERROR] Speed test failed: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

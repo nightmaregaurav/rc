@@ -1,2 +1,7 @@
 export PNPM_HOME="$HOME/.pnpm"
 append_path "$PNPM_HOME/bin"
+
+case ":$PATH:" in
+  ":$PNPM_HOME/bin:"*) ;;
+  *) export PATH="$PNPM_HOME/bin:$PATH" ;;
+esac

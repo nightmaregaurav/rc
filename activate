@@ -77,14 +77,49 @@ benchmark "Save public IP"
 (localip > "$HOME/.ip.local" &) > /dev/null 2>&1
 benchmark "Save local IP"
 
-# Set history append mode
+# Configure history file and sizes.
+# For zsh: /etc/zshrc overwrites HISTFILE after /etc/zshenv sources this script,
+# so we defer the reinitialization to a precmd hook that runs after all startup files.
+# For bash: /etc/bashrc is sourced after /etc/profile, but our activate has a
+# 2-second debounce that skips the second source, so we use PROMPT_COMMAND to
+# ensure the history file is set correctly.
+export HISTFILESIZE=10000
+export SAVEHIST=10000
+export HISTSIZE=2000
+export HISTFILE="$HOME/.history"
+
 if [ -n "${ZSH_VERSION:-}" ]; then
     setopt INC_APPEND_HISTORY
+    # Defer history reinitialization to after all startup files (including /etc/zshrc)
+    # have been sourced. This precmd hook runs once on the first prompt, then removes itself.
+    # precmd only works in interactive shells, so guard with $interactive.
+    if [[ $interactive == yes ]]; then
+        _rc_history_init() {
+            # Reinitialize zsh history with the new file and sizes.
+            # Note: fc -p expects (file, histsize, savehist) — order differs from variable names
+            fc -p "$HISTFILE" "$HISTSIZE" "$SAVEHIST"
+            # Remove this hook after it runs once
+            precmd -d _rc_history_init
+        }
+        precmd _rc_history_init
+    else
+        # Non-interactive shell: apply immediately
+        fc -p "$HISTFILE" "$HISTSIZE" "$SAVEHIST"
+    fi
 elif [ -n "${BASH_VERSION:-}" ]; then
     shopt -s histappend
-    PROMPT_COMMAND="history -a${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+    # Use PROMPT_COMMAND to ensure HISTFILE is set and history is reloaded
+    # after /etc/bashrc has been sourced (which may overwrite HISTFILE)
+    _rc_history_init() {
+        export HISTFILE="$HOME/.history"
+        export HISTFILESIZE=10000
+        export HISTSIZE=2000
+        history -n
+        unset -f _rc_history_init
+    }
+    PROMPT_COMMAND="_rc_history_init${PROMPT_COMMAND:+;${PROMPT_COMMAND}};history -a"
 fi
-benchmark "Configure history append"
+benchmark "Configure history"
 
 # Filter duplicates from PATH
 export PATH=$(echo "$PATH" | awk -v RS=':' '!seen[$0]++ { path = path (NR==1 ? "" : ":") $0 } END { print path }')

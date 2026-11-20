@@ -17,11 +17,3 @@ PROMPT_EOL_MARK=""
 
 # Configure `time` format
 TIMEFMT=$'\nreal\t%E\nuser\t%U\nsys\t%S\ncpu\t%P'
-
-# Expand the history size
-export HISTFILESIZE=10000
-export SAVEHIST=10000
-export HISTSIZE=2000
-
-# Set history file
-export HISTFILE="$HOME/.history"

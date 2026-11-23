@@ -137,17 +137,51 @@ def check_path_permission() -> None:
             sys.exit(1)
 
     elif os_type == "windows":
+        # In Git Bash/MSYS2, `net session` may not be available
+        # Try multiple methods to detect admin privileges
+        admin_detected = False
+
+        # Method 1: Try `net session` (works in cmd/PowerShell)
         try:
             result = subprocess.run(
                 ["net", "session"],
                 capture_output=True,
                 text=True,
             )
-            if result.returncode != 0:
-                print("Error: Updating machine-wide PATH requires administrator privileges on Windows.", file=sys.stderr)
-                sys.exit(1)
-        except FileNotFoundError:
+            if result.returncode == 0:
+                admin_detected = True
+        except (FileNotFoundError, OSError):
             pass
+
+        # Method 2: Try `whoami /groups` (check for Administrators SID)
+        if not admin_detected:
+            try:
+                result = subprocess.run(
+                    ["whoami", "/groups"],
+                    capture_output=True,
+                    text=True,
+                )
+                if "S-1-5-32-544" in result.stdout:
+                    admin_detected = True
+            except (FileNotFoundError, OSError):
+                pass
+
+        # Method 3: Try via cmd.exe for Git Bash environments
+        if not admin_detected:
+            try:
+                result = subprocess.run(
+                    ["cmd.exe", "/c", "net", "session"],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode == 0:
+                    admin_detected = True
+            except (FileNotFoundError, OSError):
+                pass
+
+        if not admin_detected:
+            print("Error: Updating machine-wide PATH requires administrator privileges on Windows.", file=sys.stderr)
+            sys.exit(1)
 
 
 def check_conflicts(source_items: list[Path], dest: Path, keep_mode: bool) -> list[str]:
@@ -294,17 +328,47 @@ def main():
         update_path(dest)
 
 
+def is_windows_env() -> bool:
+    """Detect if running on Windows, including Git Bash/MSYS2/WSL environments."""
+    # Direct Windows detection
+    if platform.system().lower() == "windows":
+        return True
+
+    # Git Bash / MSYS2 / MinGW on Windows: platform.system() returns "Linux"
+    # Check for MSYSTEM env var (set by MSYS2/Git Bash)
+    if os.environ.get("MSYSTEM"):
+        # Verify we're actually on Windows by checking for Windows-specific paths
+        return os.path.exists(r"C:\Windows") or bool(os.environ.get("WINDIR"))
+
+    # Check for other Windows indicators in POSIX-like environments
+    if os.environ.get("PROGRAMFILES") or os.environ.get("PROGRAMFILES(X86)"):
+        return True
+
+    # Check if /proc/version contains Microsoft (WSL detection)
+    try:
+        with open("/proc/version", "r") as f:
+            if "microsoft" in f.read().lower():
+                return True
+    except (FileNotFoundError, PermissionError):
+        pass
+
+    return False
+
+
 def detect_os() -> str:
-    """Detect the current operating system."""
+    """Detect the current operating system, including Git Bash/MSYS2 on Windows."""
     system = platform.system().lower()
     if system == "darwin":
         return "macos"
-    elif system == "linux":
-        return "linux"
-    elif system == "windows":
+
+    # Check for Windows, including Git Bash/MSYS2/WSL environments
+    if is_windows_env():
         return "windows"
-    else:
-        return "unknown"
+
+    if system == "linux":
+        return "linux"
+
+    return "unknown"
 
 
 def update_path_macos(dest: Path) -> None:
@@ -341,41 +405,127 @@ def update_path_linux(dest: Path) -> None:
     print("Run 'source /etc/profile' or open a new terminal to apply.")
 
 
+def to_windows_path(path: Path) -> str:
+    r"""Convert a path to Windows format.
+
+    Handles Git Bash/MSYS2 paths like /c/Users/... -> C:\Users\...
+    and forward slashes to backslashes.
+    """
+    path_str = str(path)
+
+    # Convert MSYS2/Git Bash style paths (/c/... -> C:\...)
+    if path_str.startswith("/") and len(path_str) >= 3 and path_str[2] == "/":
+        drive = path_str[1:2].upper()
+        rest = path_str[3:].replace("/", "\\")
+        return f"{drive}:\\{rest}"
+
+    # Convert forward slashes to backslashes
+    return path_str.replace("/", "\\")
+
+
 def update_path_windows(dest: Path) -> None:
     """Update machine-wide PATH on Windows via the system registry.
 
     Reads the current system PATH from the registry, appends the new entry
     if not already present, and writes it back — avoiding the %PATH%
     expansion pitfall that can duplicate user/system entries.
+
+    Falls back to reg.exe if winreg is unavailable (e.g., in Git Bash/MSYS2).
     """
+    key_path = r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+    value_name = "PATH"
+    dest_str = to_windows_path(dest)
+
+    # Try winreg first (native Windows Python)
+    try:
+        _update_path_windows_winreg(key_path, value_name, dest_str)
+        return
+    except ImportError:
+        # winreg not available (e.g., MSYS2 Python), fall through to reg.exe
+        pass
+    except Exception as e:
+        print(f"Warning: winreg method failed: {e}", file=sys.stderr)
+        print("Attempting fallback method (reg.exe)...", file=sys.stderr)
+
+    # Fallback: use reg.exe (works from Git Bash/MSYS2)
+    try:
+        _update_path_windows_reg_exe(key_path, value_name, dest_str)
+        return
+    except Exception as e:
+        print(f"Error: All methods to update Windows PATH failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _update_path_windows_winreg(key_path: str, value_name: str, dest_str: str) -> None:
+    """Update PATH using winreg module (native Windows Python)."""
     import winreg
 
-    key_path = r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+    with winreg.OpenKey(
+        winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_WRITE
+    ) as key:
+        current, _ = winreg.QueryValueEx(key, value_name)
 
-    try:
-        with winreg.OpenKey(
-            winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_WRITE
-        ) as key:
-            current, _ = winreg.QueryValueEx(key, "PATH")
+    if dest_str in current.split(os.pathsep):
+        print(f"PATH entry already exists in system registry: {dest_str}")
+        return
 
-        dest_str = str(dest)
-        if dest_str in current.split(os.pathsep):
-            print(f"PATH entry already exists in system registry: {dest_str}")
-            return
-
-        winreg.SetValueEx(key, "PATH", 0, winreg.REG_EXPAND_SZ, current + os.pathsep + dest_str)
-
-    except PermissionError:
-        print("Error: Updating machine-wide PATH requires administrator privileges on Windows.", file=sys.stderr)
-        sys.exit(1)
-    except FileNotFoundError:
-        print("Error: winreg module not available. Cannot update PATH on Windows.", file=sys.stderr)
-        sys.exit(1)
-    except OSError as e:
-        print(f"Error updating PATH registry: {e}", file=sys.stderr)
-        sys.exit(1)
+    with winreg.OpenKey(
+        winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_WRITE
+    ) as key:
+        winreg.SetValueEx(key, value_name, 0, winreg.REG_EXPAND_SZ, current + os.pathsep + dest_str)
 
     print("Machine-wide PATH updated via system registry (HKEY_LOCAL_MACHINE).")
+    print("Open a new Command Prompt or PowerShell window to apply.")
+
+
+def _update_path_windows_reg_exe(key_path: str, value_name: str, dest_str: str) -> None:
+    """Update PATH using reg.exe (works from Git Bash/MSYS2 environments)."""
+    # Query current PATH
+    query_cmd = [
+        "reg.exe", "query",
+        f"HKEY_LOCAL_MACHINE\\{key_path}",
+        "/v", value_name
+    ]
+    result = subprocess.run(query_cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise OSError(f"reg.exe query failed: {result.stderr.strip()}")
+
+    # Parse the output - reg.exe returns the value on the last non-empty line
+    lines = result.stdout.strip().split("\n")
+    current = ""
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not stripped.startswith("HKEY") and "ERROR" not in stripped:
+            # Format: "REG_EXPAND_SZ    <value>" or "<type>    <value>"
+            parts = stripped.split("\t", 1)
+            if len(parts) == 2:
+                current = parts[1].strip()
+            else:
+                # Try splitting by multiple spaces
+                parts = stripped.split(None, 1)
+                if len(parts) == 2:
+                    current = parts[1].strip()
+
+    if dest_str in current.split(";"):
+        print(f"PATH entry already exists in system registry: {dest_str}")
+        return
+
+    new_path = current + ";" + dest_str if current else dest_str
+
+    # Set the new PATH
+    set_cmd = [
+        "reg.exe", "add",
+        f"HKEY_LOCAL_MACHINE\\{key_path}",
+        "/v", value_name,
+        "/t", "REG_EXPAND_SZ",
+        "/d", new_path,
+        "/f"
+    ]
+    result = subprocess.run(set_cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise OSError(f"reg.exe add failed: {result.stderr.strip()}")
+
+    print("Machine-wide PATH updated via system registry (reg.exe).")
     print("Open a new Command Prompt or PowerShell window to apply.")
 
 

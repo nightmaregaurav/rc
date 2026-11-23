@@ -1,55 +1,6 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 SCRIPT=$(basename "$0")
-
-# Detect if running in Git Bash (MINGW/MSYS/CYGWIN on Windows)
-is_git_bash=false
-OS="$(uname -s)"
-case "$OS" in
-    MINGW*|MSYS*|CYGWIN*)
-        is_git_bash=true
-        ;;
-esac
-
-# If running in Termux, make sudo a no-op
-if [ -n "$PREFIX" ]; then
-  sudo() {
-    # ignore common sudo flags if present
-    while [ "$1" = "-n" ] || [ "$1" = "-H" ] || [ "$1" = "-E" ]; do
-      shift
-    done
-    "$@"
-  }
-fi
-
-# If running in Git Bash, handle missing Unix commands
-if $is_git_bash; then
-  # Disable MSYS path conversion to prevent path corruption
-  export MSYS_NO_PATHCONV=1
-
-  # Git Bash doesn't need real sudo; make it a no-op
-  sudo() {
-    # ignore common sudo flags if present
-    while [ "$1" = "-n" ] || [ "$1" = "-H" ] || [ "$1" = "-E" ]; do
-      shift
-    done
-    "$@"
-  }
-
-  if ! command -v whoami >/dev/null 2>&1; then
-    whoami() {
-      echo "${USER:-${USERNAME:-$(cmd.exe /c echo %USERNAME%)}}"
-    }
-  fi
-
-  id() {
-    if [ "$1" = "-gn" ]; then
-      echo "${USERDOMAIN:-Users}"
-    else
-      echo "0"
-    fi
-  }
-fi
 
 HELP_MESSAGE="Usage: $SCRIPT
 
@@ -58,72 +9,159 @@ Clones rc, sets up the required environment, and sources it to the shell configu
 options:
   -h, --help    Show help message and exit."
 
-# Help message
+# Help message (before any environment detection)
 if [[ "$1" == "--help" || "$1" == "-h" ]]; then
   echo "$HELP_MESSAGE"
   exit 0
 fi
 
-if [ -n "$PREFIX" ]; then
-    echo "Running in Termux. Will use $PREFIX as the root directory."
-    ROOT_DIR="$PREFIX"
-elif $is_git_bash; then
-    echo "Running in git-bash. Will use /c as the root directory."
-    ROOT_DIR="/c"
-else
-    echo "Running in native environment. Will use / as the root directory."
-    ROOT_DIR=""
-fi
+# ---------------------------------------------------------------------------
+# Environment detection (single source of truth)
+# ---------------------------------------------------------------------------
+UNAME_SYS="$(uname -s)"
+
+# Determine environment type: termux | git-bash | macos | linux | unsupported
+ENV_TYPE="linux"
+case "$UNAME_SYS" in
+    MINGW*|MSYS*|CYGWIN*)
+        ENV_TYPE="git-bash"
+        ;;
+    Darwin)
+        ENV_TYPE="macos"
+        ;;
+    Linux)
+        if [ -n "${PREFIX:-}" ]; then
+            ENV_TYPE="termux"
+        fi
+        ;;
+    *)
+        ENV_TYPE="unsupported"
+        ;;
+esac
+
+echo "=========================================="
+echo "  rc Setup Script"
+echo "=========================================="
+echo ""
+echo "Detected environment: $ENV_TYPE"
+
+# ---------------------------------------------------------------------------
+# Environment-specific fallbacks
+# ---------------------------------------------------------------------------
+
+# sudo() helper — strips common sudo flags and runs the command
+sudo_helper() {
+  while [ "$1" = "-n" ] || [ "$1" = "-H" ] || [ "$1" = "-E" ]; do
+    shift
+  done
+  "$@"
+}
+
+case "$ENV_TYPE" in
+    termux)
+        # Termux: sudo is a no-op
+        sudo() { sudo_helper "$@"; }
+        ;;
+    git-bash)
+        # Disable MSYS path conversion to prevent path corruption
+        export MSYS_NO_PATHCONV=1
+
+        # Git Bash: sudo is a no-op
+        sudo() { sudo_helper "$@"; }
+
+        # Git Bash may not have whoami
+        if ! command -v whoami >/dev/null 2>&1; then
+          whoami() {
+            echo "${USER:-${USERNAME:-$(cmd.exe /c echo %USERNAME%)}}"
+          }
+        fi
+
+        # Git Bash: id does not resolve group name
+        id() {
+          if [ "$1" = "-gn" ]; then
+            echo "${USERDOMAIN:-Users}"
+          else
+            echo "0"
+          fi
+        }
+        ;;
+esac
+
+# ---------------------------------------------------------------------------
+# Root directory based on environment
+# ---------------------------------------------------------------------------
+case "$ENV_TYPE" in
+    termux)
+        ROOT_DIR="$PREFIX"
+        echo "Root directory: $ROOT_DIR (Termux PREFIX)"
+        ;;
+    git-bash)
+        ROOT_DIR="/c"
+        echo "Root directory: $ROOT_DIR (Git Bash C: drive)"
+        ;;
+    *)
+        ROOT_DIR=""
+        echo "Root directory: / (native)"
+        ;;
+esac
 
 set -euo pipefail
 
-# Get current user and group
+# ---------------------------------------------------------------------------
+# Prepare workspace directory
+# ---------------------------------------------------------------------------
 start_dir=$(pwd)
 CURRENT_USER=$(whoami)
 GROUP=$(id -gn "$CURRENT_USER")
 
-echo "Preparing $ROOT_DIR/opt/rc directory..."
-sudo mkdir -p $ROOT_DIR/opt/rc
+echo ""
+echo "Preparing workspace directory: $ROOT_DIR/opt/rc ..."
+sudo mkdir -p "$ROOT_DIR/opt/rc"
 
-if [ "$ROOT_DIR" = "" ]; then
-    echo "Running in native environment. No need to change ownership or set permissions."
-elif $is_git_bash; then
-    echo "Running in Git Bash. Skipping ownership and permission changes (not applicable on Windows)."
-else
-    # Set ownership of $ROOT_DIR/opt/rc to root:<current group>
-    echo "Changing ownership of $ROOT_DIR/opt/rc to root:$GROUP..."
-    sudo chown -R root:"$GROUP" $ROOT_DIR/opt/rc
+case "$ENV_TYPE" in
+    termux|git-bash)
+        echo "Skipping ownership and permission changes (not applicable in $ENV_TYPE)."
+        ;;
+    *)
+        echo "Setting ownership to root:$GROUP and enabling group write access..."
+        sudo chown -R "root:$GROUP" "$ROOT_DIR/opt/rc"
+        sudo chmod -R g+rw "$ROOT_DIR/opt/rc"
+        ;;
+esac
 
-    # Set group write permissions on $ROOT_DIR/opt/rc
-    echo "Setting group write permissions on $ROOT_DIR/opt/rc..."
-    sudo chmod -R g+rw $ROOT_DIR/opt/rc
-fi
-
-# Clone the rc repository
-echo "Preparing to clone rc repository..."
-cd $ROOT_DIR/opt/rc
+# ---------------------------------------------------------------------------
+# Clone or update the rc repository
+# ---------------------------------------------------------------------------
+echo ""
+echo "Cloning rc repository to $ROOT_DIR/opt/rc ..."
+cd "$ROOT_DIR/opt/rc"
 if [ -d .git ]; then
-    echo "rc repository already exists. Pulling latest changes..."
+    echo "Repository already exists — pulling latest changes..."
     git pull
 else
-    echo "Cloning rc repository..."
+    echo "Cloning from https://github.com/nightmaregaurav/rc.git ..."
     git clone https://github.com/nightmaregaurav/rc.git .
-    git config --global --add safe.directory $ROOT_DIR/opt/rc
+    git config --global --add safe.directory "$ROOT_DIR/opt/rc"
 fi
 
-# Write source line to shell rc files
-echo "Writing source line to shell profile..."
-# since our activate script skips after being sourced once it's safer to source activate script in them all
-if $is_git_bash; then
-    # In Git Bash, use user-level profile files instead of system-wide /etc/ files
-    HOME_DIR="${HOME:-$USERPROFILE}"
-    potential_default_sources="
+# ---------------------------------------------------------------------------
+# Write source line to shell profile files
+# ---------------------------------------------------------------------------
+echo ""
+echo "Adding 'source' line to shell profile files..."
+
+case "$ENV_TYPE" in
+    git-bash)
+        # Git Bash uses user-level profile files instead of system-wide /etc/ files
+        HOME_DIR="${HOME:-$USERPROFILE}"
+        potential_default_sources="
 $HOME_DIR/.bash_profile
 $HOME_DIR/.bashrc
 $HOME_DIR/.profile
 "
-else
-    potential_default_sources="
+        ;;
+    *)
+        potential_default_sources="
 $ROOT_DIR/etc/profile
 $ROOT_DIR/etc/profile.d/rc
 $ROOT_DIR/etc/bash.bashrc
@@ -134,9 +172,11 @@ $ROOT_DIR/etc/zshrc
 $ROOT_DIR/etc/zshenv
 $ROOT_DIR/etc/zlogin
 "
-fi
+        ;;
+esac
 
 for source_file in $potential_default_sources; do
+    [ -z "$source_file" ] && continue
     sudo mkdir -p "$(dirname "$source_file")"
 
     if [ ! -e "$source_file" ]; then
@@ -145,82 +185,92 @@ for source_file in $potential_default_sources; do
 
     if ! grep -Fxq "source $ROOT_DIR/opt/rc/activate" "$source_file"; then
         printf '%s\n' "source $ROOT_DIR/opt/rc/activate" | sudo tee -a "$source_file" >/dev/null
+        echo "  Added to: $source_file"
+    else
+        echo "  Already present in: $source_file"
     fi
 done
 
+# ---------------------------------------------------------------------------
 # Source the activate script in the current shell
+# ---------------------------------------------------------------------------
 set +euo pipefail
-echo "Sourcing activate script directly to activate rc in the current shell..."
-source $ROOT_DIR/opt/rc/activate
-
-# Continue with the rest of your setup (e.g., install uv and other tools)
+echo ""
+echo "Activating rc in the current shell..."
+source "$ROOT_DIR/opt/rc/activate"
 set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# Install uv (Python version manager)
+# ---------------------------------------------------------------------------
 cd "$start_dir"
-echo "Setting up uv..."
-echo "Detecting operating system..."
-OS_FOR_UV="$(uname -s)"
-case "$OS_FOR_UV" in
-    Darwin)
-        echo "Detected macOS."
+echo ""
+echo "Setting up uv (Python version manager)..."
+
+case "$ENV_TYPE" in
+    macos)
         if ! command -v brew >/dev/null 2>&1; then
-            echo "Homebrew not found. Please install Homebrew first: https://brew.sh/"
+            echo "Error: Homebrew is required but not found. Install it from https://brew.sh/"
             exit 1
         fi
-        if ! command -v uv >/dev/null 2>&1; then
-            echo "Installing uv with Homebrew..."
+        if command -v uv >/dev/null 2>&1; then
+            echo "uv is already installed."
+        else
+            echo "Installing uv via Homebrew..."
             brew install uv
-        else
-            echo "UV is already installed"
         fi
         ;;
 
-    Linux)
-        set +u
-        if [[ -n "$TERMUX_VERSION" ]]; then
-            echo "Detected Android (Termux)."
-            if ! command -v uv >/dev/null 2>&1; then
-                echo "Installing uv with pkg..."
-                pkg install uv
-            else
-                echo "UV is already installed"
-            fi
+    termux)
+        if command -v uv >/dev/null 2>&1; then
+            echo "uv is already installed."
         else
-            echo "Detected Linux."
-            if ! command -v uv >/dev/null 2>&1; then
-                echo "Installing uv with curl..."
-                curl -LsSf https://astral.sh/uv/install.sh | sh
-            else
-                echo "UV is already installed"
-            fi
+            echo "Installing uv via pkg (Termux)..."
+            pkg install uv
         fi
-        set -u
         ;;
 
-    MINGW*|MSYS*|CYGWIN*|Windows_NT)
-        echo "Detected Windows."
-        if ! command -v uv >/dev/null 2>&1; then
+    git-bash)
+        if command -v uv >/dev/null 2>&1; then
+            echo "uv is already installed."
+        else
             # Try winget first (available in PowerShell/CMD, sometimes in Git Bash)
             if command -v winget >/dev/null 2>&1; then
-                echo "Installing uv with winget..."
+                echo "Installing uv via winget..."
                 winget install --id=astral-sh.uv -e --source winget
             else
-                # Fall back to the official uv installer script (works in Git Bash)
-                echo "winget not found. Installing uv with curl..."
+                echo "winget not available. Installing uv via curl..."
                 curl -LsSf https://astral.sh/uv/install.sh | sh
             fi
-        else
-            echo "UV is already installed"
         fi
         ;;
 
-    *)
-        echo "Unsupported OS: $OS_FOR_UV"
+    linux)
+        if command -v uv >/dev/null 2>&1; then
+            echo "uv is already installed."
+        else
+            echo "Installing uv via curl..."
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+        fi
+        ;;
+
+    unsupported)
+        echo "Error: Unsupported environment — cannot install uv automatically."
         exit 1
         ;;
 esac
 
-echo "Installing Python versions 3.13 using uv..."
+# ---------------------------------------------------------------------------
+# Install Python and required packages
+# ---------------------------------------------------------------------------
+echo ""
+echo "Installing Python 3.13..."
 uv python install 3.13
-echo "Installing argcomplete package using uv..."
+
+echo "Installing argcomplete..."
 uv tool install argcomplete
-echo "Setup completed successfully."
+
+echo ""
+echo "=========================================="
+echo "  Setup completed successfully!"
+echo "=========================================="

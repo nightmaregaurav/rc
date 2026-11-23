@@ -1,12 +1,8 @@
 export PATH="$current_rc_script_dir/tools/scripts:$PATH"
 
-# Make sure all completion functions are sourced
-# these files will be generated once register-rc-completions is run
-if  [ "$CURRENT_SHELL" != "/bin/sh" ] && [ -d "$current_rc_script_dir/tools/completions" ]; then
-    for f in "$current_rc_script_dir"/tools/completions/*-completion.sh; do
-        [ -r "$f" ] && source "$f"
-        [ -r "$f" ] && benchmark "Sourced completions/$(basename "$f")"
-    done
+# Source the single argcomplete dispatcher that registers all RC tool completions dynamically
+if [ "$CURRENT_SHELL" != "/bin/sh" ]; then
+    source "$current_rc_script_dir/tools/completions/rc-completion.sh"
 fi
 
 benchmark "Setup rc command completions"

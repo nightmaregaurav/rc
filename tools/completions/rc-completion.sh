@@ -1,6 +1,8 @@
-#compdef mssql-restore
-# Run something, muting output or redirecting it to the debug stream
-# depending on the value of _ARC_DEBUG.
+# Single argcomplete dispatcher for all RC tools.
+# Instead of sourcing 56 per-command completion files (4,536 lines of identical
+# boilerplate), this file defines the argcomplete helper functions once and
+# registers every tool from tools/scripts/ dynamically.
+
 # If ARGCOMPLETE_USE_TEMPFILES is set, use tempfiles for IPC.
 __python_argcomplete_run() {
     if [[ -z "${ARGCOMPLETE_USE_TEMPFILES-}" ]]; then
@@ -65,17 +67,25 @@ _python_argcomplete() {
         fi
     fi
 }
-if [[ -z "${ZSH_VERSION-}" ]]; then
-    complete -o nospace -o default -o bashdefault -F _python_argcomplete mssql-restore
-else
-    # When called by the Zsh completion system, this will end with
-    # "loadautofunc" when initially autoloaded and "shfunc" later on, otherwise,
-    # the script was "eval"-ed so use "compdef" to register it with the
-    # completion system
-    autoload is-at-least
-    if [[ $zsh_eval_context == *func ]]; then
-        _python_argcomplete "$@"
-    else
-        compdef _python_argcomplete mssql-restore
-    fi
+
+# Register all RC tools dynamically by scanning tools/scripts/
+# Uses the same detection logic as rc-ls: files that are not hidden,
+# have no extension, and are not symlinks.
+if [[ -d "$current_rc_script_dir/tools/scripts" ]]; then
+    for f in "$current_rc_script_dir/tools/scripts"/*; do
+        # Skip if not a regular file or is a symlink
+        [ -f "$f" ] && [ ! -L "$f" ] || continue
+        cmd="$(basename "$f")"
+        # Skip hidden files
+        [[ "$cmd" == .* ]] && continue
+        # Skip files with extensions (only register extension-less scripts)
+        [[ "$cmd" == *.* ]] && continue
+        # Register completion for this command
+        if [[ -z "${ZSH_VERSION-}" ]]; then
+            complete -o nospace -o default -o bashdefault -F _python_argcomplete "$cmd"
+        else
+            autoload is-at-least
+            compdef _python_argcomplete "$cmd"
+        fi
+    done
 fi

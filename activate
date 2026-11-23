@@ -69,13 +69,6 @@ source "$current_rc_script_dir/tools/source"
 source "$current_rc_script_dir/aliases"
 benchmark "Sourced aliases"
 
-# Save public IP Address to a file
-(publicip > "$HOME/.ip.public" &) > /dev/null 2>&1
-benchmark "Save public IP"
-
-# Save local IP Address to a file
-(localip > "$HOME/.ip.local" &) > /dev/null 2>&1
-benchmark "Save local IP"
 
 # Configure enhanced history settings.
 # Let each shell use its default history file location.

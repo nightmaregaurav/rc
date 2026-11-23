@@ -14,39 +14,29 @@ from pathlib import Path
 
 
 def extract_script_list():
-    readme_path = Path(__file__).parent.parent.with_name("README.md")
+    scripts_dir = Path(__file__).parent
 
-    if not readme_path.is_file():
-        print(f"Error: {readme_path} not found.", file=sys.stderr)
+    if not scripts_dir.is_dir():
+        print(f"Error: {scripts_dir} not found.", file=sys.stderr)
         sys.exit(1)
 
-    content = readme_path.read_text(encoding="utf-8")
-    lines = content.splitlines()
+    # Collect executable scripts, excluding this script itself
+    scripts = []
+    for entry in scripts_dir.iterdir():
+        if entry.is_file() and entry.is_symlink() == False:
+            # Skip hidden files, __pycache__, and this script
+            if entry.name.startswith(".") or entry.name == "rc-ls":
+                continue
+            # Check if it's executable (has no extension and is a script)
+            if entry.suffix == "":
+                scripts.append(entry.name)
 
-    start_extracting = False
-    tool_count = 0
-    for line in lines:
-        stripped = line.strip()
+    scripts.sort()
+    for idx, name in enumerate(scripts, 1):
+        numbering = f"{idx:03d}."
+        print(f"{numbering} {name}")
 
-        # Start when we hit "### Tools"
-        if stripped == "### Tools":
-            start_extracting = True
-            continue
-        if not start_extracting:
-            continue
-
-        # Stop at any level-2 heading (## ...)
-        if start_extracting and stripped.startswith("## "):
-            break
-
-        # If we're in the section and the line looks like a script entry, print it
-        if start_extracting and line.lstrip().startswith("- `"):
-            tool_count += 1
-            numbering = f"{tool_count:03d}."
-            line = line.replace("- `", f"{numbering} ")
-            print(line.replace("*", "").replace("`", "").strip())
-
-    print(f"\nTotal tools: {tool_count}")
+    print(f"\nTotal tools: {len(scripts)}")
 
 
 def main():

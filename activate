@@ -108,16 +108,21 @@ if [ -n "${ZSH_VERSION:-}" ]; then
     fi
 elif [ -n "${BASH_VERSION:-}" ]; then
     shopt -s histappend
-    # Use PROMPT_COMMAND to ensure HISTFILE is set and history is reloaded
-    # after /etc/bashrc has been sourced (which may overwrite HISTFILE)
-    _rc_history_init() {
-        export HISTFILE="$HOME/.history"
-        export HISTFILESIZE=10000
-        export HISTSIZE=2000
-        history -n
-        unset -f _rc_history_init
-    }
-    PROMPT_COMMAND="_rc_history_init${PROMPT_COMMAND:+;${PROMPT_COMMAND}};history -a"
+    # PROMPT_COMMAND and history only work in interactive shells.
+    # In non-interactive shells (e.g., during setup scripts), skip this setup
+    # to avoid "command not found" errors on platforms like Git Bash.
+    if [[ $- == *i* ]]; then
+        # Use PROMPT_COMMAND to ensure HISTFILE is set and history is reloaded
+        # after /etc/bashrc has been sourced (which may overwrite HISTFILE)
+        _rc_history_init() {
+            export HISTFILE="$HOME/.history"
+            export HISTFILESIZE=10000
+            export HISTSIZE=2000
+            history -n
+            unset -f _rc_history_init
+        }
+        PROMPT_COMMAND="_rc_history_init${PROMPT_COMMAND:+;${PROMPT_COMMAND}};history -a"
+    fi
 fi
 benchmark "Configure history"
 

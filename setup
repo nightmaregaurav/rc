@@ -38,22 +38,19 @@ if $is_git_bash; then
     }
   fi
 
-  # Git Bash may not have whoami; fall back to USER or username
   if ! command -v whoami >/dev/null 2>&1; then
     whoami() {
       echo "${USER:-${USERNAME:-$(cmd.exe /c echo %USERNAME%)}}"
     }
   fi
 
-  # Git Bash may not have id; provide a fallback
-  if ! command -v id >/dev/null 2>&1; then
-    id() {
-      if [ "$1" = "-gn" ]; then
-        echo "${USERDOMAIN:-Users}"
-      else
-        echo "0"
-      fi
-    }
+  id() {
+    if [ "$1" = "-gn" ]; then
+      echo "${USERDOMAIN:-Users}"
+    else
+      echo "0"
+    fi
+  }
   fi
 fi
 

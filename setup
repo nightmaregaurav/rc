@@ -1,6 +1,15 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 
 SCRIPT=$(basename "$0")
+
+# Detect if running in Git Bash (MINGW/MSYS/CYGWIN on Windows)
+is_git_bash=false
+OS="$(uname -s)"
+case "$OS" in
+    MINGW*|MSYS*|CYGWIN*)
+        is_git_bash=true
+        ;;
+esac
 
 # If running in Termux, make sudo a no-op
 if [ -n "$PREFIX" ]; then
@@ -11,6 +20,41 @@ if [ -n "$PREFIX" ]; then
     done
     "$@"
   }
+fi
+
+# If running in Git Bash, handle missing Unix commands
+if $is_git_bash; then
+  # Disable MSYS path conversion to prevent path corruption
+  export MSYS_NO_PATHCONV=1
+
+  # Git Bash doesn't have sudo; make it a no-op
+  if ! command -v sudo >/dev/null 2>&1; then
+    sudo() {
+      # ignore common sudo flags if present
+      while [ "$1" = "-n" ] || [ "$1" = "-H" ] || [ "$1" = "-E" ]; do
+        shift
+      done
+      "$@"
+    }
+  fi
+
+  # Git Bash may not have whoami; fall back to USER or username
+  if ! command -v whoami >/dev/null 2>&1; then
+    whoami() {
+      echo "${USER:-${USERNAME:-$(cmd.exe /c echo %USERNAME%)}}"
+    }
+  fi
+
+  # Git Bash may not have id; provide a fallback
+  if ! command -v id >/dev/null 2>&1; then
+    id() {
+      if [ "$1" = "-gn" ]; then
+        echo "${USERDOMAIN:-Users}"
+      else
+        echo "0"
+      fi
+    }
+  fi
 fi
 
 HELP_MESSAGE="Usage: $SCRIPT
@@ -29,6 +73,9 @@ fi
 if [ -n "$PREFIX" ]; then
     echo "Running in Termux. Will use $PREFIX as the root directory."
     ROOT_DIR="$PREFIX"
+elif $is_git_bash; then
+    echo "Running in Git Bash. Will use /c as the root directory."
+    ROOT_DIR="/c"
 else
     echo "Running in native environment. Will use / as the root directory."
     ROOT_DIR=""
@@ -38,14 +85,16 @@ set -euo pipefail
 
 # Get current user and group
 start_dir=$(pwd)
-USER=$(whoami)
-GROUP=$(id -gn "$USER")
+CURRENT_USER=$(whoami)
+GROUP=$(id -gn "$CURRENT_USER")
 
 echo "Preparing $ROOT_DIR/opt/rc directory..."
 sudo mkdir -p $ROOT_DIR/opt/rc
 
 if [ "$ROOT_DIR" = "" ]; then
     echo "Running in native environment. No need to change ownership or set permissions."
+elif $is_git_bash; then
+    echo "Running in Git Bash. Skipping ownership and permission changes (not applicable on Windows)."
 else
     # Set ownership of $ROOT_DIR/opt/rc to root:<current group>
     echo "Changing ownership of $ROOT_DIR/opt/rc to root:$GROUP..."
@@ -71,7 +120,16 @@ fi
 # Write source line to shell rc files
 echo "Writing source line to shell profile..."
 # since our activate script skips after being sourced once it's safer to source activate script in them all
-potential_default_sources="
+if $is_git_bash; then
+    # In Git Bash, use user-level profile files instead of system-wide /etc/ files
+    HOME_DIR="${HOME:-$USERPROFILE}"
+    potential_default_sources="
+$HOME_DIR/.bash_profile
+$HOME_DIR/.bashrc
+$HOME_DIR/.profile
+"
+else
+    potential_default_sources="
 $ROOT_DIR/etc/profile
 $ROOT_DIR/etc/profile.d/rc
 $ROOT_DIR/etc/bash.bashrc
@@ -82,6 +140,7 @@ $ROOT_DIR/etc/zshrc
 $ROOT_DIR/etc/zshenv
 $ROOT_DIR/etc/zlogin
 "
+fi
 
 for source_file in $potential_default_sources; do
     sudo mkdir -p "$(dirname "$source_file")"
@@ -105,8 +164,8 @@ set -euo pipefail
 cd "$start_dir"
 echo "Setting up uv..."
 echo "Detecting operating system..."
-OS="$(uname -s)"
-case "$OS" in
+OS_FOR_UV="$(uname -s)"
+case "$OS_FOR_UV" in
     Darwin)
         echo "Detected macOS."
         if ! command -v brew >/dev/null 2>&1; then
@@ -145,20 +204,23 @@ case "$OS" in
 
     MINGW*|MSYS*|CYGWIN*|Windows_NT)
         echo "Detected Windows."
-        if ! command -v winget >/dev/null 2>&1; then
-            echo "winget not found. Please make sure you're running this in a Windows environment with winget available."
-            exit 1
-        fi
         if ! command -v uv >/dev/null 2>&1; then
-            echo "Installing uv with winget..."
-            winget install --id=astral-sh.uv -e --source winget
+            # Try winget first (available in PowerShell/CMD, sometimes in Git Bash)
+            if command -v winget >/dev/null 2>&1; then
+                echo "Installing uv with winget..."
+                winget install --id=astral-sh.uv -e --source winget
+            else
+                # Fall back to the official uv installer script (works in Git Bash)
+                echo "winget not found. Installing uv with curl..."
+                curl -LsSf https://astral.sh/uv/install.sh | sh
+            fi
         else
             echo "UV is already installed"
         fi
         ;;
 
     *)
-        echo "Unsupported OS: $OS"
+        echo "Unsupported OS: $OS_FOR_UV"
         exit 1
         ;;
 esac

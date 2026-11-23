@@ -1,0 +1,398 @@
+#!/usr/bin/env -S uv run --script
+
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#   "argcomplete",
+#   "requests",
+# ]
+# ///
+
+import argparse
+import argcomplete
+import os
+import platform
+import shutil
+import subprocess
+import sys
+import tempfile
+import tarfile
+import zipfile
+from pathlib import Path
+
+import requests
+
+
+ARCHIVE_EXTS = {".zip", ".tar", ".gz", ".bz2", ".xz", ".tar.gz", ".tar.bz2", ".tar.xz"}
+
+
+def is_archive(path: Path) -> bool:
+    """Check if a file looks like a known archive format."""
+    name = path.name.lower()
+    suffix = path.suffix.lower()
+
+    # Check compound extensions like .tar.gz
+    if name.endswith(".tar.gz") or name.endswith(".tar.bz2") or name.endswith(".tar.xz"):
+        return True
+
+    return suffix in ARCHIVE_EXTS
+
+
+def download_file(url: str, dest: Path) -> Path:
+    """Download a file from a URL to the destination path."""
+    print(f"Downloading: {url}")
+
+    response = requests.get(url, stream=True, timeout=30)
+    response.raise_for_status()
+
+    dest.write_bytes(response.content)
+    print(f"Downloaded to: {dest}")
+    return dest
+
+
+def extract_archive(archive_path: Path, extract_dir: Path) -> Path:
+    """Extract an archive to the target directory. Returns the extracted directory."""
+    name = archive_path.name.lower()
+
+    print(f"Extracting archive: {archive_path.name}")
+
+    if name.endswith(".zip"):
+        with zipfile.ZipFile(archive_path) as zf:
+            zf.extractall(extract_dir)
+    elif name.endswith((".tar.gz", ".tgz", ".tar.bz2", ".tbz2", ".tar.xz", ".txz", ".tar")):
+        with tarfile.open(archive_path) as tf:
+            tf.extractall(extract_dir)
+    else:
+        # Try tarfile for other known extensions
+        try:
+            with tarfile.open(archive_path) as tf:
+                tf.extractall(extract_dir)
+        except tarfile.TarError:
+            print(f"Warning: Could not extract {archive_path.name}, treating as regular file.")
+            archive_path.rename(extract_dir / archive_path.name)
+            return archive_path.parent
+
+    print(f"Extracted to: {extract_dir}")
+    return extract_dir
+
+
+def clean_contents(base_dir: Path, clean_files: list[str] | None, clean_folders: list[str] | None) -> None:
+    """Remove files and folders matching the clean lists."""
+    if clean_files:
+        for filename in clean_files:
+            target = base_dir / filename
+            if target.is_file():
+                target.unlink()
+                print(f"Removed file: {filename}")
+
+    if clean_folders:
+        for foldername in clean_folders:
+            target = base_dir / foldername
+            if target.is_dir():
+                shutil.rmtree(target)
+                print(f"Removed folder: {foldername}")
+
+
+def get_source_items(source_dir: Path) -> list[Path]:
+    """Get the items to move from the source directory.
+
+    If the source contains a single directory, return its contents.
+    Otherwise return the items directly.
+    """
+    items = list(source_dir.iterdir())
+
+    if len(items) == 1 and items[0].is_dir():
+        # Single extracted folder — move its contents
+        return list(items[0].iterdir())
+
+    return items
+
+
+def check_path_permission() -> None:
+    """Check that the current user has permission to update machine-wide PATH.
+
+    Runs before downloading so the user isn't left with a downloaded file
+    if the PATH update would fail due to insufficient privileges.
+    """
+    os_type = detect_os()
+
+    if os_type == "macos":
+        paths_d = Path("/etc/paths.d")
+        if not paths_d.exists():
+            if not os.access("/etc", os.W):
+                print("Error: Updating PATH requires root privileges on macOS.", file=sys.stderr)
+                sys.exit(1)
+        elif not os.access(paths_d, os.W):
+            print("Error: Cannot write to /etc/paths.d. Run with sudo or check permissions.", file=sys.stderr)
+            sys.exit(1)
+
+    elif os_type == "linux":
+        profile_d = Path("/etc/profile.d")
+        if not profile_d.exists():
+            if not os.access("/etc", os.W):
+                print("Error: Updating machine-wide PATH requires root privileges on Linux.", file=sys.stderr)
+                sys.exit(1)
+        elif not os.access(profile_d, os.W):
+            print("Error: Cannot write to /etc/profile.d. Run with sudo or check permissions.", file=sys.stderr)
+            sys.exit(1)
+
+    elif os_type == "windows":
+        try:
+            result = subprocess.run(
+                ["net", "session"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                print("Error: Updating machine-wide PATH requires administrator privileges on Windows.", file=sys.stderr)
+                sys.exit(1)
+        except FileNotFoundError:
+            pass
+
+
+def check_conflicts(source_items: list[Path], dest: Path, keep_mode: bool) -> list[str]:
+    """Check for conflicts between source items and destination.
+
+    Returns a list of conflicting filenames.
+    In keep mode, conflicts mean source files that already exist in destination.
+    """
+    conflicts = []
+
+    for item in source_items:
+        target = dest / item.name
+        if target.exists():
+            conflicts.append(item.name)
+
+    return conflicts
+
+
+def move_items(source_items: list[Path], dest: Path, replace: bool, keep: bool) -> None:
+    """Move items from source to destination with conflict resolution."""
+    for item in source_items:
+        target = dest / item.name
+
+        if target.exists():
+            if keep:
+                print(f"Keeping existing: {item.name}")
+                continue
+            elif replace:
+                if target.is_dir():
+                    shutil.rmtree(target)
+                print(f"Replacing: {item.name}")
+
+        shutil.move(str(item), str(target))
+        print(f"Moved: {item.name}")
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Download content from a URL, optionally clean it, and install to a local path.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument("url", help="URL to download from (usually a zip archive).")
+    parser.add_argument("path", help="Destination path in the local filesystem.")
+
+    parser.add_argument(
+        "-c", "--clean",
+        nargs="*",
+        default=[],
+        help="File names to remove before installing.",
+    )
+    parser.add_argument(
+        "-C", "--clean-folder",
+        nargs="*",
+        default=[],
+        help="Folder names to remove before installing.",
+    )
+    parser.add_argument(
+        "-r", "--replace",
+        action="store_true",
+        help="Replace existing files in the destination with the same name.",
+    )
+    parser.add_argument(
+        "-w", "--wipe",
+        action="store_true",
+        help="Wipe the destination directory clean before installing (if it exists).",
+    )
+    parser.add_argument(
+        "-k", "--keep",
+        action="store_true",
+        help="Keep existing files in the destination; skip overwriting. "
+             "If all files conflict, abort with an error.",
+    )
+    parser.add_argument(
+        "-p", "--update-path",
+        action="store_true",
+        help="Update machine-wide PATH to include the destination directory.",
+    )
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    dest = Path(args.path).expanduser().resolve()
+
+    # Check PATH update permission before downloading
+    if args.update_path:
+        check_path_permission()
+
+    # Create a temporary working directory
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_dir = Path(tmp)
+
+        # 1. Download
+        downloaded = tmp_dir / "downloaded"
+        downloaded = download_file(args.url, downloaded)
+
+        # 2. Extract if archive
+        if is_archive(downloaded):
+            extract_dir = tmp_dir / "extracted"
+            extract_dir.mkdir()
+            work_dir = extract_archive(downloaded, extract_dir)
+        else:
+            work_dir = tmp_dir
+            # Move downloaded file to work_dir root for uniform handling
+            downloaded.rename(work_dir / downloaded.name)
+
+        # 3. Clean unwanted files/folders
+        clean_contents(work_dir, args.clean or None, args.clean_folder or None)
+
+        # 4. Prepare destination
+        if dest.exists():
+            if args.wipe:
+                if dest.is_dir():
+                    shutil.rmtree(dest)
+                    print(f"Wiped destination: {dest}")
+                else:
+                    dest.unlink()
+                    print(f"Removed existing file: {dest}")
+        dest.mkdir(parents=True, exist_ok=True)
+
+        # 5. Get source items and check conflicts
+        source_items = get_source_items(work_dir)
+
+        if not source_items:
+            print("Error: Nothing to install after cleaning.", file=sys.stderr)
+            sys.exit(1)
+
+        if args.keep:
+            conflicts = check_conflicts(source_items, dest, keep_mode=True)
+            if len(conflicts) == len(source_items):
+                print("Error: All files already exist in destination. Nothing to install.", file=sys.stderr)
+                sys.exit(1)
+
+        # 6. Move items to destination
+        move_items(source_items, dest, args.replace, args.keep)
+
+    print(f"Installation complete: {dest}")
+
+    # 7. Update machine-wide PATH if requested
+    if args.update_path:
+        update_path(dest)
+
+
+def detect_os() -> str:
+    """Detect the current operating system."""
+    system = platform.system().lower()
+    if system == "darwin":
+        return "macos"
+    elif system == "linux":
+        return "linux"
+    elif system == "windows":
+        return "windows"
+    else:
+        return "unknown"
+
+
+def update_path_macos(dest: Path) -> None:
+    """Update PATH on macOS using /etc/paths.d/."""
+    paths_d = Path("/etc/paths.d")
+    paths_d.mkdir(exist_ok=True)
+
+    path_file = paths_d / dest.name
+    if path_file.exists():
+        print(f"PATH entry already exists: {path_file}")
+        return
+
+    path_file.write_text(str(dest) + "\n")
+    print(f"Added PATH entry: {path_file}")
+    print(f"Run 'source /etc/paths' or open a new terminal to apply.")
+
+
+def update_path_linux(dest: Path) -> None:
+    """Update machine-wide PATH on Linux using /etc/profile.d/. Requires root."""
+    profile_d = Path("/etc/profile.d")
+    profile_d.mkdir(exist_ok=True)
+
+    script_name = f"{dest.name}.sh"
+    script_path = profile_d / script_name
+
+    if script_path.exists():
+        print(f"PATH script already exists: {script_path}")
+        return
+
+    content = f"export PATH=\"$PATH:{dest}\"\n"
+    script_path.write_text(content)
+    script_path.chmod(0o644)
+    print(f"Added PATH script: {script_path}")
+    print("Run 'source /etc/profile' or open a new terminal to apply.")
+
+
+def update_path_windows(dest: Path) -> None:
+    """Update machine-wide PATH on Windows via the system registry.
+
+    Reads the current system PATH from the registry, appends the new entry
+    if not already present, and writes it back — avoiding the %PATH%
+    expansion pitfall that can duplicate user/system entries.
+    """
+    import winreg
+
+    key_path = r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment"
+
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, key_path, 0, winreg.KEY_WRITE
+        ) as key:
+            current, _ = winreg.QueryValueEx(key, "PATH")
+
+        dest_str = str(dest)
+        if dest_str in current.split(os.pathsep):
+            print(f"PATH entry already exists in system registry: {dest_str}")
+            return
+
+        winreg.SetValueEx(key, "PATH", 0, winreg.REG_EXPAND_SZ, current + os.pathsep + dest_str)
+
+    except PermissionError:
+        print("Error: Updating machine-wide PATH requires administrator privileges on Windows.", file=sys.stderr)
+        sys.exit(1)
+    except FileNotFoundError:
+        print("Error: winreg module not available. Cannot update PATH on Windows.", file=sys.stderr)
+        sys.exit(1)
+    except OSError as e:
+        print(f"Error updating PATH registry: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print("Machine-wide PATH updated via system registry (HKEY_LOCAL_MACHINE).")
+    print("Open a new Command Prompt or PowerShell window to apply.")
+
+
+def update_path(dest: Path) -> None:
+    """Update machine-wide PATH to include the destination directory."""
+    os_type = detect_os()
+    print(f"Detected OS: {os_type}")
+
+    if os_type == "macos":
+        update_path_macos(dest)
+    elif os_type == "linux":
+        update_path_linux(dest)
+    elif os_type == "windows":
+        update_path_windows(dest)
+    else:
+        print(f"Warning: Cannot update PATH for unknown OS: {os_type}", file=sys.stderr)
+
+
+if __name__ == "__main__":
+    main()

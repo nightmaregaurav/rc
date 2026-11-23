@@ -52,6 +52,7 @@ The following tools are included to simplify common tasks:
 - `ls-openports`: Lists open ports on the local machine.
 - `mssql-backup`: Wrapper of (`sqlpackage`) to easily backup SQL Server databases.
 - `mssql-restore`: Wrapper of (`sqlpackage`) to easily restore SQL Server databases.
+- `net-install`: Installs file or folder from remote location to specified path.
 - `noexif`: Removes EXIF metadata from images.
 - `now`: Shows the current date and time in a human-readable format.
 - `organize-media`: Organizes images and videos in a folder by their creation date.

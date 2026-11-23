@@ -51,7 +51,6 @@ if $is_git_bash; then
       echo "0"
     fi
   }
-  fi
 fi
 
 HELP_MESSAGE="Usage: $SCRIPT

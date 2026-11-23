@@ -77,52 +77,34 @@ benchmark "Save public IP"
 (localip > "$HOME/.ip.local" &) > /dev/null 2>&1
 benchmark "Save local IP"
 
-# Configure history file and sizes.
-# For zsh: /etc/zshrc overwrites HISTFILE after /etc/zshenv sources this script,
-# so we defer the reinitialization to a precmd hook that runs after all startup files.
-# For bash: /etc/bashrc is sourced after /etc/profile, but our activate has a
-# 2-second debounce that skips the second source, so we use PROMPT_COMMAND to
-# ensure the history file is set correctly.
+# Configure enhanced history settings.
+# Let each shell use its default history file location.
+# These variables are respected by bash, zsh, and sh without needing custom hooks.
+
+# History sizes — keep a large on-disk history and a generous in-memory buffer.
 export HISTFILESIZE=10000
 export SAVEHIST=10000
-export HISTSIZE=2000
-export HISTFILE="$HOME/.history"
+export HISTSIZE=10000
 
+# Duplicate filtration: keep the latest occurrence of each command.
+# Bash: erasedups removes all previous duplicates when a new command is added.
+# ignorespace skips commands starting with a space (useful for sensitive data).
+export HISTCONTROL=erasedups:ignorespace
+
+# Zsh-specific enhancements (safe to skip in non-zsh shells).
 if [ -n "${ZSH_VERSION:-}" ]; then
-    setopt INC_APPEND_HISTORY
-    # Defer history reinitialization to after all startup files (including /etc/zshrc)
-    # have been sourced. This precmd hook runs once on the first prompt, then removes itself.
-    # precmd only works in interactive shells, so guard with $interactive.
-    if [[ $interactive == yes ]]; then
-        _rc_history_init() {
-            # Reinitialize zsh history with the new file and sizes.
-            # Note: fc -p expects (file, histsize, savehist) — order differs from variable names
-            fc -p "$HISTFILE" "$HISTSIZE" "$SAVEHIST"
-            # Remove this hook after it runs once
-            precmd -d _rc_history_init
-        }
-        precmd _rc_history_init
-    else
-        # Non-interactive shell: apply immediately
-        fc -p "$HISTFILE" "$HISTSIZE" "$SAVEHIST"
-    fi
-elif [ -n "${BASH_VERSION:-}" ]; then
-    shopt -s histappend
-    # PROMPT_COMMAND and history only work in interactive shells.
-    # In non-interactive shells (e.g., during setup scripts), skip this setup
-    # to avoid "command not found" errors on platforms like Git Bash.
-    if [[ $- == *i* ]]; then
-        # Use PROMPT_COMMAND to ensure HISTFILE is set and history is reloaded
-        # after /etc/bashrc has been sourced (which may overwrite HISTFILE)
-        _rc_history_init() {
-            export HISTFILE="$HOME/.history"
-            export HISTFILESIZE=10000
-            export HISTSIZE=2000
-            history -n
-            unset -f _rc_history_init
-        }
-        PROMPT_COMMAND="_rc_history_init${PROMPT_COMMAND:+;${PROMPT_COMMAND}};history -a"
-    fi
+    setopt INC_APPEND_HISTORY    # Append history incrementally after each command
+    setopt HIST_IGNORE_ALL_DUPS  # Remove older duplicates when a new command is added
+    setopt HIST_IGNORE_DUPS      # Don't record a command if it matches the previous one
+    setopt HIST_REDUCE_BLANKS    # Remove superfluous blanks from each command
+    setopt HIST_SAVE_NO_DUPS     # Don't write duplicates to the history file
+fi
+
+# Bash-specific enhancements (safe to skip in non-bash shells).
+if [ -n "${BASH_VERSION:-}" ]; then
+    shopt -s histappend          # Append to history file instead of overwriting
+    shopt -s cmdhist             # Keep multiline commands as one entry
+    shopt -s lithist             # Save multiline commands with embedded newlines
 fi
 benchmark "Configure history"
 

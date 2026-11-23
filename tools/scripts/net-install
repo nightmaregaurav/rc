@@ -38,12 +38,40 @@ def is_archive(path: Path) -> bool:
     return suffix in ARCHIVE_EXTS
 
 
-def download_file(url: str, dest: Path) -> Path:
-    """Download a file from a URL to the destination path."""
+def get_filename_from_url(url: str, content_disposition: str | None = None) -> str:
+    """Extract a filename from a URL or Content-Disposition header."""
+    # Try Content-Disposition header first (e.g., "attachment; filename=...")
+    if content_disposition:
+        for part in content_disposition.split(";"):
+            part = part.strip()
+            if part.startswith("filename"):
+                # Handle filename*=UTF-8''encoded_name as well
+                name = part.split("=", 1)[-1].strip().strip('"')
+                if name:
+                    return name
+
+    # Fall back to the last component of the URL path
+    from urllib.parse import urlparse, unquote
+    path = urlparse(url).path
+    name = path.rsplit("/", 1)[-1] if path else "download"
+    return unquote(name) or "download"
+
+
+def download_file(url: str, dest_dir: Path) -> Path:
+    """Download a file from a URL to the destination directory.
+
+    Preserves the original filename from the URL (or Content-Disposition header)
+    so that file extensions are available for archive detection.
+    """
     print(f"Downloading: {url}")
 
     response = requests.get(url, stream=True, timeout=30)
     response.raise_for_status()
+
+    filename = get_filename_from_url(
+        url, response.headers.get("Content-Disposition")
+    )
+    dest = dest_dir / filename
 
     dest.write_bytes(response.content)
     print(f"Downloaded to: {dest}")
@@ -277,9 +305,8 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         tmp_dir = Path(tmp)
 
-        # 1. Download
-        downloaded = tmp_dir / "downloaded"
-        downloaded = download_file(args.url, downloaded)
+        # 1. Download (preserves original filename from URL for archive detection)
+        downloaded = download_file(args.url, tmp_dir)
 
         # 2. Extract if archive
         if is_archive(downloaded):

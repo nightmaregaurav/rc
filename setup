@@ -71,7 +71,7 @@ if [ -n "$PREFIX" ]; then
     echo "Running in Termux. Will use $PREFIX as the root directory."
     ROOT_DIR="$PREFIX"
 elif $is_git_bash; then
-    echo "Running in Git Bash. Will use /c as the root directory."
+    echo "Running in git-bash. Will use /c as the root directory."
     ROOT_DIR="/c"
 else
     echo "Running in native environment. Will use / as the root directory."

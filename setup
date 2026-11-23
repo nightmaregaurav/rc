@@ -27,16 +27,14 @@ if $is_git_bash; then
   # Disable MSYS path conversion to prevent path corruption
   export MSYS_NO_PATHCONV=1
 
-  # Git Bash doesn't have sudo; make it a no-op
-  if ! command -v sudo >/dev/null 2>&1; then
-    sudo() {
-      # ignore common sudo flags if present
-      while [ "$1" = "-n" ] || [ "$1" = "-H" ] || [ "$1" = "-E" ]; do
-        shift
-      done
-      "$@"
-    }
-  fi
+  # Git Bash doesn't need real sudo; make it a no-op
+  sudo() {
+    # ignore common sudo flags if present
+    while [ "$1" = "-n" ] || [ "$1" = "-H" ] || [ "$1" = "-E" ]; do
+      shift
+    done
+    "$@"
+  }
 
   if ! command -v whoami >/dev/null 2>&1; then
     whoami() {

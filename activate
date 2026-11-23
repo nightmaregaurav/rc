@@ -101,8 +101,23 @@ if [ -n "${BASH_VERSION:-}" ]; then
 fi
 benchmark "Configure history"
 
-# Filter duplicates from PATH
-export PATH=$(echo "$PATH" | awk -v RS=':' '!seen[$0]++ { path = path (NR==1 ? "" : ":") $0 } END { print path }')
+# Filter duplicates from PATH using pure shell (no subprocess spawn, POSIX-portable)
+_deduped_path=""
+_path_remaining="$PATH"
+while [ -n "$_path_remaining" ]; do
+    _p="${_path_remaining%%:*}"
+    if [ "$_p" = "$_path_remaining" ]; then
+        _path_remaining=""
+    else
+        _path_remaining="${_path_remaining#*:}"
+    fi
+    case ":${_deduped_path}:" in
+        *:"$_p":*) ;; # already present, skip
+        *) [ -z "$_deduped_path" ] && _deduped_path="$_p" || _deduped_path="$_deduped_path:$_p" ;;
+    esac
+done
+export PATH="$_deduped_path"
+unset _deduped_path _path_remaining _p
 benchmark "Filter duplicates from PATH"
 
 benchmark "End"

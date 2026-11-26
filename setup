@@ -264,8 +264,9 @@ esac
 # Install Python and required packages
 # ---------------------------------------------------------------------------
 echo ""
-echo "Installing Python 3.13..."
-uv python install 3.13
+RC_PYTHON_VERSION="${RC_PYTHON_VERSION:-3.13}"
+echo "Installing Python $RC_PYTHON_VERSION..."
+uv python install "$RC_PYTHON_VERSION"
 
 echo "Installing argcomplete..."
 uv tool install argcomplete

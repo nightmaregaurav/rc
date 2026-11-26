@@ -246,115 +246,6 @@ def move_items(source_items: list[Path], dest: Path, replace: bool, keep: bool) 
         print(f"Moved: {item.name}")
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Download content from a URL, optionally clean it, and install to a local path.",
-        formatter_class=argparse.RawTextHelpFormatter,
-        add_help=False,
-    )
-
-    parser.add_argument("url", help="URL to download from (usually a zip archive).")
-    parser.add_argument("path", help="Destination path in the local filesystem.")
-
-    parser.add_argument(
-        "-c", "--clean",
-        nargs="*",
-        default=[],
-        help="File names to remove before installing.",
-    )
-    parser.add_argument(
-        "-C", "--clean-folder",
-        nargs="*",
-        default=[],
-        help="Folder names to remove before installing.",
-    )
-    parser.add_argument(
-        "-r", "--replace",
-        action="store_true",
-        help="Replace existing files in the destination with the same name.",
-    )
-    parser.add_argument(
-        "-w", "--wipe",
-        action="store_true",
-        help="Wipe the destination directory clean before installing (if it exists).",
-    )
-    parser.add_argument(
-        "-k", "--keep",
-        action="store_true",
-        help="Keep existing files in the destination; skip overwriting. "
-             "If all files conflict, abort with an error.",
-    )
-    parser.add_argument(
-        "-p", "--update-path",
-        action="store_true",
-        help="Update machine-wide PATH to include the destination directory.",
-    )
-
-    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
-
-    argcomplete.autocomplete(parser, always_complete_options=False)
-    args = parser.parse_args()
-
-    dest = Path(args.path).expanduser().resolve()
-
-    # Check PATH update permission before downloading
-    if args.update_path:
-        check_path_permission()
-
-    # Create a temporary working directory
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_dir = Path(tmp)
-
-        # 1. Download (preserves original filename from URL for archive detection)
-        downloaded = download_file(args.url, tmp_dir)
-
-        # 2. Extract if archive
-        if is_archive(downloaded):
-            extract_dir = tmp_dir / "extracted"
-            extract_dir.mkdir()
-            work_dir = extract_archive(downloaded, extract_dir)
-        else:
-            work_dir = tmp_dir
-            # Move downloaded file to work_dir root for uniform handling
-            downloaded.rename(work_dir / downloaded.name)
-
-        # 3. Clean unwanted files/folders
-        clean_contents(work_dir, args.clean or None, args.clean_folder or None)
-
-        # 4. Prepare destination
-        if dest.exists():
-            if args.wipe:
-                if dest.is_dir():
-                    shutil.rmtree(dest)
-                    print(f"Wiped destination: {dest}")
-                else:
-                    dest.unlink()
-                    print(f"Removed existing file: {dest}")
-        dest.mkdir(parents=True, exist_ok=True)
-
-        # 5. Get source items and check conflicts
-        source_items = get_source_items(work_dir)
-
-        if not source_items:
-            print("Error: Nothing to install after cleaning.", file=sys.stderr)
-            sys.exit(1)
-
-        if args.keep:
-            conflicts = check_conflicts(source_items, dest, keep_mode=True)
-            if len(conflicts) == len(source_items):
-                print("Error: All files already exist in destination. Nothing to install.", file=sys.stderr)
-                sys.exit(1)
-
-        # 6. Move items to destination
-        move_items(source_items, dest, args.replace, args.keep)
-
-    print(f"Installation complete: {dest}")
-
-    # 7. Update machine-wide PATH if requested
-    if args.update_path:
-        update_path(dest)
-
-
 def is_windows_env() -> bool:
     """Detect if running on Windows, including Git Bash/MSYS2/WSL environments."""
     # Direct Windows detection
@@ -569,6 +460,115 @@ def update_path(dest: Path) -> None:
         update_path_windows(dest)
     else:
         print(f"Warning: Cannot update PATH for unknown OS: {os_type}", file=sys.stderr)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Download content from a URL, optionally clean it, and install to a local path.",
+        formatter_class=argparse.RawTextHelpFormatter,
+        add_help=False,
+    )
+
+    parser.add_argument("url", help="URL to download from (usually a zip archive).")
+    parser.add_argument("path", help="Destination path in the local filesystem.")
+
+    parser.add_argument(
+        "-c", "--clean",
+        nargs="*",
+        default=[],
+        help="File names to remove before installing.",
+    )
+    parser.add_argument(
+        "-C", "--clean-folder",
+        nargs="*",
+        default=[],
+        help="Folder names to remove before installing.",
+    )
+    parser.add_argument(
+        "-r", "--replace",
+        action="store_true",
+        help="Replace existing files in the destination with the same name.",
+    )
+    parser.add_argument(
+        "-w", "--wipe",
+        action="store_true",
+        help="Wipe the destination directory clean before installing (if it exists).",
+    )
+    parser.add_argument(
+        "-k", "--keep",
+        action="store_true",
+        help="Keep existing files in the destination; skip overwriting. "
+             "If all files conflict, abort with an error.",
+    )
+    parser.add_argument(
+        "-p", "--update-path",
+        action="store_true",
+        help="Update machine-wide PATH to include the destination directory.",
+    )
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
+
+    argcomplete.autocomplete(parser, always_complete_options=False)
+    args = parser.parse_args()
+
+    dest = Path(args.path).expanduser().resolve()
+
+    # Check PATH update permission before downloading
+    if args.update_path:
+        check_path_permission()
+
+    # Create a temporary working directory
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_dir = Path(tmp)
+
+        # 1. Download (preserves original filename from URL for archive detection)
+        downloaded = download_file(args.url, tmp_dir)
+
+        # 2. Extract if archive
+        if is_archive(downloaded):
+            extract_dir = tmp_dir / "extracted"
+            extract_dir.mkdir()
+            work_dir = extract_archive(downloaded, extract_dir)
+        else:
+            work_dir = tmp_dir
+            # Move downloaded file to work_dir root for uniform handling
+            downloaded.rename(work_dir / downloaded.name)
+
+        # 3. Clean unwanted files/folders
+        clean_contents(work_dir, args.clean or None, args.clean_folder or None)
+
+        # 4. Prepare destination
+        if dest.exists():
+            if args.wipe:
+                if dest.is_dir():
+                    shutil.rmtree(dest)
+                    print(f"Wiped destination: {dest}")
+                else:
+                    dest.unlink()
+                    print(f"Removed existing file: {dest}")
+        dest.mkdir(parents=True, exist_ok=True)
+
+        # 5. Get source items and check conflicts
+        source_items = get_source_items(work_dir)
+
+        if not source_items:
+            print("Error: Nothing to install after cleaning.", file=sys.stderr)
+            sys.exit(1)
+
+        if args.keep:
+            conflicts = check_conflicts(source_items, dest, keep_mode=True)
+            if len(conflicts) == len(source_items):
+                print("Error: All files already exist in destination. Nothing to install.", file=sys.stderr)
+                sys.exit(1)
+
+        # 6. Move items to destination
+        move_items(source_items, dest, args.replace, args.keep)
+
+    print(f"Installation complete: {dest}")
+
+    # 7. Update machine-wide PATH if requested
+    if args.update_path:
+        update_path(dest)
 
 
 if __name__ == "__main__":

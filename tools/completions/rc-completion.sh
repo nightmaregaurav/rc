@@ -71,7 +71,10 @@ _python_argcomplete() {
 # Register all RC tools dynamically by scanning tools/scripts/
 # Uses the same detection logic as rc-ls: files that are not hidden,
 # have no extension, and are not symlinks.
-if [[ -d "$current_rc_script_dir/tools/scripts" ]]; then
+if [ -z "${_rc_completions_loaded:-}" ] && [[ -d "$current_rc_script_dir/tools/scripts" ]]; then
+    if [[ -n "${ZSH_VERSION-}" ]]; then
+        autoload is-at-least
+    fi
     for f in "$current_rc_script_dir/tools/scripts"/*; do
         # Skip if not a regular file or is a symlink
         [ -f "$f" ] && [ ! -L "$f" ] || continue
@@ -84,8 +87,8 @@ if [[ -d "$current_rc_script_dir/tools/scripts" ]]; then
         if [[ -z "${ZSH_VERSION-}" ]]; then
             complete -o nospace -o default -o bashdefault -F _python_argcomplete "$cmd"
         else
-            autoload is-at-least
             compdef _python_argcomplete "$cmd"
         fi
     done
+    _rc_completions_loaded=1
 fi

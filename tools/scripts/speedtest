@@ -2,12 +2,13 @@
 
 # /// script
 # requires-python = ">=3.13"
-# dependencies = []
+# dependencies = [
+#     "argcomplete",
+# ]
 # ///
 
-from __future__ import annotations
-
 import argparse
+import argcomplete
 import json
 import statistics
 import sys
@@ -139,7 +140,10 @@ def progress(message: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Internet download and upload speed test.",
+        add_help=False,
     )
+
+    parser.add_argument("-h", "--help", action="help", help="Show help message and exit.")
 
     parser.add_argument(
         "-t",
@@ -171,6 +175,7 @@ def main() -> None:
         help="Upload payload size in bytes (default: 5000000).",
     )
 
+    argcomplete.autocomplete(parser, always_complete_options=False)
     args = parser.parse_args()
 
     if args.timeout <= 0:

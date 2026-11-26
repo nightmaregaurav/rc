@@ -1,3 +1,16 @@
+# Files in envs.d/ are sourced in glob order:
+#   000_* — sourced first (prerequisites like append_path)
+#   001_* — sourced second (shell detection)
+#   *     — sourced last (runtime-specific configs)
+
+if ! command -v benchmark >/dev/null 2>&1; then
+    benchmark() { :; }
+fi
+
+if [ -z "${CURRENT_SHELL:-}" ]; then
+    export CURRENT_SHELL="/bin/sh"
+fi
+
 for file in "$current_rc_script_dir/envs.d/"*; do
     # if it's not a file skip it
     if [[ ! -f "$file" ]]; then

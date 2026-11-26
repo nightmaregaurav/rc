@@ -1,4 +1,4 @@
-# Skip if sourced within the last 2 seconds
+# Skip reinitialization when multiple shell startup files source RC within 2 seconds.
 now=$(date +%s)
 
 if [ -n "${rc_sourced:-}" ] && [ $((now - rc_sourced)) -lt 2 ]; then
@@ -15,7 +15,17 @@ if [ -n "${RC_BENCHMARK}" ]; then
                 echo $(date +%s%3N)
             else
                 # macOS date or other Unix-like systems without %3N
-                echo $(($(date +%s) * 1000 + $(date +%N | cut -b1-3)))
+                local nanos
+                nanos=$(date +%N 2>/dev/null)
+                case "$nanos" in
+                    ''|*[!0-9]*) nanos=0 ;;
+                    *) nanos=$(printf '%s' "$nanos" | cut -b1-3) ;;
+                esac
+                while [ "${nanos#0}" != "$nanos" ]; do
+                    nanos=${nanos#0}
+                done
+                [ -n "$nanos" ] || nanos=0
+                echo $(( $(date +%s) * 1000 + nanos ))
             fi
         else
             echo "Error: 'date' command is not available"

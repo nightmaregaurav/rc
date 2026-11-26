@@ -226,9 +226,8 @@ def start_playing(tokens: list[TextToken| EventToken]):
             else:
                 handle_event(token)
         else:
-            for char in token.text:
-                print(f"Typing character: {char}")
-                keyboard.type(char)
+            print(f"Typing text: {token.text}")
+            keyboard.type(token.text)
 
 
 # ---------------------------

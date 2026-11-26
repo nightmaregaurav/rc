@@ -47,7 +47,6 @@ The following tools are included to simplify common tasks:
 - `hw-stat`: Shows basic hardware usage statistics like CPU, RAM, and Disk.
 - `img2pdf`: Converts images into a single PDF file.
 - `localip`: Prints the local IP address.
-- `localip-fast`: Prints the local IP address, a little faster than (`localip`).
 - `location-of`: Extracts GPS location metadata from images or videos.
 - `ls-openports`: Lists open ports on the local machine.
 - `mssql-backup`: Wrapper of (`sqlpackage`) to easily backup SQL Server databases.
@@ -59,15 +58,13 @@ The following tools are included to simplify common tasks:
 - `pdf2img`: Converts a pdf pages into images.
 - `pdf2img-extract`: Extracts images from PDF file.
 - `publicip`: Prints the public IP address.
-- `publicip-fast`: Prints the public IP address, a little faster than (`publicip`).
 - `puppet`: Records and replays keyboard and mouse action macro.
 - `qr-code-gen`: Generates qr codes from text or files.
 - `rc-ls`: Lists all the available tools provided by RC IE. This repository.
-- `rc-setup-completions`: Installs the completion files for the tools in this repository.
 - `rc-update`: Updates this project to the latest version.
 - `re-run`: Keeps running a command on given time intervals.
 - `recurse-run`: Recursively runs a command in all subdirectories.
-- `serve`: Simple wrapper for http-server (node)
+- `serve`: Serves the current directory with Python's `http.server` and an optional `requests`-based proxy fallback.
 - `set-system-env`: Set system environment variables safely (linux).
 - `snap-camera`: Captures photos using available cameras.
 - `snap-screen`: Captures screenshots for all available screens.
@@ -87,10 +84,21 @@ The following tools are included to simplify common tasks:
 ## Usage
 After sourcing the activate script, all the environment variables, aliases, and functions will be available in your shell. Use the `--help` or `-h` flag with any function to see detailed usage instructions.
 
-## Soft Requirement (only errors out while executing related commands)
-- `android-platform-tools`: Used by `adbw-brute-pair`
-- `ffmpeg`: Used by `amplify`, `split-video`, and `youtube-get`
-- There are some others, will add eventually... sorry...
+## Runtime requirements and tool-specific setup
+
+RC's setup script installs `uv` and Python 3.13 by default. For a manual installation, install `uv` and Python 3.13 or newer; Python tools declare their Python packages in inline metadata, which `uv` resolves when each tool is first run.
+
+Some tools also need external programs, services, or credentials:
+
+- `adbw-brute-pair`: Install Android platform tools (`adb`).
+- `amplify`, `split-video`, and `youtube-get`: Install `ffmpeg`.
+- `bless-you`: macOS uses the built-in `say` command. Linux requires `spd-say` or `espeak` for speech output.
+- `docker-port` and `get-traefik-domains`: Require a running Docker Engine that the current user can access.
+- `git-mkprofile` and `git-modprofile`: Require `ssh-keygen` (OpenSSH client) when generating a new SSH key; an existing key can be selected instead.
+- `mssql-backup` and `mssql-restore`: Require the .NET SDK and `sqlpackage` on `PATH`. Install the tool with `dotnet tool install -g microsoft.sqlpackage`.
+- `tekkon-contacts-export`: Set `GOAT_USERNAME` and `GOAT_PASSWORD` in the environment before running the tool.
+- `update-cloudflare-dns`: Provide the Cloudflare zone ID with `--zone-id` and an API token with `--key`. The token must have DNS edit access for that zone; `--key` expects a Bearer API token, not the account's global API key.
+- `user-session-ssh`: Windows only. Requires OpenSSH Server installed via winget or the official installer at `C:\Program Files\OpenSSH\sshd.exe`; the built-in Windows OpenSSH Server optional feature is not supported by this tool.
 
 ## Contributing
 Feel free to fork this repository and submit pull requests to add new features or improve existing ones.

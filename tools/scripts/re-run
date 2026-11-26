@@ -11,8 +11,9 @@ import argparse
 from pathlib import Path
 import argcomplete
 import re
+import shlex
 import sys
-from _shell_helper import run_in_invoking_shell, wrap_text
+from _shell_helper import run_in_invoking_shell
 
 
 def parse_time_expression(expr: str) -> float:
@@ -70,7 +71,7 @@ def main():
         print("Error: No command provided to re-run.", file=sys.stderr)
         sys.exit(1)
 
-    command = " ".join(args.command)
+    command = shlex.join(args.command)
 
     try:
         interval_ms = parse_time_expression(args.every)
@@ -81,7 +82,7 @@ def main():
     helper_script_path = Path(__file__).resolve().parent.parent / "helpers" / "re-run"
 
     commands_to_run = [
-        wrap_text(str(helper_script_path), '"'),
+        str(helper_script_path),
         str(interval_ms),
         command
     ]

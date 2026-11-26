@@ -11,7 +11,8 @@ import os
 import argparse
 from pathlib import Path
 import argcomplete
-from _shell_helper import run_in_invoking_shell, wrap_text
+import shlex
+from _shell_helper import run_in_invoking_shell
 
 
 def main():
@@ -36,14 +37,14 @@ def main():
     argcomplete.autocomplete(parser, always_complete_options=False)
     args = parser.parse_args()
 
-    initial_command = " ".join(args.command)
+    initial_command = shlex.join(args.command)
     current_directory = os.getcwd()
 
     helper_script_path = Path(__file__).resolve().parent.parent / "helpers" / "recurse-run"
 
     commands_to_run = [
-        wrap_text(str(helper_script_path), '"'),
-        wrap_text(current_directory, '"'),
+        str(helper_script_path),
+        current_directory,
     ]
     if initial_command:
         commands_to_run.append(initial_command)
